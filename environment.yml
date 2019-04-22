@@ -1,0 +1,46 @@
+name: bokeh
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - bokeh=1.1.0
+  - bzip2=1.0.6
+  - ca-certificates=2019.3.9
+  - certifi=2019.3.9
+  - freetype=2.10.0
+  - jinja2=2.10.1
+  - jpeg=9c
+  - libblas=3.8.0
+  - libcblas=3.8.0
+  - libffi=3.2.1
+  - libgfortran=3.0.0
+  - liblapack=3.8.0
+  - libpng=1.6.37
+  - libtiff=4.0.10
+  - markupsafe=1.1.1
+  - ncurses=6.1
+  - numpy=1.16.3
+  - olefile=0.46
+  - openblas=0.3.5
+  - openssl=1.1.1b
+  - packaging=19.0
+  - pillow=6.0.0
+  - pip=19.0.3
+  - pyparsing=2.4.0
+  - python=3.7.3
+  - python-dateutil=2.8.0
+  - pyyaml=5.1
+  - readline=7.0
+  - setuptools=41.0.0
+  - six=1.12.0
+  - sqlite=3.26.0
+  - tk=8.6.9
+  - tornado=6.0.2
+  - wheel=0.33.1
+  - xz=5.2.4
+  - yaml=0.1.7
+  - zlib=1.2.11
+  - anaconda=custom
+  - libgcc-ng=8.2.0
+  - libstdcxx-ng=8.2.0
+prefix: /srv/conda/envs/bokeh
