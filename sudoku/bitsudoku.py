@@ -6,31 +6,32 @@ from time import perf_counter
 
 
 def bitcount(x):
-    x -= (x >> 1) & 0x155 
+    x -= (x >> 1) & 0x155
     x = (x & 0x133) + ((x >> 2) & 0x33)
-    x = (x + (x >> 4)) & 0x10F 
+    x = (x + (x >> 4)) & 0x10F
     return (x + (x >> 8)) & 0xF
 
 
 def neighbors(i: int, j: int) -> np.array:
-    k, l = (i//3)*3, (j//3)*3
+    k, l = (i//3)*3, (j//3)*3  # noqa E741
     return np.array([
         np.r_[i:i:8j, 0:i, i+1:9, np.repeat(np.r_[k:i, i+1:k+3], 2)],
         np.r_[0:j, j+1:9, j:j:8j, np.tile(np.r_[l:j, j+1:l+3], 2)],
     ], dtype=np.intp)
 
 
-_counts = bitcount(np.arange(1<<9, dtype=np.uint16)).astype(np.uint8)
+_counts = bitcount(np.arange(1 << 9, dtype=np.uint16)).astype(np.uint8)
 _neighbors = np.array(
     [[neighbors(i, j) for j in range(9)] for i in range(9)]
-).transpose(2, 0, 1, 3) 
+).transpose(2, 0, 1, 3)
 
 
 def propagate(possible: np.array, count: ma.array, where=ma.array) -> int:
     while np.equal(count, 1, out=where).any():
-        l = np.invert(possible[where])
+        k = np.invert(possible[where])
         # ufunc.at performs *unbuffered* in place operation
-        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]), l[:, np.newaxis])
+        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),
+                          k[:, np.newaxis])
         if not _counts.take(possible, out=count).all():  # stay in sync
             return -1
         count[where] = ma.masked  # no need to visit again
@@ -62,12 +63,12 @@ def solve(given):
         i, j = np.unravel_index(count.argmin(), count.shape)
         k = node[i, j]
         while k:
-            l = k & (k - 1)
+            l = k & (k - 1)  # noqa E741
             node_copy, count_copy = node.copy(), count.copy()
             node_copy[i, j], count_copy[i, j], k = k - l, 1, l
             stack.append((node_copy, count_copy))
 
-    return np.log2(node).astype(np.uint8) + 1 
+    return np.log2(node).astype(np.uint8) + 1
 
 
 if __name__ == "__main__":

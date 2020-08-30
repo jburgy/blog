@@ -9,7 +9,7 @@ def neighbors(i: int, j: int) -> np.array:
     """ row, col, and block (`i`, `j`) belongs to *excluding* (`i`, `j`)
 
     """
-    k, l = (i//3)*3, (j//3)*3
+    k, l = (i//3)*3, (j//3)*3  # noqa E741
     return np.array([
         np.r_[i:i:8j, 0:i, i+1:9, np.repeat(np.r_[k:i, i+1:k+3], 2)],
         np.r_[0:j, j+1:9, j:j:8j, np.tile(np.r_[l:j, j+1:l+3], 2)],
@@ -25,14 +25,14 @@ def propagate(possible: np.array, count: ma.array, where: ma.array) -> int:
     """ Enforce consistency by removing solved values from neighboring sites.
 
     Iterate as long as sites accept a single value.  Note that removing solved
-    values can reveal infeasibility.  When this happens, zeros appear in `count`.
+    values can reveal infeasibility.  When this happens, `count` has zeros.
 
     Parameters
     ----------
     possible: boolean ndarray
         possible[i, j, k] indicates whether k+1 is allowed at site (i, j)
     count: int MaskedArray
-        number of possible values at site (i, j), masking those already propagated
+        number of possible values at site (i, j), masking already propagated
     where: bool MaskedArray
         newly solved sites (count==1 and not masked)
 
