@@ -32,7 +32,7 @@ def _compile_else(code, blocks, _word):
 
 def _compile_then(code, blocks, _word):
     here, block = len(code), blocks.pop()
-    code[block + 1] = here - (block + 2) if code[block] in hasjrel else here 
+    code[block + 1] = here - (block + 2) if code[block] in hasjrel else here
     return ()
 
 
@@ -55,13 +55,16 @@ def _compile_repeat(code, blocks, _word):
     block = blocks.pop()
     while code[block] == opmap["POP_JUMP_IF_FALSE"]:
         previous, block = block, code[block + 1]
-        code[previous + 1] = target - previous if code[previous] in hasjrel else target 
+        code[previous + 1] = (
+            target - previous if code[previous] in hasjrel
+            else target
+        )
     return opmap["JUMP_ABSOLUTE"], block
 
 
 def _gen_compiler(ops):
     code = bytes(byte for op in ops.split() for byte in (opmap[op], 0))
-    return lambda _word: code 
+    return lambda _word: code
 
 
 _ops = {
@@ -70,8 +73,8 @@ _ops = {
     "*": "INPLACE_MULTIPLY",
     "2*": "DUP_TOP INPLACE_ADD",
     "2/": "LOAD_CONST INPLACE_RSHIFT",
-    ">=": _compile_compare, 
-    "and": "INPLACE_AND", 
+    ">=": _compile_compare,
+    "and": "INPLACE_AND",
     # https://complang.tuwien.ac.at/forth/gforth/Docs-html/Data-stack.html
     "drop": "POP_TOP",  # w --
     "nip": "ROT_TWO POP_TOP",  # w1 w2 -- w2
@@ -104,7 +107,7 @@ def compile_forth(
     code = bytearray()
     lnotab = bytearray()
     consts = {}
-    varnames = {} 
+    varnames = {}
     declare, store, offset, lineno = False, False, 0, 0
     blocks = []
 
@@ -120,12 +123,12 @@ def compile_forth(
 
     ops = {
         key: partial(op, code, blocks)
-        if callable(op) else _gen_compiler(op) 
+        if callable(op) else _gen_compiler(op)
         for key, op in _ops.items()
     }
     ops["{"] = toggle_declare
     ops["}"] = toggle_declare
-    ops["to"] = toggle_store 
+    ops["to"] = toggle_store
 
     def default(word):
         if declare:
@@ -134,12 +137,12 @@ def compile_forth(
         arg = varnames.get(word)
         if arg is None:
             op = "LOAD_CONST"
-            arg = consts.setdefault(literal_eval(word), len(consts)) 
+            arg = consts.setdefault(literal_eval(word), len(consts))
         else:
             nonlocal store
             op = "STORE_FAST" if store else "LOAD_FAST"
             store = False
-        return opmap[op], arg 
+        return opmap[op], arg
 
     for i, line in enumerate(func.__doc__.split("\n")):
         for word in line.split():
@@ -157,7 +160,11 @@ def compile_forth(
         0,  # kwonlyargcount
         len(varnames),
         stacksize,
-        COMPILER_FLAGS["OPTIMIZED"] | COMPILER_FLAGS["NEWLOCALS"] | COMPILER_FLAGS["NOFREE"],
+        (
+            COMPILER_FLAGS["OPTIMIZED"] |
+            COMPILER_FLAGS["NEWLOCALS"] |
+            COMPILER_FLAGS["NOFREE"]
+        ),
         bytes(code),
         tuple(sorted(consts, key=consts.__getitem__)),
         tuple(),
@@ -196,7 +203,7 @@ while  swap 2dup * 2*
        rot + -rot +
        n m and
        if tuck + then
-repeat nip 
+repeat nip
 """
     # ( Slower version without local variables )
     # 1 begin 2dup >= while 2* repeat
@@ -219,16 +226,16 @@ repeat nip
             Fnm1, Fn = Fn, Fnm1 + Fn
         m >>= 1
     return Fn
-    
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("n", type=int, help="which Fibonacci number")
     parser.add_argument("--fast", dest="func", action="store_const",
-        const=fast_fib, default=fib)
+                        const=fast_fib, default=fib)
     args = parser.parse_args()
 
-    python = args.func 
+    python = args.func
     forth = compile_forth(python, argcount=1)
     dis(forth)
 
