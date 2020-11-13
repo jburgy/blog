@@ -108,41 +108,49 @@ def compile_forth(
     lnotab = bytearray()
     consts = {}
     varnames = {}
-    declare, store, offset, lineno = False, False, 0, 0
+    fastop, offset, lineno = opmap["LOAD_FAST"], 0, 0
     blocks = []
-
-    def toggle_declare(word):
-        nonlocal declare
-        declare = word == "{"
-        return ()
-
-    def toggle_store(word):
-        nonlocal store
-        store = True
-        return ()
 
     ops = {
         key: partial(op, code, blocks)
         if callable(op) else _gen_compiler(op)
         for key, op in _ops.items()
     }
-    ops["{"] = toggle_declare
-    ops["}"] = toggle_declare
-    ops["to"] = toggle_store
 
-    def default(word):
-        if declare:
-            varnames[word] = len(varnames)
-            return ()
-        arg = varnames.get(word)
-        if arg is None:
-            op = "LOAD_CONST"
-            arg = consts.setdefault(literal_eval(word), len(consts))
-        else:
-            nonlocal store
-            op = "STORE_FAST" if store else "LOAD_FAST"
-            store = False
-        return opmap[op], arg
+    def compile_variable(word):
+        nonlocal fastop
+        res = fastop, varnames[word]
+        fastop = opmap["LOAD_FAST"]  # `to` assigns once
+        return res
+
+    def compile_declare(word):
+        varnames[word] = len(varnames)
+        ops[word] = compile_variable
+        return ()
+
+    def compile_literal(word):
+        return opmap["LOAD_CONST"], consts.setdefault(literal_eval(word), len(consts))
+
+    defaults = {
+        "{": compile_declare,
+        "}": compile_literal,
+    }
+    default = defaults["}"]
+    
+    def toggle_default(word):
+        nonlocal default
+        default = defaults[word]
+        return ()
+
+    def toggle_fastop(word):
+        nonlocal fastop
+        fastop = opmap["STORE_FAST"]
+        return ()
+
+    # these words modify compiler state!
+    ops["{"] = toggle_default
+    ops["}"] = toggle_default
+    ops["to"] = toggle_fastop
 
     for i, line in enumerate(func.__doc__.split("\n")):
         for word in line.split():
@@ -166,9 +174,9 @@ def compile_forth(
             COMPILER_FLAGS["NOFREE"]
         ),
         bytes(code),
-        tuple(sorted(consts, key=consts.__getitem__)),
+        tuple(consts),  # insertion order
         tuple(),
-        tuple(sorted(varnames, key=varnames.__getitem__)),
+        tuple(varnames),
         func.__code__.co_filename,
         func.__code__.co_name,
         func.__code__.co_firstlineno,
