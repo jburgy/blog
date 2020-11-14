@@ -15,7 +15,7 @@ from timeit import timeit
 from types import CodeType, FunctionType
 
 COMPILER_FLAGS = {v: k for k, v in COMPILER_FLAG_NAMES.items()}
-TRANS = str.maketrans("*+-/<=>{}", "TPMDLEGOC")
+TRANS = str.maketrans("*+-/;<=>{}", "TPMDSLEGOC")
 
 
 def _gen_emitter(ops):
@@ -48,6 +48,7 @@ class ForthCompilerMeta(type):
             "2nip": "ROT_FOUR ROT_FOUR POP_TOP POP_TOP",  # w1 w2 w3 w4 - w3 w4
             "2dup": "DUP_TOP_TWO",  # w1 w2 -- w1 w2 w1 w2
             "2swap": "ROT_FOUR ROT_FOUR",  # w1 w2 w3 w4 -- w3 w4 w1 w2
+            ";": "RETURN_VALUE",
         }
         for word, value in ops.items():
             dct["emit_" + word.translate(TRANS)] = _gen_emitter(value)
@@ -62,25 +63,28 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
         self.varnames = {}
         self.fastop = opmap["LOAD_FAST"]
 
+    def adjust_jump(self, source, target):
+        code = self.code
+        previous = code[source + 1]
+        code[source + 1] = (
+            target - source
+            if code[source] in hasjrel
+            else target
+        )
+        return previous
+
     def emit_if(self, word):
         self.emit_begin(word)
         return opmap["POP_JUMP_IF_FALSE"], 0
 
     def emit_else(self, word):
-        code, blocks = self.code, self.blocks
-        here = len(code)
-        block, blocks[-1] = blocks[-1], here
-        code[block + 1] = here + 2
+        blocks, target = self.blocks, len(self.code)
+        self.adjust_jump(blocks[-1], target)
+        blocks[-1] = target 
         return opmap["JUMP_FORWARD"], 0
 
     def emit_then(self, word):
-        code, blocks = self.code, self.blocks
-        here, block = len(code), blocks.pop()
-        code[block + 1] = (
-            here - (block + 2)
-            if code[block] in hasjrel
-            else here
-        )
+        self.adjust_jump(self.blocks.pop(), len(self.code))
         return ()
 
     def emit_begin(self, word):
@@ -99,15 +103,10 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
 
     def emit_repeat(self, word):
         code, blocks = self.code, self.blocks
-        target = len(code) + 2
-        block = blocks.pop()
-        while code[block] == opmap["POP_JUMP_IF_FALSE"]:
-            previous, block = block, code[block + 1]
-            code[previous + 1] = (
-                target - previous if code[previous] in hasjrel
-                else target
-            )
-        return opmap["JUMP_ABSOLUTE"], block
+        source, target = blocks.pop(), len(code) + 2
+        while code[source] == opmap["POP_JUMP_IF_FALSE"]:
+            source = self.adjust_jump(source, target)
+        return opmap["JUMP_ABSOLUTE"], source
 
     def emit_variable(self, word):
         res = self.fastop, self.varnames[word]
@@ -141,7 +140,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
         self.fastop = opmap["STORE_FAST"]
         return ()
 
-    def compile(self, func, argcount=0):
+    def compile(self, func):
         code = self.code
         lnotab = bytearray()
         offset, lineno = 0, 0
@@ -153,11 +152,8 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
             lnotab.extend((n - offset, i - lineno))
             offset, lineno = n, i
 
-        # function epilogue: pop return value off stack
-        code.extend((opmap["RETURN_VALUE"], 0))
-
         code = CodeType(
-            argcount,
+            func.__code__.co_argcount,
             0,  # posonlyargcount
             0,  # kwonlyargcount
             len(self.varnames),
@@ -185,7 +181,7 @@ n 1 0
 begin rot dup
 while 1 - -rot tuck +
 repeat
-drop nip
+drop nip ;
 """
     a = 1
     b = 0
@@ -205,7 +201,7 @@ while  swap 2dup * 2*
        rot + -rot +
        n m and
        if tuck + then
-repeat nip
+repeat nip ;
 """
     # ( Slower version without local variables )
     # 1 begin 2dup >= while 2* repeat
@@ -238,7 +234,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     python = args.func
-    forth = ForthCompiler().compile(python, argcount=1)
+    forth = ForthCompiler().compile(python)
     dis(forth)
 
     p = timeit("f(n)", globals=dict(n=args.n, f=python))
