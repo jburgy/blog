@@ -15,7 +15,6 @@ from timeit import timeit
 from types import CodeType, FunctionType
 
 COMPILER_FLAGS = {v: k for k, v in COMPILER_FLAG_NAMES.items()}
-TRANS = str.maketrans("*+-/;<=>{}", "TPMDSLEGOC")
 
 
 def _gen_emitter(ops):
@@ -26,12 +25,13 @@ def _gen_emitter(ops):
     return emitter
 
 
-class ForthCompilerMeta(type):
+class ForthCompilerMeta:
     def __new__(meta, name, bases, dct):
         ops = {
             "+": "INPLACE_ADD",
             "-": "INPLACE_SUBTRACT",
             "*": "INPLACE_MULTIPLY",
+            "/": "INPLACE_TRUE_DIVIDE",
             "2*": "DUP_TOP INPLACE_ADD",
             "2/": "LOAD_CONST INPLACE_RSHIFT",
             "and": "INPLACE_AND",
@@ -50,9 +50,34 @@ class ForthCompilerMeta(type):
             "2swap": "ROT_FOUR ROT_FOUR",  # w1 w2 w3 w4 -- w3 w4 w1 w2
             ";": "RETURN_VALUE",
         }
-        for word, value in ops.items():
-            dct["emit_" + word.translate(TRANS)] = _gen_emitter(value)
-        return type(name, bases, dct)
+        emitters = {
+            "emit_" + word: _gen_emitter(value)
+            for word, value in ops.items()
+        }
+
+        def compare(self, word):
+            return opmap["COMPARE_OP"], cmp_op.index(word)
+        comparers = {
+            "emit_" + op: compare
+            for op in cmp_op
+        }
+
+        def open_equal(self, word):
+            return opmap["COMPARE_OP"], cmp_op.index("==")
+
+        def open_curly(self, word):
+            self.emit_default = self.emit_declare
+            return ()
+
+        def close_curly(self, word):
+            self.emit_default = self.emit_literal
+            return ()
+        special = {
+            "emit_=": open_equal,
+            "emit_{": open_curly,
+            "emit_}": close_curly,
+        }
+        return type(name, bases, {**dct, **emitters, **comparers, **special})
 
 
 class ForthCompiler(metaclass=ForthCompilerMeta):
@@ -80,7 +105,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
     def emit_else(self, word):
         blocks, target = self.blocks, len(self.code)
         self.adjust_jump(blocks[-1], target)
-        blocks[-1] = target 
+        blocks[-1] = target
         return opmap["JUMP_FORWARD"], 0
 
     def emit_then(self, word):
@@ -95,11 +120,6 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
         code, blocks = self.code, self.blocks
         block, blocks[-1] = blocks[-1], len(code)
         return opmap["POP_JUMP_IF_FALSE"], block
-
-    def emit_compare(self, word):
-        return opmap["COMPARE_OP"], cmp_op.index(word)
-
-    emit_GE = emit_compare
 
     def emit_repeat(self, word):
         code, blocks = self.code, self.blocks
@@ -128,14 +148,6 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
 
     emit_default = emit_literal
 
-    def emit_O(self, word):
-        self.emit_default = self.emit_declare
-        return ()
-
-    def emit_C(self, word):
-        self.emit_default = self.emit_literal
-        return ()
-
     def emit_to(self, word):
         self.fastop = opmap["STORE_FAST"]
         return ()
@@ -146,7 +158,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
         offset, lineno = 0, 0
         for i, line in enumerate(func.__doc__.splitlines()):
             for word in line.split():
-                method = "emit_" + word.translate(TRANS)
+                method = "emit_" + word
                 code.extend(getattr(self, method, self.emit_default)(word))
             n = len(code)
             lnotab.extend((n - offset, i - lineno))
