@@ -10,179 +10,173 @@ http://cubbi.com/fibonacci/forth.html
 from argparse import ArgumentParser
 from ast import literal_eval
 from dis import COMPILER_FLAG_NAMES, dis
-from functools import partial
 from opcode import cmp_op, hasjrel, opmap
 from timeit import timeit
 from types import CodeType, FunctionType
 
 COMPILER_FLAGS = {v: k for k, v in COMPILER_FLAG_NAMES.items()}
+TRANS = str.maketrans("*+-/<=>{}", "TPMDLEGOC")
 
 
-def _compile_if(code, blocks, _word):
-    blocks.append(len(code))
-    return opmap["POP_JUMP_IF_FALSE"], 0
+def _gen_emitter(ops):
+    code = tuple(byte for op in ops.split() for byte in (opmap[op], 0))
+
+    def emitter(self, word):
+        return code
+    return emitter
 
 
-def _compile_else(code, blocks, _word):
-    here = len(code)
-    block, blocks[-1] = blocks[-1], here
-    code[block + 1] = here + 2
-    return opmap["JUMP_FORWARD"], 0
+class ForthCompilerMeta(type):
+    def __new__(meta, name, bases, dct):
+        ops = {
+            "+": "INPLACE_ADD",
+            "-": "INPLACE_SUBTRACT",
+            "*": "INPLACE_MULTIPLY",
+            "2*": "DUP_TOP INPLACE_ADD",
+            "2/": "LOAD_CONST INPLACE_RSHIFT",
+            "and": "INPLACE_AND",
+            # https://complang.tuwien.ac.at/forth/gforth/Docs-html/Data-stack.html
+            "drop": "POP_TOP",  # w --
+            "nip": "ROT_TWO POP_TOP",  # w1 w2 -- w2
+            "dup": "DUP_TOP",  # w - w w
+            "over": "ROT_TWO DUP_TOP ROT_THREE",  # w1 w2 -- w1 w2 w1
+            "tuck": "DUP_TOP ROT_THREE",  # w1 w2 -- w2 w1 w2
+            "swap": "ROT_TWO",  # w1 w2 -- w2 w1
+            "rot": "ROT_THREE ROT_THREE",  # w1 w2 w3 -- w2 w3 w1
+            "-rot": "ROT_THREE",  # w1 w2 w3 -- w3 w1 w2
+            "2drop": "POP_TOP POP_TOP",  # w1 w2 --
+            "2nip": "ROT_FOUR ROT_FOUR POP_TOP POP_TOP",  # w1 w2 w3 w4 - w3 w4
+            "2dup": "DUP_TOP_TWO",  # w1 w2 -- w1 w2 w1 w2
+            "2swap": "ROT_FOUR ROT_FOUR",  # w1 w2 w3 w4 -- w3 w4 w1 w2
+        }
+        for word, value in ops.items():
+            dct["emit_" + word.translate(TRANS)] = _gen_emitter(value)
+        return type(name, bases, dct)
 
 
-def _compile_then(code, blocks, _word):
-    here, block = len(code), blocks.pop()
-    code[block + 1] = here - (block + 2) if code[block] in hasjrel else here
-    return ()
+class ForthCompiler(metaclass=ForthCompilerMeta):
+    def __init__(self):
+        self.code = bytearray()
+        self.blocks = []
+        self.consts = {}
+        self.varnames = {}
+        self.fastop = opmap["LOAD_FAST"]
 
+    def emit_if(self, word):
+        self.emit_begin(word)
+        return opmap["POP_JUMP_IF_FALSE"], 0
 
-def _compile_begin(code, blocks, _word):
-    blocks.append(len(code))
-    return ()
+    def emit_else(self, word):
+        code, blocks = self.code, self.blocks
+        here = len(code)
+        block, blocks[-1] = blocks[-1], here
+        code[block + 1] = here + 2
+        return opmap["JUMP_FORWARD"], 0
 
-
-def _compile_while(code, blocks, _word):
-    block, blocks[-1] = blocks[-1], len(code)
-    return opmap["POP_JUMP_IF_FALSE"], block
-
-
-def _compile_compare(code, blocks, word):
-    return opmap["COMPARE_OP"], cmp_op.index(word)
-
-
-def _compile_repeat(code, blocks, _word):
-    target = len(code) + 2
-    block = blocks.pop()
-    while code[block] == opmap["POP_JUMP_IF_FALSE"]:
-        previous, block = block, code[block + 1]
-        code[previous + 1] = (
-            target - previous if code[previous] in hasjrel
-            else target
+    def emit_then(self, word):
+        code, blocks = self.code, self.blocks
+        here, block = len(code), blocks.pop()
+        code[block + 1] = (
+            here - (block + 2)
+            if code[block] in hasjrel
+            else here
         )
-    return opmap["JUMP_ABSOLUTE"], block
+        return ()
 
+    def emit_begin(self, word):
+        self.blocks.append(len(self.code))
+        return ()
 
-def _gen_compiler(ops):
-    code = bytes(byte for op in ops.split() for byte in (opmap[op], 0))
-    return lambda _word: code
+    def emit_while(self, word):
+        code, blocks = self.code, self.blocks
+        block, blocks[-1] = blocks[-1], len(code)
+        return opmap["POP_JUMP_IF_FALSE"], block
 
+    def emit_compare(self, word):
+        return opmap["COMPARE_OP"], cmp_op.index(word)
 
-_ops = {
-    "+": "INPLACE_ADD",
-    "-": "INPLACE_SUBTRACT",
-    "*": "INPLACE_MULTIPLY",
-    "2*": "DUP_TOP INPLACE_ADD",
-    "2/": "LOAD_CONST INPLACE_RSHIFT",
-    ">=": _compile_compare,
-    "and": "INPLACE_AND",
-    # https://complang.tuwien.ac.at/forth/gforth/Docs-html/Data-stack.html
-    "drop": "POP_TOP",  # w --
-    "nip": "ROT_TWO POP_TOP",  # w1 w2 -- w2
-    "dup": "DUP_TOP",  # w - w w
-    "over": "ROT_TWO DUP_TOP ROT_THREE",  # w1 w2 -- w1 w2 w1
-    "tuck": "DUP_TOP ROT_THREE",  # w1 w2 -- w2 w1 w2
-    "swap": "ROT_TWO",  # w1 w2 -- w2 w1
-    "rot": "ROT_THREE ROT_THREE",  # w1 w2 w3 -- w2 w3 w1
-    "-rot": "ROT_THREE",  # w1 w2 w3 -- w3 w1 w2
-    "2drop": "POP_TOP POP_TOP",  # w1 w2 --
-    "2nip": "ROT_FOUR ROT_FOUR POP_TOP POP_TOP",  # w1 w2 w3 w4 -- w3 w4
-    "2dup": "DUP_TOP_TWO",  # w1 w2 -- w1 w2 w1 w2
-    "2swap": "ROT_FOUR ROT_FOUR",  # w1 w2 w3 w4 -- w3 w4 w1 w2
-    # https://www.complang.tuwien.ac.at/forth/gforth/Docs-html/Selection.html
-    "if": _compile_if,
-    "else": _compile_else,
-    "then": _compile_then,
-    # https://complang.tuwien.ac.at/forth/gforth/Docs-html/Simple-Loops.html
-    "begin": _compile_begin,
-    "while": _compile_while,
-    "repeat": _compile_repeat,
-}
+    emit_GE = emit_compare
 
+    def emit_repeat(self, word):
+        code, blocks = self.code, self.blocks
+        target = len(code) + 2
+        block = blocks.pop()
+        while code[block] == opmap["POP_JUMP_IF_FALSE"]:
+            previous, block = block, code[block + 1]
+            code[previous + 1] = (
+                target - previous if code[previous] in hasjrel
+                else target
+            )
+        return opmap["JUMP_ABSOLUTE"], block
 
-def compile_forth(
-    func,
-    argcount=0,
-    stacksize=0,
-):
-    code = bytearray()
-    lnotab = bytearray()
-    consts = {}
-    varnames = {}
-    fastop, offset, lineno = opmap["LOAD_FAST"], 0, 0
-    blocks = []
-
-    ops = {
-        key: partial(op, code, blocks)
-        if callable(op) else _gen_compiler(op)
-        for key, op in _ops.items()
-    }
-
-    def compile_variable(word):
-        nonlocal fastop
-        res = fastop, varnames[word]
-        fastop = opmap["LOAD_FAST"]  # `to` assigns once
+    def emit_variable(self, word):
+        res = self.fastop, self.varnames[word]
+        self.fastop = opmap["LOAD_FAST"]  # `to` assigns once
         return res
 
-    def compile_declare(word):
+    def emit_declare(self, word):
+        varnames = self.varnames
         varnames[word] = len(varnames)
-        ops[word] = compile_variable
+        setattr(self, "emit_" + word, self.emit_variable)
         return ()
 
-    def compile_literal(word):
-        return opmap["LOAD_CONST"], consts.setdefault(literal_eval(word), len(consts))
+    def emit_literal(self, word):
+        consts = self.consts
+        return (
+            opmap["LOAD_CONST"],
+            consts.setdefault(literal_eval(word), len(consts)),
+        )
 
-    defaults = {
-        "{": compile_declare,
-        "}": compile_literal,
-    }
-    default = defaults["}"]
-    
-    def toggle_default(word):
-        nonlocal default
-        default = defaults[word]
+    emit_default = emit_literal
+
+    def emit_O(self, word):
+        self.emit_default = self.emit_declare
         return ()
 
-    def toggle_fastop(word):
-        nonlocal fastop
-        fastop = opmap["STORE_FAST"]
+    def emit_C(self, word):
+        self.emit_default = self.emit_literal
         return ()
 
-    # these words modify compiler state!
-    ops["{"] = toggle_default
-    ops["}"] = toggle_default
-    ops["to"] = toggle_fastop
+    def emit_to(self, word):
+        self.fastop = opmap["STORE_FAST"]
+        return ()
 
-    for i, line in enumerate(func.__doc__.split("\n")):
-        for word in line.split():
-            code.extend(ops.get(word, default)(word))
-        n = len(code)
-        lnotab.extend((n - offset, i - lineno))
-        offset, lineno = n, i
+    def compile(self, func, argcount=0):
+        code = self.code
+        lnotab = bytearray()
+        offset, lineno = 0, 0
+        for i, line in enumerate(func.__doc__.splitlines()):
+            for word in line.split():
+                method = "emit_" + word.translate(TRANS)
+                code.extend(getattr(self, method, self.emit_default)(word))
+            n = len(code)
+            lnotab.extend((n - offset, i - lineno))
+            offset, lineno = n, i
 
-    # function epilogue: pop return value off stack
-    code.extend((opmap["RETURN_VALUE"], 0))
+        # function epilogue: pop return value off stack
+        code.extend((opmap["RETURN_VALUE"], 0))
 
-    code = CodeType(
-        argcount,
-        0,  # posonlyargcount,
-        0,  # kwonlyargcount
-        len(varnames),
-        stacksize,
-        (
-            COMPILER_FLAGS["OPTIMIZED"] |
-            COMPILER_FLAGS["NEWLOCALS"] |
-            COMPILER_FLAGS["NOFREE"]
-        ),
-        bytes(code),
-        tuple(consts),  # insertion order
-        tuple(),
-        tuple(varnames),
-        func.__code__.co_filename,
-        func.__code__.co_name,
-        func.__code__.co_firstlineno,
-        bytes(lnotab),
-    )
-    return FunctionType(code, func.__globals__)
+        code = CodeType(
+            argcount,
+            0,  # posonlyargcount
+            0,  # kwonlyargcount
+            len(self.varnames),
+            0,  # stacksize
+            (
+                COMPILER_FLAGS["OPTIMIZED"] |
+                COMPILER_FLAGS["NEWLOCALS"] |
+                COMPILER_FLAGS["NOFREE"]
+            ),
+            bytes(code),
+            tuple(self.consts),  # insertion order
+            tuple(),
+            tuple(self.varnames),
+            func.__code__.co_filename,
+            func.__code__.co_name,
+            func.__code__.co_firstlineno,
+            bytes(lnotab),
+        )
+        return FunctionType(code, func.__globals__)
 
 
 def fib(n):
@@ -244,7 +238,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     python = args.func
-    forth = compile_forth(python, argcount=1)
+    forth = ForthCompiler().compile(python, argcount=1)
     dis(forth)
 
     p = timeit("f(n)", globals=dict(n=args.n, f=python))
