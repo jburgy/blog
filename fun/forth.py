@@ -1,15 +1,29 @@
 # ~*~ encoding: utf8; ~*~
 """ Compiling forth to python bytecode for fun micro-optimizations
 
+Python performs only the most minimal optimizations before generating
+bytecode.  As a consequence, there are many opportunities to speed up
+simple functions by skipping unnecessary instructions.  What is the
+easiest way to generate those optimized instruction lists?  There are
+a few ways:
+    1. ast to bytecode optimizing compiler
+    2. unoptimized bytecode to optimized bytecode converter
+    3. let a human do it
+The first two approaches are extremely complex as illustrated by the
+vast body of research on the topic.  Forth is basically a condensed
+textual representation of a stack machine.  This makes it perfectly
+suited to the task at hand.
+
+https://legacy.python.org/workshops/1998-11/proceedings/papers/montanaro/montanaro.html
 https://users.ece.cmu.edu/~koopman/stack_compiler/stack_co.pdf
 https://www.complang.tuwien.ac.at/forth/gforth/Docs-html/index.html
-https:http://git.annexia.org/?p=jonesforth.git;a=blob;f=jonesforth.S
+http://git.annexia.org/?p=jonesforth.git;a=blob;f=jonesforth.S
 https://towardsdatascience.com/understanding-python-bytecode-e7edaae8734d
 http://cubbi.com/fibonacci/forth.html
 """
 from argparse import ArgumentParser
 from ast import literal_eval
-from dis import COMPILER_FLAG_NAMES, dis
+from dis import COMPILER_FLAG_NAMES, dis, show_code
 from opcode import cmp_op, hasjrel, opmap
 from timeit import timeit
 from types import CodeType, FunctionType
@@ -62,7 +76,7 @@ class ForthCompilerMeta:
             for op in cmp_op
         }
 
-        def open_equal(self, word):
+        def emit_equal(self, word):
             return opmap["COMPARE_OP"], cmp_op.index("==")
 
         def open_curly(self, word):
@@ -72,20 +86,30 @@ class ForthCompilerMeta:
         def close_curly(self, word):
             self.emit_default = self.emit_literal
             return ()
+
+        def emit_colon(self, word):
+            self.emit_default = self.emit_define
+            return ()
         special = {
-            "emit_=": open_equal,
+            "emit_=": emit_equal,
             "emit_{": open_curly,
             "emit_}": close_curly,
+            "emit_:": emit_colon,
         }
         return type(name, bases, {**dct, **emitters, **comparers, **special})
 
 
 class ForthCompiler(metaclass=ForthCompilerMeta):
+    """ Forth to Python bytecode compiler
+
+    Instances implement a state machine by mutating self.emit_default and self.fastop.
+    """
     def __init__(self):
         self.code = bytearray()
         self.blocks = []
         self.consts = {}
         self.varnames = {}
+        self.func_name = None
         self.fastop = opmap["LOAD_FAST"]
 
     def adjust_jump(self, source, target):
@@ -152,14 +176,18 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
         self.fastop = opmap["STORE_FAST"]
         return ()
 
+    def emit_define(self, word):
+        self.func_name = word
+        self.emit_default = self.emit_literal
+        return ()
+
     def compile(self, func):
         code = self.code
         lnotab = bytearray()
         offset, lineno = 0, 0
         for i, line in enumerate(func.__doc__.splitlines()):
             for word in line.split():
-                method = "emit_" + word
-                code.extend(getattr(self, method, self.emit_default)(word))
+                code.extend(getattr(self, "emit_" + word, self.emit_default)(word))
             n = len(code)
             lnotab.extend((n - offset, i - lineno))
             offset, lineno = n, i
@@ -180,7 +208,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
             tuple(),
             tuple(self.varnames),
             func.__code__.co_filename,
-            func.__code__.co_name,
+            self.func_name or func.__code__.co_name,
             func.__code__.co_firstlineno,
             bytes(lnotab),
         )
@@ -188,7 +216,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
 
 
 def fib(n):
-    """{ n }
+    """: fib { n }
 n 1 0
 begin rot dup
 while 1 - -rot tuck +
@@ -204,7 +232,7 @@ drop nip ;
 
 
 def fast_fib(n):
-    """{ n m }
+    """: fast_fib { n m }
 n 1 begin 2dup >= while 2* repeat to m
 1 0 begin m 2/ dup to m
 while  swap 2dup * 2*
@@ -247,6 +275,7 @@ if __name__ == "__main__":
 
     python = args.func
     forth = ForthCompiler().compile(python)
+    show_code(forth)
     dis(forth)
 
     p = timeit("f(n)", globals=dict(n=args.n, f=python))
