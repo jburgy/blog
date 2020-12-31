@@ -1,2 +1,2 @@
 numpy
-sqlalchemy>=1.4
+sqlalchemy>=1.4.0b1
