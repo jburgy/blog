@@ -45,7 +45,7 @@ class ForthCompilerMeta:
             "+": "INPLACE_ADD",
             "-": "INPLACE_SUBTRACT",
             "*": "INPLACE_MULTIPLY",
-            "/": "INPLACE_TRUE_DIVIDE",
+            "/": "INPLACE_FLOOR_DIVIDE",
             "2*": "DUP_TOP INPLACE_ADD",
             "2/": "LOAD_CONST INPLACE_RSHIFT",
             "and": "INPLACE_AND",
@@ -116,7 +116,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
         code = self.code
         previous = code[source + 1]
         code[source + 1] = (
-            target - source
+            target - source - 2
             if code[source] in hasjrel
             else target
         )
@@ -128,7 +128,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
 
     def emit_else(self, word):
         blocks, target = self.blocks, len(self.code)
-        self.adjust_jump(blocks[-1], target)
+        self.adjust_jump(blocks[-1], target + 2)
         blocks[-1] = target
         return opmap["JUMP_FORWARD"], 0
 
