@@ -40,7 +40,7 @@ MANIFEST
 .ipynb_checkpoints
 
 # Environments
-.venv
+.venv/
 
 # mypy
 .mypy_cache/
