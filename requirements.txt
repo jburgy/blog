@@ -1,2 +1,5 @@
+bokeh
+jupyter
 numpy
+seaborn
 sqlalchemy>=1.4.0b1
