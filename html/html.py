@@ -7,6 +7,8 @@ to generate simple javascript.
 Generate https://developer.mozilla.org/en-US/docs/Web/HTML/Element/output
 """
 from json import dumps
+from typing import Dict
+
 from sympy import Expr, abc, jscode
 
 # OK, this looks very much like jinja2 but it's boilerplate to guarantee
@@ -35,7 +37,7 @@ document.addEventListener("DOMContentLoaded", (event) => {{
 """
 
 
-def interactions(**kwds: dict[str, Expr]) -> dict[str, str]:
+def interactions(**kwds: Dict[str, Expr]) -> Dict[str, str]:
     """Generate valid JS from sympy expressions"""
     listeners = {}
     structure = []
