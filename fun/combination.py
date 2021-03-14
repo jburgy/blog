@@ -1,6 +1,6 @@
 # ~*~ coding: utf8; ~*~
 from dis import dis
-from forth import ForthCompiler
+from .forth import ForthCompiler
 
 
 def index(mask: int) -> int:

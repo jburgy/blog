@@ -20,11 +20,11 @@ document.addEventListener("DOMContentLoaded", (event) => {{
 
     {structure}.map(({{ argIds, targetId, event="change" }}) => {{
         const target = document.getElementById(targetId);
-        const args = argIds.map(argId => document.getElementById(argId)); 
+        const args = argIds.map(argId => document.getElementById(argId));
         const listener = listeners[targetId];
 
         for (const arg of args) {{
-            arg.addEventListener(event, () => {{ 
+            arg.addEventListener(event, () => {{
                 const argVals = args.map(arg => parseInt(arg.value));
                 target.value = listener(...argVals);
                 target.dispatchEvent(change)
@@ -72,10 +72,12 @@ form = _element("form")
 input = _element("input", empty=True)
 output = _element("output")
 
-listeners, structure = interactions(result=abc.a + abc.b) 
+listeners, structure = interactions(result=abc.a + abc.b)
 
 print(html(
-    head(script(script_template.format(listeners=listeners, structure=structure))),
+    head(script(script_template.format(
+        listeners=listeners, structure=structure
+    ))),
     body(
         form(
             input(type="range", id="b", name="b", value="50"),

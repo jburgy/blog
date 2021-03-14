@@ -1,7 +1,6 @@
-#~*~ conding: utf8; ~*~
+# ~*~ conding: utf8; ~*~
 from ast import literal_eval
 from dis import COMPILER_FLAG_NAMES, dis, show_code
-from io import StringIO
 from opcode import opmap
 import re
 from sys import argv
@@ -32,7 +31,7 @@ def assemble(func: callable):
     consts = {}
     names = {}
     varnames = {}
-    plineno, poffset = None, None 
+    plineno, poffset = None, None
     for line in func.__doc__.splitlines():
         m = DIS.fullmatch(line)
         if not m:
@@ -56,7 +55,7 @@ def assemble(func: callable):
                 consts[oparg] = literal_eval(argrepr)
             elif opname in {"LOAD_ATTR", "LOAD_METHOD"}:
                 names[oparg] = argrepr
-            elif opname in {"LOAD_FAST", "STORE_FAST"}: 
+            elif opname in {"LOAD_FAST", "STORE_FAST"}:
                 varnames[oparg] = argrepr
         else:
             code.append(0)
@@ -66,7 +65,9 @@ def assemble(func: callable):
         func.__code__.co_kwonlyargcount,
         len(varnames),
         0,  # stacksize
-        COMPILER_FLAGS["OPTIMIZED"] | COMPILER_FLAGS["NEWLOCALS"] | COMPILER_FLAGS["NOFREE"],
+        COMPILER_FLAGS["OPTIMIZED"]
+        | COMPILER_FLAGS["NEWLOCALS"]
+        | COMPILER_FLAGS["NOFREE"],
         bytes(code),
         _tuple_from_dict(consts),
         _tuple_from_dict(names),
@@ -156,7 +157,7 @@ fibonacci_optimized = assemble(fibonacci)
 
 
 if __name__ == "__main__":
-    n = int(argv[1]) if len(argv) > 1 else 12 
+    n = int(argv[1]) if len(argv) > 1 else 12
     show_code(fibonacci_optimized)
     dis(fibonacci_optimized)
 

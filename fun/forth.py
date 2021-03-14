@@ -102,7 +102,8 @@ class ForthCompilerMeta:
 class ForthCompiler(metaclass=ForthCompilerMeta):
     """ Forth to Python bytecode compiler
 
-    Instances implement a state machine by mutating self.emit_default and self.fastop.
+    Instances implement a state machine by mutating self.emit_default and
+    self.fastop.
     """
     def __init__(self):
         self.code = bytearray()
@@ -187,7 +188,9 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
         offset, lineno = 0, 0
         for i, line in enumerate(func.__doc__.splitlines()):
             for word in line.split():
-                code.extend(getattr(self, "emit_" + word, self.emit_default)(word))
+                code.extend(
+                    getattr(self, "emit_" + word, self.emit_default)(word)
+                )
             n = len(code)
             lnotab.extend((n - offset, i - lineno))
             offset, lineno = n, i
