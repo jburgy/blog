@@ -1,5 +1,6 @@
 bokeh
+fastapi
 jupyter
-numpy
 seaborn
-sqlalchemy>=1.4.0b1
+sqlalchemy
+sympy
