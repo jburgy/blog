@@ -15,8 +15,8 @@ def bitcount(x):
 def neighbors(i: int, j: int) -> np.array:
     k, l = (i//3)*3, (j//3)*3  # noqa E741
     return np.array([
-        np.r_[i:i:8j, 0:i, i+1:9, np.repeat(np.r_[k:i, i+1:k+3], 2)],
-        np.r_[0:j, j+1:9, j:j:8j, np.tile(np.r_[l:j, j+1:l+3], 2)],
+        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],
+        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],
     ], dtype=np.intp)
 
 
@@ -49,7 +49,7 @@ def solve(given):
 
     # allocate upfront to pass as out parameter to np.equal
     # (ma.array because count is ma.array)
-    where = ma.array(np.empty((9, 9), dtype=np.bool), fill_value=False)
+    where = ma.array(np.empty((9, 9), dtype=bool), fill_value=False)
 
     stack = [(possible, count)]
     while stack:
