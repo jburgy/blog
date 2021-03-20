@@ -1,5 +1,3 @@
-# flake8: noqa E501
-
 from json import load
 from urllib.request import urlopen
 
@@ -25,23 +23,25 @@ def _generate(shape: tuple, mapping: dict, key, missing_value):
 def oecd(dataset: str) -> pd.DataFrame:
     """ OECD dataset as pandas DataFrame
 
-    heavily streamlined version of https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#oecd
+    heavily streamlined version of
+    https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#oecd
     See https://data.oecd.org/api/sdmx-ml-documentation/
 
-    >>> oecd("TUD")
-    Year                                                1987    1990    1995    1998    2000  ...    1982    1983    1985    1986    1988
-    Country Source              Series                                                        ...                                        
-    Hungary Administrative data Employees             4500.0  4500.0  2979.0  3088.0  3256.0  ...     NaN     NaN     NaN     NaN     NaN
-                                Union members         4400.0  3989.0  1440.0   840.0   775.0  ...     NaN     NaN     NaN     NaN     NaN
-                                Trade union  density    97.8    88.6    48.3    27.2    23.8  ...     NaN     NaN     NaN     NaN     NaN
-            Survey data         Employees                NaN     NaN     NaN     NaN     NaN  ...     NaN     NaN     NaN     NaN     NaN
-                                Union members            NaN     NaN     NaN     NaN     NaN  ...     NaN     NaN     NaN     NaN     NaN
-    ...                                                  ...     ...     ...     ...     ...  ...     ...     ...     ...     ...     ...
-    Germany Administrative data Union members         7868.0  8014.0  9335.0  8327.0  7928.0  ...  8092.0  7964.0  7893.0  7892.0  7888.0
-                                Trade union  density    33.3    31.2    29.2    25.9    24.6  ...    35.0    35.0    34.7    33.9    33.1
-            Survey data         Employees                NaN     NaN     NaN     NaN     NaN  ...     NaN     NaN     NaN     NaN     NaN
-                                Union members            NaN     NaN     NaN     NaN     NaN  ...     NaN     NaN     NaN     NaN     NaN
-                                Trade union  density     NaN     NaN     NaN     NaN     NaN  ...     NaN     NaN     NaN     NaN     NaN
+    >>> pd.options.display.max_columns = 3
+    >>> oecd("TUD")  #doctest: +NORMALIZE_WHITESPACE
+    Year                                                1987  ...    1988
+    Country Source              Series                        ...
+    Hungary Administrative data Employees             4500.0  ...     NaN
+                                Union members         4400.0  ...     NaN
+                                Trade union  density    97.8  ...     NaN
+            Survey data         Employees                NaN  ...     NaN
+                                Union members            NaN  ...     NaN
+    ...                                                  ...  ...     ...
+    Germany Administrative data Union members         7868.0  ...  7888.0
+                                Trade union  density    33.3  ...    33.1
+            Survey data         Employees                NaN  ...     NaN
+                                Union members            NaN  ...     NaN
+                                Trade union  density     NaN  ...     NaN
     <BLANKLINE>
     [216 rows x 59 columns]
     >>>
