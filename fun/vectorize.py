@@ -1,5 +1,6 @@
 import ast
 from inspect import getsource
+from textwrap import dedent
 
 import numpy as np
 
@@ -58,7 +59,7 @@ class Vectorizer(ast.NodeTransformer):
 
 def numpify(func):
     source = getsource(func)
-    node = ast.parse(source)
+    node = ast.parse(dedent(source))
     new_node = ast.fix_missing_locations(Vectorizer().visit(node))
     code = compile(new_node, "<string>", "exec")
     namespace = {"np": np}
@@ -67,7 +68,7 @@ def numpify(func):
 
 
 if __name__ == "__main__":
-    def f(x: list[float]):
+    def f(x):
         s = [t*2 for t in x]
         return s
 

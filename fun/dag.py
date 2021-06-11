@@ -30,7 +30,7 @@ class _BaseEntry:
 
 
 class PartialEntry(partial, _BaseEntry):
-    def __new__(cls, func, /, *args, **keywords):
+    def __new__(cls, func, *args, **keywords):
         self = super().__new__(cls, func, *args, **keywords)
         self.children = WeakSet()
         return self
@@ -43,7 +43,7 @@ class PartialEntry(partial, _BaseEntry):
 
 
 class WeakSetEntry(WeakSet, _BaseEntry):
-    def __init__(self, user_function, /, *args, **keywords):
+    def __init__(self, user_function, *args, **keywords):
         super().__init__()
         self.partial = partial(user_function, *args, **keywords)
         self.hashvalue = hash(self.partial)
@@ -56,7 +56,7 @@ class WeakSetEntry(WeakSet, _BaseEntry):
 
 
 class DelegateEntry(_BaseEntry):
-    def __init__(self, user_function, /, *args, **keywords):
+    def __init__(self, user_function, *args, **keywords):
         self.partial = partial(user_function, *args, **keywords)
         self.hashvalue = hash(self.partial)
         self.children = WeakSet()
