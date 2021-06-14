@@ -27,23 +27,19 @@ def oecd(dataset: str) -> pd.DataFrame:
     https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#oecd
     See https://data.oecd.org/api/sdmx-ml-documentation/
 
-    >>> pd.options.display.max_columns = 3
-    >>> oecd("TUD")  #doctest: +NORMALIZE_WHITESPACE
-    Year                                                1987  ...    1988
-    Country Source              Series                        ...
-    Hungary Administrative data Employees             4500.0  ...     NaN
-                                Union members         4400.0  ...     NaN
-                                Trade union  density    97.8  ...     NaN
-            Survey data         Employees                NaN  ...     NaN
-                                Union members            NaN  ...     NaN
-    ...                                                  ...  ...     ...
-    Germany Administrative data Union members         7868.0  ...  7888.0
-                                Trade union  density    33.3  ...    33.1
-            Survey data         Employees                NaN  ...     NaN
-                                Union members            NaN  ...     NaN
-                                Trade union  density     NaN  ...     NaN
+    >>> pd.options.display.max_columns = 5
+    >>> oecd("TUD").loc[
+    ...    :, "Annual", "Percentage of employees"
+    ... ].head()  #doctest: +NORMALIZE_WHITESPACE
+    Time                  1960       1961  ...       2019       2020
+    Country                                ...
+    Australia        53.799999  53.200001  ...        NaN        NaN
+    Austria          60.099998  59.599998  ...  26.299999        NaN
+    Belgium          41.500000  40.400002  ...  49.099998        NaN
+    Canada           30.100000  29.500000  ...  26.100000  27.200001
+    Czech Republic         NaN        NaN  ...        NaN        NaN
     <BLANKLINE>
-    [216 rows x 59 columns]
+    [5 rows x 61 columns]
     >>>
     """
     with urlopen(
