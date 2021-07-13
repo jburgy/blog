@@ -223,27 +223,26 @@ class Graph(dict):
         # recently compiled regular expression fragment and rest
         # are "exits"
         stack: list = []
-        last: tuple = ({"": None},)  # empty regex matches everything
+        head = super().__new__(cls)
+        rest: tuple[tuple["Graph", str], ...] = (
+            (head, ""),
+        )  # empty regex matches everything
         for token in postfix(tokenize(regexp)):
             if token is Token.CONCAT:
-                prev = stack.pop()
-                cls.append(prev[1:], last[0])
-                last = prev[:1] + last[1:]
+                node, next = stack.pop()
+                cls.append(next, head)
+                head = node
             elif token is Token.KLEENE:
-                rest: list
-                head, *rest = last
                 cls.append(rest, head)
-                last = head, (head, "")
+                rest = ((head, ""),)
             elif token is Token.ALTERN:
-                head, *rest = last
-                node = (last := stack.pop())[0]
-                node.update(head)
-                last += tuple((node if n is head else n, p) for n, p in rest)
-            elif token is not None:
-                stack.append(last)
-                node = super().__new__(cls)
-                last = node, (node, token)
-        head, *rest = last
+                node, next = stack.pop()
+                head.update(node)
+                rest = tuple((head if n is node else n, p) for n, p in next) + rest
+            elif isinstance(token, str):  # help mypy
+                stack.append((head, rest))
+                head = super().__new__(cls)
+                rest = ((head, token),)
         cls.append(rest, None)
         return head
 
@@ -272,4 +271,5 @@ class Graph(dict):
 
 
 if __name__ == "__main__":
-    print(Graph("a*b")("aaaaaaaaaaaaaaaaaaaaaaaaaab"))
+    # print(Graph("a*b")("aaaaaaaaaaaaaaaaaaaaaaaaaab"))
+    print(Graph("a(b|c)*d"))
