@@ -39,14 +39,14 @@ DIGITS[codeunits("EJNQRWXDSYFTAMCIVBKULOPGHZ")] = DIGITS[codeunits("011122233344
 mutable struct Node
     depth::Int
     keys::Vector{String}
-    next::Vector{Union{Missing, Node}}
+    next::Vector{Union{Missing,Node}}
     fail::Node
 
     function Node(depth::Int=0)
         node = new()
         node.depth = depth
         node.keys = String[]
-        node.next = Vector{Union{Missing, Node}}(missing, 10)
+        node.next = Vector{Union{Missing,Node}}(missing, 10)
         node
     end
 end
@@ -94,10 +94,6 @@ function aho_corasick(words::Union{Base.EachLine,Vector{String}})
     node
 end
 
-crossjoin(heads::Vector{String}, tails::Vector{String}) = reduce(tails; init=[]) do partial, tail
-    [partial; heads .* tail]
-end
-
 function replaceall(number::String, node::Node)
     """
     ```jldoctest
@@ -106,10 +102,10 @@ function replaceall(number::String, node::Node)
      "Dalium"
      "Sao6um"
      "daPik5"
-    
+
     ```
-    """    
-    heads = Vector{Union{Missing,Vector{String}}}(missing, length(number))
+    """
+    heads = Vector{Matrix{String}}(undef, length(number))
     for (k, digit) ∈ enumerate(digits(number))
         node = next = search(node, digit)
         while length(next.keys) > 0
@@ -117,17 +113,15 @@ function replaceall(number::String, node::Node)
             j = k - node.depth
             i = j - 1
 
-            heads[k] = if j <= 1
-                rest
-            elseif j == 2
-                crossjoin(heads[j], rest)
-            else
-                [crossjoin(heads[j], rest); crossjoin(heads[i], number[i:i] .* rest)]
-            end
+            heads[k] = reshape(isassigned(heads, i)
+                ? [heads[j] .* rest heads[i] .* (number[i:i] .* rest)]
+                : isassigned(heads, j)
+                ? heads[j] .* rest
+                : rest, 1, :)
             next = next.fail
         end
-    end
-    filter(s -> count(r"\d", s) <= 1, [heads[end]; heads[end-1] .* number[end:end]])
+end
+    filter(s -> count(r"\d", s) <= 1, reshape([heads[end] heads[end - 1] .* number[end:end]], 1, :))
 end
 
 replaceall(number::String, words::Vector{String}) = replaceall(number, aho_corasick(words))
