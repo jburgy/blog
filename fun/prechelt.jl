@@ -94,6 +94,9 @@ function aho_corasick(words::Union{Base.EachLine,Vector{String}})
     node
 end
 
+# varargs suppress StaticLint's "Possible method call error"
+⊗(x...) = kron(x...)  # https://julialang.org/blog/2017/01/moredots/
+
 function replaceall(number::String, node::Node)
     """
     ```jldoctest
@@ -105,7 +108,7 @@ function replaceall(number::String, node::Node)
 
     ```
     """
-    heads = Vector{Matrix{String}}(undef, length(number))
+    heads = Vector{Vector{String}}(undef, length(number))
     for (k, digit) ∈ enumerate(digits(number))
         node = next = search(node, digit)
         while length(next.keys) > 0
@@ -113,15 +116,17 @@ function replaceall(number::String, node::Node)
             j = k - node.depth
             i = j - 1
 
-            heads[k] = reshape(isassigned(heads, i)
-                ? [heads[j] .* rest heads[i] .* (number[i:i] .* rest)]
+            heads[k] = (
+                isassigned(heads, i)
+                ? [heads[j] ⊗ rest; heads[i] ⊗ (number[i:i] .* rest)]
                 : isassigned(heads, j)
-                ? heads[j] .* rest
-                : rest, 1, :)
+                ? heads[j] ⊗ rest
+                : rest
+            )
             next = next.fail
         end
-end
-    filter(s -> count(r"\d", s) <= 1, reshape([heads[end] heads[end - 1] .* number[end:end]], 1, :))
+    end
+    filter(s -> count(r"\d", s) <= 1, [heads[end]; heads[end - 1] .* number[end:end]])
 end
 
 replaceall(number::String, words::Vector{String}) = replaceall(number, aho_corasick(words))
