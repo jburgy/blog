@@ -1,8 +1,13 @@
-trans = str.maketrans("ejnqrwxdsyftamcivbkulopghz", "01112223334455666777888999")
+from typing import Iterator
+
+MAP = str.maketrans(
+    "EJNQRWXDSYFTAMCIVBKULOPGHZejnqrwxdsyftamcivbkulopghz",
+    "0111222333445566677788899901112223334455666777888999",
+)
 
 
-def overlapping(haystack, needle, n):
-    pattern = needle.lower().translate(trans)
+def overlapping(haystack: str, needle: str, n: int) -> Iterator[str]:
+    pattern = needle.translate(MAP)
 
     i = -1
     while True:
@@ -12,9 +17,9 @@ def overlapping(haystack, needle, n):
         yield haystack[:i] + needle + haystack[i + n:]
 
 
-def replaceall(haystack, needles):
+def replaceall(haystack: str, *needles: str) -> Iterator[str]:
     """
-    >>> list(replaceall("358675", ["Dali", "um", "Sao", "da", "Pik"]))
+    >>> list(replaceall("358675", "Dali", "um", "Sao", "da", "Pik"))
     ['daPik5', 'Sao6um', 'Dalium']
     """
     m, n = sum(ch.isdigit() for ch in haystack), len(needles)
@@ -24,8 +29,8 @@ def replaceall(haystack, needles):
         needle = needles[i]
         i += 1  # try next needle on overlapping replacements
         k = len(needle)
-        m -= k  # replace n digits ⇒ reduce search space
-        if m < 0 or (i == n and m > 1):
+        m -= k  # remove k digits ⇒ reduce search space
+        if m < 0 or (m > 1 and i == n):
             continue
         replacements = overlapping(haystack, needle, k)
         if m <= 1:  # 0 or 1 digits left, habemus solutiones!
