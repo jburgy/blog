@@ -1,4 +1,5 @@
 from json import load
+from urllib.parse import urlencode
 from urllib.request import urlopen
 
 import numpy as np
@@ -6,10 +7,10 @@ import pandas as pd
 
 
 def _index_from(dimensions):
-    return pd.MultiIndex.from_product([
-        [value["name"] for value in dimension["values"]]
-        for dimension in dimensions
-    ], names=[dimension["name"] for dimension in dimensions])
+    return pd.MultiIndex.from_product(
+        [[value["name"] for value in dimension["values"]] for dimension in dimensions],
+        names=[dimension["name"] for dimension in dimensions],
+    )
 
 
 def _generate(shape: tuple, mapping: dict, key, missing_value):
@@ -20,17 +21,19 @@ def _generate(shape: tuple, mapping: dict, key, missing_value):
     )
 
 
-def oecd(dataset: str) -> pd.DataFrame:
-    """ OECD dataset as pandas DataFrame
+def oecd(dataset: str, **kwargs) -> pd.DataFrame:
+    """OECD dataset as pandas DataFrame
 
     heavily streamlined version of
     https://pandas-datareader.readthedocs.io/en/latest/remote_data.html#oecd
     See https://data.oecd.org/api/sdmx-ml-documentation/
 
     >>> pd.options.display.max_columns = 5
-    >>> oecd("TUD").loc[
-    ...    :, "Annual", "Percentage of employees"
-    ... ].head()  #doctest: +NORMALIZE_WHITESPACE
+    >>> (
+    ...     oecd("TUD", startTime=1960, endTime=2020)
+    ...     .reorder_levels(["Frequency", "Measure", "Country"])
+    ...     .loc["Annual", "Percentage of employees"].head()
+    ... ) #doctest: +NORMALIZE_WHITESPACE
     Time                  1960       1961  ...       2019       2020
     Country                                ...
     Australia        53.799999  53.200001  ...        NaN        NaN
@@ -43,7 +46,7 @@ def oecd(dataset: str) -> pd.DataFrame:
     >>>
     """
     with urlopen(
-        f"http://stats.oecd.org/SDMX-JSON/data/{dataset}/all/all?"
+        f"http://stats.oecd.org/SDMX-JSON/data/{dataset}/all/all?" + urlencode(kwargs)
     ) as response:
         sdmx = load(response)
 
