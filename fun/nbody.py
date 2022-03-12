@@ -5,8 +5,8 @@
 # modified by Tupteq, Fredrik Johansson, and Daniel Nanz
 # modified by Maciej Fijalkowski
 
-from numpy import add, array, divide, einsum, empty, fill_diagonal
-from numpy import multiply, pi, power, subtract, sum
+from numpy import array, divide, empty, multiply, pi, r_, sqrt, sum
+from scipy.linalg.blas import daxpy, dspr2, zhpmv, zhpr
 
 x = array([
     [0.0, 0.0, 0.0],
@@ -30,31 +30,49 @@ m = array([
     [5.15138902046611451e-05],
 ]) * 4 * pi**2
 
-mm = m * m.T
-divide(mm, m, out=mm)
+v[:, 0] = -sum(m * v, axis=1) / m[:, 0]
+a = empty(x.shape, dtype=complex)
 
-v[0, :] = -sum(m * v, axis=0) / m[0, :]
-d = empty(x.shape[:1] + x.shape)
-r = empty(d.shape[:2])
-a = empty(x.shape)
+jm = m * -1j
+z = empty(x.shape, dtype=complex)
+n = x.shape[1]
+# see https://stackoverflow.com/a/52564537/8479938
+# only need upper triangle plus diagonal hence ½ n x (n + 1)
+ap = empty((3, n * (n + 1) // 2), dtype=complex)
+xxT = empty(ap.shape[1], dtype=float)
+d = empty(ap.shape[1], dtype=float)
+trid = r_[0, 2: n + 1].cumsum()  # triangular diagonal
+ones = empty((n,), dtype=float)
+ones.fill(1.0)
 
-xi = x[:, None, :]
-xj = x[None, :, :]
-ri = r[:, :, None]
-
-dt = .01
+dt = 0.01
 
 for _ in range(20_000):
-    subtract(xi, xj, out=d)
-    einsum("ijk,ijk->ij", d, d, out=r)  # d2 = sum(d * d, axis=2)
-    fill_diagonal(r, 1.0)  # Avoid divide by zero warning
-    power(r, -1.5, out=r)  # r = 1 / np.sqrt(d2)**3
-    multiply(mm, r, out=r)  # r = mm / np.sqrt(d2)**3
-    multiply(d, ri, out=d)
-    sum(d, axis=1, out=a)
-    multiply(a, dt, out=a)
-    add(v, a, out=v)
-    multiply(v, dt, out=a)
-    add(x, a, out=x)
+    # (x - i)(y + i) = x y + 1 + i(x - y)
+    # (x - y)² = x² + y² - 2xy
 
-print(x)
+    z.real = x
+    z.imag.fill(-1.0)
+    ap.fill(0.0)
+    # A += α z z*
+    zhpr(n, alpha=-2.0, x=z[0], ap=ap[0], overwrite_ap=True)
+    zhpr(n, alpha=-2.0, x=z[1], ap=ap[1], overwrite_ap=True)
+    zhpr(n, alpha=-2.0, x=z[2], ap=ap[2], overwrite_ap=True)
+    sum(ap.real, axis=0, out=xxT)
+    xxT += 6
+    # A += α (x yᵀ + y xᵀ)
+    dspr2(n, alpha=-0.5, x=xxT[trid], y=ones, ap=xxT, overwrite_ap=True)
+
+    sqrt(xxT, out=d)
+    multiply(xxT, d, out=xxT)
+    divide(ap.imag, xxT, where=xxT.astype(bool), out=ap.imag)
+
+    # y = α A x + β y
+    zhpmv(n, alpha=0.5, ap=ap[0], x=jm, beta=0.0, y=a[0], overwrite_y=True)
+    zhpmv(n, alpha=0.5, ap=ap[1], x=jm, beta=0.0, y=a[1], overwrite_y=True)
+    zhpmv(n, alpha=0.5, ap=ap[2], x=jm, beta=0.0, y=a[2], overwrite_y=True)
+
+    daxpy(a=dt, x=a.real, y=v)  # v += a dt
+    daxpy(a=dt, x=v, y=x)  # x += v dt
+
+print(x.T)
