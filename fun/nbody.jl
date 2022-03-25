@@ -60,14 +60,18 @@ m = [
 
 v[1, :] = -m * v / m[1]
 a = Matrix{ComplexF64}(undef, size(x))
-ar = reinterpret(reshape, Float64, a)
+af = reinterpret(reshape, Float64, a)
+ar = view(af, REAL, :, :)
+ai = view(af, IMAG, :, :)
 
-jm = m * -1im
+jm = m * -1.0im
 n = length(m)
 # see https://stackoverflow.com/a/52564537/8479938
 # only need upper triangle plus diagonal hence ½ n x (n + 1)
 ap = Matrix{ComplexF64}(undef, (n * (n + 1) ÷ 2, 3))
-apr = reinterpret(reshape, Float64, ap)
+apf = reinterpret(reshape, Float64, ap)
+apr = view(apf, REAL, :, :)
+api = view(apf, IMAG, :, :)
 xxT = Vector{Float64}(undef, size(ap, 1))
 d = Vector{Float64}(undef, size(ap, 1))
 trid = cumsum(1:n)  # triangular diagonal
@@ -77,29 +81,26 @@ ones_ = ones(n)
 dt = 0.01
 
 for _ ∈ 1:20_000
-    copyto!(view(ar, REAL, :, :), x)
-    fill!(view(ar, IMAG, :, :), -1.0)
+    copyto!(ar, x)
+    fill!(ai, -1.0)
     fill!(ap, 0.0im)
-    for d ∈ 1:3
-        # A += α z z*
-        hpr!(-2.0, view(a, :, d), view(ap, :, d))
+    for i ∈ 1:3  # A += α z z*
+        hpr!(-2.0, view(a, :, i), view(ap, :, i))
     end
-    sum!(xxT, view(apr, REAL, :, :))
+    sum!(xxT, apr)
     xxT .+= 6
     x2[:] = @view xxT[trid]
-    # A += α (x yᵀ + y xᵀ)
-    spr2!(-0.5, x2, ones_, xxT)
+    spr2!(-0.5, x2, ones_, xxT)  # A += α (x yᵀ + y xᵀ)
 
     map!(√, d, xxT)
-    xxT .*= d
-    view(apr, IMAG, :, :) ./= xxT
-    replace!(view(apr, IMAG, :, :), NaN => 0.0)
+    broadcast!(*, xxT, xxT, d)
+    broadcast!(/, api, api, xxT)
+    replace!(api, NaN => 0.0)
 
-    for d ∈ 1:3
-        # y = α A x + β y
-        hpmv!('U', 0.5, view(ap, :, d), jm, 0.0, view(a, :, d))
+    for i ∈ 1:3  # y = α A x + β y
+        hpmv!('U', 0.5, view(ap, :, i), jm, 0.0, view(a, :, i))
     end
-    axpy!(dt, view(ar, REAL, :, :), v)  # v += a dt
+    axpy!(dt, ar, v)  # v += a dt
     axpy!(dt, v, x)  # x += v dt
 end
 
