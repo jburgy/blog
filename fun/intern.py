@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS fact (
     value REAL
 );
 
-CREATE VIEW IF NOT EXISTS facts (factid, dimension, value)
+CREATE VIEW IF NOT EXISTS facts (factid, dimension, value) AS
     SELECT f.factid, d.name, f.value
     FROM FACT AS f
     JOIN dimension AS d ON f.dimension = d.dimensionid;
