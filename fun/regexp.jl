@@ -90,26 +90,20 @@ eltype(::Type{OpCodes}) = Pair{Int,OpCode}
 
 function match(opcodes::Dict{Int,OpCode}, string::String)
     curr = [0]
-    for (i, char) ∈ enumerate(string)
-        next = Vector{Int}()
+    next = empty(curr)
+    for char ∈ string * "\0"
         for j ∈ curr
             op = opcodes[j]
-            if op isa Alt || op isa Bra
+            if op isa Union{Alt,Bra}
                 push!(curr, j + 3, j + op.link)
-            elseif op isa Ket
-                i == length(string) && return true
+            elseif op isa Ket && char == '\0'
+                return true
             elseif op == char
                 push!(next, j + 2)
             end
         end
-        curr = next
-    end
-    # end of stream, do ε transitions take us to end?
-    for j ∈ curr
-        while (op = opcodes[j]) isa Alt
-            j += op.link
-        end
-        opcodes[j] isa Ket && return true
+        copyto!(curr, next)
+        empty!(next)
     end
     false
 end
