@@ -13,6 +13,7 @@ using Base: HasEltype, IteratorEltype, IteratorSize, SizeUnknown
 using Base.PCRE: INFO_NAMECOUNT, INFO_NAMEENTRYSIZE, INFO_NAMETABLE, compile, info
 import Base: eltype, iterate, length
 
+# https://docs.julialang.org/en/v1/manual/types/#%22Value-types%22
 const OpChar = Val{0x1d}
 const OpAlt = Val{0x78}
 const OpKet = Val{0x79}
@@ -30,6 +31,13 @@ end
 
 const OpCode = Union{Char,Alt,Ket,Bra}
 
+"""
+Helper struct to convert a compiled https://www.pcre.org/ (which is just a `Ptr{Uint8}`) into
+an iterator of (`Int`,`OpCode`) pairs.  Integers refer to jumps in the original bytestream.
+They don't line up with indices in a vector of opcodes because instructions have variable
+lengths.  `OpKet` take 1 byte, `OpChar` need a 2nd byte to encode the character being matched,
+and `OpAlt` and `OpBra` need 2 extra bytes to encode a link.
+"""
 struct OpCodes
     ptr::Ptr{UInt8}
     start::Int
@@ -69,6 +77,7 @@ opcode(::OpAlt, ptr::Ptr{UInt8}, i::Int) = Alt(link(ptr, i))
 opcode(::OpKet, ptr::Ptr{UInt8}, i::Int) = Ket()
 opcode(::OpBra, ptr::Ptr{UInt8}, i::Int) = Bra(link(ptr, i))
 
+# https://docs.julialang.org/en/v1/manual/interfaces/
 function iterate(code::OpCodes)
     ptr = code.ptr
     offset = code.start
@@ -88,19 +97,27 @@ IteratorSize(::Type{OpCodes}) = SizeUnknown()
 IteratorEltype(::Type{OpCodes}) = HasEltype()
 eltype(::Type{OpCodes}) = Pair{Int,OpCode}
 
+function accept!(curr::Vector{Int}, next::Vector{Int}, char::Char, i::Int, op::Union{Alt,Bra})
+    push!(curr, i + 3, i + op.link)
+    false
+end
+
+function accept!(curr::Vector{Int}, next::Vector{Int}, char::Char, i::Int, op::Ket)
+    char == '\0'
+end
+
+function accept!(curr::Vector{Int}, next::Vector{Int}, char::Char, i::Int, op::Char)
+    op == char && push!(next, i + 2)
+    false
+end
+
+# http://www.oilshell.org/archive/Thompson-1968.pdf
 function match(opcodes::Dict{Int,OpCode}, string::String)
     curr = [0]
     next = empty(curr)
     for char ∈ string * "\0"
-        for j ∈ curr
-            op = opcodes[j]
-            if op isa Union{Alt,Bra}
-                push!(curr, j + 3, j + op.link)
-            elseif op isa Ket && char == '\0'
-                return true
-            elseif op == char
-                push!(next, j + 2)
-            end
+        for i ∈ curr
+            accept!(curr, next, char, i, opcodes[i]) && return true
         end
         copyto!(curr, next)
         empty!(next)
