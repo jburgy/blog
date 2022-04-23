@@ -12,24 +12,47 @@ to understand PCRE's internals
 using Base: HasEltype, IteratorEltype, IteratorSize, SizeUnknown
 using Base.PCRE: INFO_NAMECOUNT, INFO_NAMEENTRYSIZE, INFO_NAMETABLE, compile, info
 import Base: eltype, iterate, length
+using DataStructures
+using Test
 
 # https://docs.julialang.org/en/v1/manual/types/#%22Value-types%22
 const OpChar = Val{0x1d}
+const OpPosStar = Val{0x2a}
 const OpAlt = Val{0x78}
 const OpKet = Val{0x79}
+const OpKetRMax = Val{0x7a}
 const OpBra = Val{0x86}
+const OpCBra = Val{0x88}
+const OpBraZero = Val{0x96}
+
+struct Kleene
+    char::Char
+end
 
 struct Alt
     link::UInt16
 end
 
-struct Ket end
+struct Ket
+    link::UInt16
+end
+
+struct KetRMax
+    link::UInt16
+end
 
 struct Bra
     link::UInt16
 end
 
-const OpCode = Union{Char,Alt,Ket,Bra}
+struct CBra
+    link::UInt16
+    group::UInt16
+end
+
+struct Nop end
+
+const OpCode = Union{Char,Kleene,Alt,Ket,KetRMax,Bra,CBra,Nop}
 
 """
 Helper struct to convert a compiled https://www.pcre.org/ (which is just a `Ptr{Uint8}`) into
@@ -60,22 +83,25 @@ struct OpCodes
     end
 end
 
-length(::OpChar) = 1
-length(::OpAlt) = 2
-length(::OpKet) = 0
-length(::OpBra) = 2
+length(::Union{OpChar,OpPosStar}) = 1
+length(::OpBraZero) = 0
+length(::Union{OpAlt,OpKet,OpKetRMax,OpBra}) = 2
+length(::OpCBra) = 4
 
-bracket(::OpChar) = 0
-bracket(::OpAlt) = 0
-bracket(::OpKet) = -1
-bracket(::OpBra) = 1
+bracket(::Union{OpChar,OpPosStar,OpAlt,OpBraZero}) = 0
+bracket(::Union{OpKet,OpKetRMax}) = -1
+bracket(::Union{OpBra,OpCBra}) = 1
 
 link(ptr::Ptr{UInt8}, i::Int) = UInt16(unsafe_load(ptr, i) << 8) | UInt16(unsafe_load(ptr, i + 1))
 
 opcode(::OpChar, ptr::Ptr{UInt8}, i::Int) = Char(unsafe_load(ptr, i))
+opcode(::OpPosStar, ptr::Ptr{UInt8}, i::Int) = Kleene(Char(unsafe_load(ptr, i + 1)))
 opcode(::OpAlt, ptr::Ptr{UInt8}, i::Int) = Alt(link(ptr, i))
-opcode(::OpKet, ptr::Ptr{UInt8}, i::Int) = Ket()
+opcode(::OpKet, ptr::Ptr{UInt8}, i::Int) = Ket(link(ptr, i))
+opcode(::OpKetRMax, ptr::Ptr{UInt8}, i::Int) = KetRMax(link(ptr, i))
 opcode(::OpBra, ptr::Ptr{UInt8}, i::Int) = Bra(link(ptr, i))
+opcode(::OpCBra, ptr::Ptr{UInt8}, i::Int) = CBra(link(ptr, i), link(ptr, i + 2))
+opcode(::OpBraZero, ptr::Ptr{UInt8}, ::Int) = Nop()
 
 # https://docs.julialang.org/en/v1/manual/interfaces/
 function iterate(code::OpCodes)
@@ -97,33 +123,41 @@ IteratorSize(::Type{OpCodes}) = SizeUnknown()
 IteratorEltype(::Type{OpCodes}) = HasEltype()
 eltype(::Type{OpCodes}) = Pair{Int,OpCode}
 
-function accept!(curr::Vector{Int}, next::Vector{Int}, char::Char, i::Int, op::Union{Alt,Bra})
-    push!(curr, i + 3, i + op.link)
-    false
-end
-
-function accept!(curr::Vector{Int}, next::Vector{Int}, char::Char, i::Int, op::Ket)
-    char == '\0'
-end
-
-function accept!(curr::Vector{Int}, next::Vector{Int}, char::Char, i::Int, op::Char)
-    op == char && push!(next, i + 2)
-    false
-end
-
 # http://www.oilshell.org/archive/Thompson-1968.pdf
 function match(opcodes::Dict{Int,OpCode}, string::String)
+    accept!(char::Char, i::Int, op::Char) = (op == char && push!(next, i + 2); false)
+    function accept!(char::Char, i::Int, op::Union{Alt,Bra,CBra})
+        push!(curr, i + 3)
+        opcodes[i+op.link] isa Ket && char != '\0' || push!(curr, i + op.link)
+        false
+    end
+    accept!(::Char, i::Int, op::KetRMax) = (push!(curr, i + 3, i - op.link); false)
+    accept!(char::Char, ::Int, ::Ket) = char == '\0'
+
     curr = [0]
     next = empty(curr)
     for char ∈ string * "\0"
         for i ∈ curr
-            accept!(curr, next, char, i, opcodes[i]) && return true
+            accept!(char, i, opcodes[i]) && return true
         end
-        copyto!(curr, next)
+        copy!(curr, next)
         empty!(next)
     end
     false
 end
 
-code = OpCodes(compile("abc|def|ghi", 3))
-match(Dict(code), "abc")
+@testset "match" begin
+    tests = Dict{String,Dict{String,Bool}}(
+        "abc" => Dict("ab" => false, "bc" => false, "abc" => true),
+        "ab|c" => Dict("a" => false, "ac" => false, "ab" => true, "c" => true)
+    )
+
+    for (regexp, cases) ∈ tests
+        @testset "$regexp" begin
+            code = Dict(OpCodes(compile(regexp, 0)))
+            for (string, matches) ∈ cases
+                @test match(code, string) == matches
+            end
+        end
+    end
+end
