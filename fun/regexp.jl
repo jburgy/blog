@@ -25,7 +25,7 @@ const OpBra = Val{0x86}
 const OpCBra = Val{0x88}
 const OpBraZero = Val{0x96}
 
-struct Kleene
+struct PosStar
     char::Char
 end
 
@@ -52,7 +52,7 @@ end
 
 struct Nop end
 
-const OpCode = Union{Char,Kleene,Alt,Ket,KetRMax,Bra,CBra,Nop}
+const OpCode = Union{Char,PosStar,Alt,Ket,KetRMax,Bra,CBra,Nop}
 
 """
 Helper struct to convert a compiled https://www.pcre.org/ (which is just a `Ptr{Uint8}`) into
@@ -95,7 +95,7 @@ bracket(::Union{OpBra,OpCBra}) = 1
 link(ptr::Ptr{UInt8}, i::Int) = UInt16(unsafe_load(ptr, i) << 8) | UInt16(unsafe_load(ptr, i + 1))
 
 opcode(::OpChar, ptr::Ptr{UInt8}, i::Int) = Char(unsafe_load(ptr, i))
-opcode(::OpPosStar, ptr::Ptr{UInt8}, i::Int) = Kleene(Char(unsafe_load(ptr, i + 1)))
+opcode(::OpPosStar, ptr::Ptr{UInt8}, i::Int) = PosStar(Char(unsafe_load(ptr, i)))
 opcode(::OpAlt, ptr::Ptr{UInt8}, i::Int) = Alt(link(ptr, i))
 opcode(::OpKet, ptr::Ptr{UInt8}, i::Int) = Ket(link(ptr, i))
 opcode(::OpKetRMax, ptr::Ptr{UInt8}, i::Int) = KetRMax(link(ptr, i))
@@ -126,6 +126,11 @@ eltype(::Type{OpCodes}) = Pair{Int,OpCode}
 # http://www.oilshell.org/archive/Thompson-1968.pdf
 function match(opcodes::Dict{Int,OpCode}, string::String)
     accept!(char::Char, i::Int, op::Char) = (op == char && push!(next, i + 2); false)
+    function accept!(char::Char, i::Int, op::PosStar)
+        push!(curr, i + 2)
+        op.char == char && push!(next, i)
+        false
+    end
     function accept!(char::Char, i::Int, op::Union{Alt,Bra,CBra})
         push!(curr, i + 3)
         opcodes[i+op.link] isa Ket && char != '\0' || push!(curr, i + op.link)
@@ -149,14 +154,15 @@ end
 @testset "match" begin
     tests = Dict{String,Dict{String,Bool}}(
         "abc" => Dict("ab" => false, "bc" => false, "abc" => true),
-        "ab|c" => Dict("a" => false, "ac" => false, "ab" => true, "c" => true)
+        "ab|c" => Dict("a" => false, "ac" => false, "ab" => true, "c" => true),
+        "a*" => Dict("" => true, "aaa" => true, "aba" => false),
     )
 
     for (regexp, cases) ∈ tests
         @testset "$regexp" begin
             code = Dict(OpCodes(compile(regexp, 0)))
-            for (string, matches) ∈ cases
-                @test match(code, string) == matches
+            @testset "$string" for (string, matches) ∈ cases
+                @test match(code, "$string") == matches
             end
         end
     end
