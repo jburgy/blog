@@ -158,12 +158,10 @@ end
         "a*" => Dict("" => true, "aaa" => true, "aba" => false),
     )
 
-    for (regexp, cases) ∈ tests
-        @testset "$regexp" begin
-            code = Dict(OpCodes(compile(regexp, 0)))
-            @testset "$string" for (string, matches) ∈ cases
-                @test match(code, "$string") == matches
-            end
+    @testset "$regexp" for (regexp, cases) ∈ tests
+        code = Dict(OpCodes(compile(regexp, 0)))
+        @testset "$string" for (string, matches) ∈ cases
+            @test match(code, "$string") == matches
         end
     end
 end
