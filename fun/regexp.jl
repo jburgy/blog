@@ -50,9 +50,9 @@ struct CBra
     group::UInt16
 end
 
-struct Nop end
+struct BraZero end
 
-const OpCode = Union{Char,PosStar,Alt,Ket,KetRMax,Bra,CBra,Nop}
+const OpCode = Union{Char,PosStar,Alt,Ket,KetRMax,Bra,CBra,BraZero}
 
 """
 Helper struct to convert a compiled https://www.pcre.org/ (which is just a `Ptr{Uint8}`) into
@@ -101,7 +101,7 @@ opcode(::OpKet, ptr::Ptr{UInt8}, i::Int) = Ket(link(ptr, i))
 opcode(::OpKetRMax, ptr::Ptr{UInt8}, i::Int) = KetRMax(link(ptr, i))
 opcode(::OpBra, ptr::Ptr{UInt8}, i::Int) = Bra(link(ptr, i))
 opcode(::OpCBra, ptr::Ptr{UInt8}, i::Int) = CBra(link(ptr, i), link(ptr, i + 2))
-opcode(::OpBraZero, ptr::Ptr{UInt8}, ::Int) = Nop()
+opcode(::OpBraZero, ptr::Ptr{UInt8}, ::Int) = BraZero()
 
 # https://docs.julialang.org/en/v1/manual/interfaces/
 function iterate(code::OpCodes)
@@ -131,17 +131,30 @@ function match(opcodes::Dict{Int,OpCode}, string::String)
         op.char == char && push!(next, i)
         false
     end
-    function accept!(char::Char, i::Int, op::Union{Alt,Bra,CBra})
-        push!(curr, i + 3)
-        opcodes[i+op.link] isa Ket && char != '\0' || push!(curr, i + op.link)
+    zero = Ref(false)
+    function accept!(::Char, i::Int, op::Union{Alt,Bra,CBra})
+        push!(curr, i + (op isa CBra ? 5 : 3))
+        if zero[] || !(opcodes[i+op.link] isa Union{Ket,KetRMax})
+            push!(curr, i + op.link)
+        end
         false
     end
-    accept!(::Char, i::Int, op::KetRMax) = (push!(curr, i + 3, i - op.link); false)
+    function accept!(::Char, i::Int, op::KetRMax)
+        zero[] = false
+        push!(curr, i + 3, i - op.link)
+        false
+    end
     accept!(char::Char, ::Int, ::Ket) = char == '\0'
+    function accept!(::Char, i::Int, ::BraZero)
+        zero[] = true
+        push!(curr, i + 1)
+        false
+    end
 
     curr = [0]
     next = empty(curr)
     for char ∈ string * "\0"
+        zero[] = char == '\0'
         for i ∈ curr
             accept!(char, i, opcodes[i]) && return true
         end
@@ -156,6 +169,9 @@ end
         "abc" => Dict("ab" => false, "bc" => false, "abc" => true),
         "ab|c" => Dict("a" => false, "ac" => false, "ab" => true, "c" => true),
         "a*" => Dict("" => true, "aaa" => true, "aba" => false),
+        "(ab)*" => Dict("" => true, "abab" => true, "abb" => false),
+        "(a|b)*" => Dict("" => true, "abba" => true, "abc" => false),
+        "a(b|c)*d" => Dict("ad" => true, "acd" => true),
     )
 
     @testset "$regexp" for (regexp, cases) ∈ tests
