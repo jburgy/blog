@@ -11,7 +11,7 @@ to understand PCRE's internals
 
 using Base: HasEltype, IteratorEltype, IteratorSize, SizeUnknown
 using Base.PCRE: INFO_NAMECOUNT, INFO_NAMEENTRYSIZE, INFO_NAMETABLE, compile, info
-import Base: eltype, iterate, length
+import Base: Fix1, eltype, iterate, length
 using DataStructures
 using Test
 
@@ -25,34 +25,42 @@ const OpBra = Val{0x86}
 const OpCBra = Val{0x88}
 const OpBraZero = Val{0x96}
 
-struct PosStar
-    char::Char
+function char!(op::Char, ::Vector{Int64}, next::Vector{Int64}, char::Char, i::Int)
+    op == char && push!(next, ((i & ~2) | 1) + (2 << 2))
+    false
 end
-
-struct Alt
-    link::UInt16
+function posstar!(op::Char, curr::Vector{Int64}, next::Vector{Int64}, char::Char, i::Int)
+    j = i | 1
+    push!(curr, j + (2 << 2))
+    op == char && push!(next, j)
+    false
 end
-
-struct Ket
-    link::UInt16
+function alt!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int)
+    push!(curr, i + (3 << 2), i + link)
+    false
 end
-
-struct KetRMax
-    link::UInt16
+function ket!(::UInt16, ::Vector{Int64}, ::Vector{Int64}, char::Char, i::Int)
+    (i & 3) ≠ 0 && char == '\0'
 end
-
-struct Bra
-    link::UInt16
+function ketrmax!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int)
+    (i & 3) ≠ 0 && push!(curr, (i | 1) + (3 << 2))
+    (i & 3) == 1 && push!(curr, (i | 2) - link)
+    false
 end
-
-struct CBra
-    link::UInt16
-    group::UInt16
+function bra!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int)
+    push!(curr, i + (3 << 2))
+    (i & 2) ≠ 0 && push!(curr, i + link)
+    false
 end
-
-struct BraZero end
-
-const OpCode = Union{Char,PosStar,Alt,Ket,KetRMax,Bra,CBra,BraZero}
+function cbra!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int)
+    push!(curr, i + (5 << 2))
+    (i & 2) ≠ 0 && push!(curr, i + link)
+    false
+end
+function brazero!(curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int)
+    push!(curr, (i | 2) + 4)
+    false
+end
 
 """
 Helper struct to convert a compiled https://www.pcre.org/ (which is just a `Ptr{Uint8}`) into
@@ -94,14 +102,14 @@ bracket(::Union{OpBra,OpCBra}) = 1
 
 link(ptr::Ptr{UInt8}, i::Int) = UInt16(unsafe_load(ptr, i) << 8) | UInt16(unsafe_load(ptr, i + 1))
 
-opcode(::OpChar, ptr::Ptr{UInt8}, i::Int) = Char(unsafe_load(ptr, i))
-opcode(::OpPosStar, ptr::Ptr{UInt8}, i::Int) = PosStar(Char(unsafe_load(ptr, i)))
-opcode(::OpAlt, ptr::Ptr{UInt8}, i::Int) = Alt(link(ptr, i))
-opcode(::OpKet, ptr::Ptr{UInt8}, i::Int) = Ket(link(ptr, i))
-opcode(::OpKetRMax, ptr::Ptr{UInt8}, i::Int) = KetRMax(link(ptr, i))
-opcode(::OpBra, ptr::Ptr{UInt8}, i::Int) = Bra(link(ptr, i))
-opcode(::OpCBra, ptr::Ptr{UInt8}, i::Int) = CBra(link(ptr, i), link(ptr, i + 2))
-opcode(::OpBraZero, ptr::Ptr{UInt8}, ::Int) = BraZero()
+opcode(::OpChar, ptr::Ptr{UInt8}, i::Int) = Fix1(char!, Char(unsafe_load(ptr, i)))
+opcode(::OpPosStar, ptr::Ptr{UInt8}, i::Int) = Fix1(posstar!, Char(unsafe_load(ptr, i)))
+opcode(::OpAlt, ptr::Ptr{UInt8}, i::Int) = Fix1(alt!, link(ptr, i) << 2)
+opcode(::OpKet, ptr::Ptr{UInt8}, i::Int) = Fix1(ket!, link(ptr, i) << 2)
+opcode(::OpKetRMax, ptr::Ptr{UInt8}, i::Int) = Fix1(ketrmax!, link(ptr, i) << 2)
+opcode(::OpBra, ptr::Ptr{UInt8}, i::Int) = Fix1(bra!, link(ptr, i) << 2)
+opcode(::OpCBra, ptr::Ptr{UInt8}, i::Int) = Fix1(cbra!, link(ptr, i) << 2)
+opcode(::OpBraZero, ptr::Ptr{UInt8}, ::Int) = brazero!
 
 # https://docs.julialang.org/en/v1/manual/interfaces/
 function iterate(code::OpCodes)
@@ -121,42 +129,17 @@ end
 
 IteratorSize(::Type{OpCodes}) = SizeUnknown()
 IteratorEltype(::Type{OpCodes}) = HasEltype()
-eltype(::Type{OpCodes}) = Pair{Int,OpCode}
+eltype(::Type{OpCodes}) = Pair{Int,Function}
+
+(f::Fix1)(curr::Vector{Int64}, next::Vector{Int64}, char::Char, i::Int64) = f.f(f.x, curr, next, char, i)
 
 # http://www.oilshell.org/archive/Thompson-1968.pdf
-function match(opcodes::Dict{Int,OpCode}, string::String)
-    accept!(char::Char, i::Int, op::Char) = (op == char && push!(next, i + 2); false)
-    function accept!(char::Char, i::Int, op::PosStar)
-        push!(curr, i + 2)
-        op.char == char && push!(next, i)
-        false
-    end
-    zero = Ref(false)
-    function accept!(::Char, i::Int, op::Union{Alt,Bra,CBra})
-        push!(curr, i + (op isa CBra ? 5 : 3))
-        if zero[] || !(opcodes[i+op.link] isa Union{Ket,KetRMax})
-            push!(curr, i + op.link)
-        end
-        false
-    end
-    function accept!(::Char, i::Int, op::KetRMax)
-        zero[] = false
-        push!(curr, i + 3, i - op.link)
-        false
-    end
-    accept!(char::Char, ::Int, ::Ket) = char == '\0'
-    function accept!(::Char, i::Int, ::BraZero)
-        zero[] = true
-        push!(curr, i + 1)
-        false
-    end
-
-    curr = [0]
+function match(opcodes::Dict{Int,Function}, string::String)
+    curr = [2]
     next = empty(curr)
     for char ∈ string * "\0"
-        zero[] = char == '\0'
         for i ∈ curr
-            accept!(char, i, opcodes[i]) && return true
+            opcodes[i>>2](curr, next, char, i) && return true
         end
         copy!(curr, next)
         empty!(next)
@@ -171,7 +154,7 @@ end
         "a*" => Dict("" => true, "aaa" => true, "aba" => false),
         "(ab)*" => Dict("" => true, "abab" => true, "abb" => false),
         "(a|b)*" => Dict("" => true, "abba" => true, "abc" => false),
-        "a(b|c)*d" => Dict("ad" => true, "acd" => true),
+        "a(b|c)*d" => Dict("ad" => true, "abc" => false, "abd" => true, "acd" => true),
     )
 
     @testset "$regexp" for (regexp, cases) ∈ tests
