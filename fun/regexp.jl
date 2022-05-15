@@ -12,7 +12,6 @@ to understand PCRE's internals
 using Base: HasEltype, IteratorEltype, IteratorSize, SizeUnknown
 using Base.PCRE: INFO_NAMECOUNT, INFO_NAMEENTRYSIZE, INFO_NAMETABLE, compile, info
 import Base: Fix1, eltype, iterate, length
-using DataStructures
 using Test
 
 # https://docs.julialang.org/en/v1/manual/types/#%22Value-types%22
@@ -26,13 +25,13 @@ const OpCBra = Val{0x88}
 const OpBraZero = Val{0x96}
 
 function char!(op::Char, ::Vector{Int64}, next::Vector{Int64}, char::Char, i::Int)
-    op == char && push!(next, ((i & ~2) | 1) + (2 << 2))
+    op ≡ char && push!(next, ((i & ~2) | 1) + (2 << 2))
     false
 end
 function posstar!(op::Char, curr::Vector{Int64}, next::Vector{Int64}, char::Char, i::Int)
     j = i | 1
     push!(curr, j + (2 << 2))
-    op == char && push!(next, j)
+    op ≡ char && push!(next, j)
     false
 end
 function alt!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int)
@@ -40,11 +39,11 @@ function alt!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int
     false
 end
 function ket!(::UInt16, ::Vector{Int64}, ::Vector{Int64}, char::Char, i::Int)
-    (i & 3) ≠ 0 && char == '\0'
+    (i & 3) ≠ 0 && char ≡ '\0'
 end
 function ketrmax!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int)
     (i & 3) ≠ 0 && push!(curr, (i | 1) + (3 << 2))
-    (i & 3) == 1 && push!(curr, (i | 2) - link)
+    (i & 3) ≡ 1 && push!(curr, (i | 2) - link)
     false
 end
 function bra!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int)
@@ -160,7 +159,7 @@ end
     @testset "$regexp" for (regexp, cases) ∈ tests
         code = Dict(OpCodes(compile(regexp, 0)))
         @testset "$string" for (string, matches) ∈ cases
-            @test match(code, "$string") == matches
+            @test match(code, "$string") ≡ matches
         end
     end
 end
