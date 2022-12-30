@@ -1,0 +1,67 @@
+! The calling sequences are:
+!
+!       CALL FOURT (DATA,NN,NDIM,ISIGN,IFORM,WORK)
+!       CALL F0UR2 (DATA,NN,NDIM,ISIGN)
+!       CALL FOUR1 (DATA,M,ISIGN)
+!
+!   In all cases, DATA is the array used to hold the real and imaginary parts
+! of the input data and the transform values on output. The real and imaginary
+! parts of a datum must be placed into immediately adjacent locations in storage.
+! This is the form of storage used by Fortran IV, and may be accomplished in
+! Fortran II by making the first dimension of DATA of length two, referring to
+! the real and imaginary parts. If the data placed in DATA on input are real,
+! they must have imaginary parts of zero appended. The transform values are
+! always complex and replace the input data. Hence, the array DATA must always
+! be of complex format.
+!
+!   For F0UR1, array DATA must be one-dimensional, of length NN. For F0UR2
+! and FOURT, it may be multidimensional. The extent of each dimension (except
+! for the possible first dimension referring to the real and imaginary parts)
+! is given in the integer array NN, which is of length NDIM, the number of
+! dimensions. That is, NN(1) = N1, NN(2) = N2, etc. *
+!
+!   ISIGN is an integer used to indicate the direction of the transform. It
+! is minus one to indicate a forward transform (exponential sign is -) and plus
+! one to indicate an inverse transform (sign is +). The scale factor 1/(Nl*N2*...)
+! frequently seen in definitions of the Fourier transform must be applied by
+! the user.
+!
+!   If the data being passed to FOURT are real (i.e., have zero imaginary
+! parts), the integer IFORM should be set to zero. This will speed execution
+! (see Timing). For complex data, IFORM must be plus one.
+!
+!   WORK is an array used by FOURT when any of the dimensions of DATA is not
+! a power of two. Since F0UR2 and F0UR1 are restricted to powers of two, WORK is
+! not needed. If the dimensions of DATA are all powers of two in FOURT, WORK
+! may be replaced by a zero in the calling sequence. Otherwise, it must be
+! supplied, a real floating point array of length twice the longest dimension
+! of DATA which is not a power of two. In one dimension, for the length not a
+! power of two, WORK occupies as many storage locations as DATA. If given, it
+! may not be the same array as DATA.
+! ___________________
+! * As usual, the first subscript varies the fastest in storage order.
+
+python module fourt
+    usercode '''
+    static int maxval(int nn[], int ndim)
+    {
+        int result = 0, item;
+        while (ndim--) {
+            item = *nn++;
+            if ((item & -item) != item && item > result)
+                result = item;
+        }
+        return result;
+    }
+    '''
+    interface
+        subroutine fourt(data, nn, ndim, isign, iform, work)
+            complex(kind=8) intent(in, out, copy), dimension(*) :: data
+            integer intent(hide), depend(data, ndim), dimension(ndim) :: nn = PyArray_DIM((PyArrayObject *)data_capi, _i[0])
+            integer intent(hide), depend(data) :: ndim = PyArray_NDIM((PyArrayObject *)data_capi)
+            integer intent(in), optional :: isign = 1
+            integer intent(in), optional :: iform = 1
+            complex(kind=8) intent(in), optional, depend(nn, ndim), dimension(maxval(nn, ndim)), check(size(work) >= maxval(nn, ndim)) :: work
+        end subroutine fourt
+    end interface
+end python module fourt
