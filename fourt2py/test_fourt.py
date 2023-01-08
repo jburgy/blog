@@ -1,6 +1,6 @@
 import numpy as np
 
-from fourt import fourt
+from fourt2py import fourt
 
 a = np.zeros(15, dtype=complex)
 a[1] = 1

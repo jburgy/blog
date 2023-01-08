@@ -41,7 +41,7 @@
 ! ___________________
 ! * As usual, the first subscript varies the fastest in storage order.
 
-python module fourt
+python module fourt2py
     usercode '''
     static int maxval(int nn[], int ndim)
     {
