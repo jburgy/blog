@@ -1,4 +1,4 @@
--e .
+.
 bokeh
 fastapi
 jupyter
