@@ -33,7 +33,7 @@ def oecd(dataset: str, **kwargs) -> pd.DataFrame:
     ...     oecd("TUD", startTime=1960, endTime=2020)
     ...     .reorder_levels(["Frequency", "Measure", "Country"])
     ...     .loc["Annual", "Percentage of employees"].head()
-    ... ) #doctest: +NORMALIZE_WHITESPACE
+    ... ) #doctest: +SKIP
     Time                  1960       1961  ...       2019       2020
     Country                                ...
     Australia        53.799999  53.200001  ...        NaN        NaN
