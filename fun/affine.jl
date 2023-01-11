@@ -1,7 +1,7 @@
 # https://en.wikipedia.org/wiki/Affine_scaling
 
 using Base.Order: Forward
-using LinearAlgebra: Diagonal, Symmetric, Transpose, axpy!, ldiv!, lmul!, lu!
+using LinearAlgebra: Diagonal, Symmetric, Transpose, axpy!, bunchkaufman!, ldiv!, lmul!
 import LinearAlgebra: mul!
 
 struct SparseMatrixCSR{T} <: AbstractArray{T,2}
@@ -72,7 +72,7 @@ function affine_scaling!(x::Vector{T}, A::SparseMatrixCSR{T}, b::Vector{T}, c::V
         mul!(d2.diag, d, x)
         mul!(Ad2, A, d2)
         ad2aT!(Ad2AT, A, d2)
-        ldiv!(lu!(Ad2AT), mul!(w, Ad2, c))
+        ldiv!(bunchkaufman!(Ad2AT), mul!(w, Ad2, c))
         copyto!(r, c)
         mul!(r, transpose(A), w, -1.0, 1.0)
         mul!(r, d, r)
@@ -90,4 +90,3 @@ b = [15.0, 15.0]
 c = [-2.0, 1.0, 0.0, 0.0]
 x = [10.0, 2.0, 7.0, 13.0]
 println(affine_scaling!(x, A, b, c))
-# println(ad2aT!(Vector{Float64}(undef, 3), A, x))
