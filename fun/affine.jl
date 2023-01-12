@@ -2,6 +2,7 @@
 
 using LinearAlgebra: Diagonal, Symmetric, Transpose, bunchkaufman!, ldiv!
 import LinearAlgebra: mul!
+using Test: @test, @testset
 
 struct SparseMatrixCSR{T} <: AbstractArray{T,2}
     data::Vector{T}
@@ -100,8 +101,10 @@ function affine_scaling!(x::Vector{T}, A::SparseMatrixCSR{T}, b::Vector{T}, c::V
     return x
 end
 
-A = SparseMatrixCSR{Float64}([1.0, -1.0, 1.0, 1.0, 1.0], [1, 2, 3, 2, 4], [1, 4, 6])
-b = [15.0, 15.0]
-c = [-2.0, 1.0, 0.0, 0.0]
-x = [10.0, 2.0, 7.0, 13.0]
-println(affine_scaling!(x, A, b, c))
+@testset "affine_scaling" begin
+    A = SparseMatrixCSR{Float64}([1.0, -1.0, 1.0, 1.0, 1.0], [1, 2, 3, 2, 4], [1, 4, 6])
+    b = [15.0, 15.0]
+    c = [-2.0, 1.0, 0.0, 0.0]
+    x = [10.0, 2.0, 7.0, 13.0]
+    @test affine_scaling!(x, A, b, c) ≈ [30.0, 15.0, 0.0, 0.0]
+end
