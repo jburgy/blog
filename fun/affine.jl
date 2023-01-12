@@ -1,7 +1,6 @@
 # https://en.wikipedia.org/wiki/Affine_scaling
 
-using Base.Order: Forward
-using LinearAlgebra: Diagonal, Symmetric, Transpose, axpy!, bunchkaufman!, ldiv!, lmul!
+using LinearAlgebra: Diagonal, Symmetric, Transpose, bunchkaufman!, ldiv!
 import LinearAlgebra: mul!
 
 struct SparseMatrixCSR{T} <: AbstractArray{T,2}
@@ -47,14 +46,31 @@ function mul!(y::Vector{T}, a::SparseMatrixCSR{T}, x::Vector{T}, α::Number=1.0,
 end
 
 function ad2aT!(y::Symmetric{T,Matrix{T}}, a::SparseMatrixCSR{T}, d2::Diagonal{T}) where {T}
-    for j ∈ eachindex(a.indptr)[1:end-1]
-        for i ∈ eachindex(a.indptr)[1:j]
-            n = a.indptr[j]
-            y.data[i, j] = sum(a.indptr[i]:a.indptr[i+1]-1) do k
-                m = a.indices[k]
-                n = searchsortedfirst(a.indices, m, n, a.indptr[j+1] - 1, Forward)
-                a.indices[n] == m ? a.data[n] * d2[m, m] * a.data[k] : 0.0
+    data = a.data
+    indices = a.indices
+    indptr = a.indptr
+    for j ∈ eachindex(indptr)[1:end-1]
+        for i ∈ eachindex(indptr)[1:j]
+            m = indptr[i]
+            n = indptr[j]
+            M = indptr[i+1]
+            N = indptr[j+1]
+
+            s = 0.0
+            @inbounds while m < M && m < N
+                k = indices[m]
+                l = indices[n]
+                if k == l
+                    s += data[m] * d2[k, k] * data[n]
+                    m += 1
+                    n += 1
+                elseif k < l
+                    m += 1
+                else
+                    n += 1
+                end
             end
+            y.data[i, j] = s
         end
     end
     y
@@ -79,8 +95,7 @@ function affine_scaling!(x::Vector{T}, A::SparseMatrixCSR{T}, b::Vector{T}, c::V
         if all(>=(0.0), r) && sum(r) < ε
             break
         end
-        lmul!(β / maximum(r), r)
-        mul!(x, d, r, -1.0, 1.0)  # x = x - diag(x)*r
+        mul!(x, d, r, -β / maximum(r), 1.0)  # x = x - diag(x)*r
     end
     return x
 end
