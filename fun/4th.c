@@ -3,13 +3,13 @@
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
 #include <stdlib.h> /* exit, strtol */
-#include <string.h> /* strncmp, memmove, strncpy */
+#include <string.h> /* memcmp, memmove, memcpy */
 #include <sys/syscall.h> /* SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk */
 #include <unistd.h> /* read, write, intptr_t */
 
 #define NEXT do { target = ip++; goto **target; } while (0)
-#define DEFCODE(name_, flags_, label) {.link = prims + __COUNTER__, .flags = flags_, .name = name_, .code = {&&DOCOL, label}}
-#define DEFCOMP(link_, name_, flags_, ...) {.link = link_, .flags = flags_, .name = name_, .code = {&&DOCOL, __VA_ARGS__, &&EXIT}}
+#define DEFCODE(name_, flags_, label) {.link = prims + __COUNTER__, .flags = flags_ | ((sizeof name_) - 1), .name = name_, .code = {label}}
+#define DEFWORD(link_, name_, flags_, ...) {.link = link_, .flags = flags_ | ((sizeof name_) - 1), .name = name_, .code = {&&DOCOL, __VA_ARGS__}}
 #define BYTES_PER_WORD sizeof(intptr_t)
 #define STACK_SIZE (0x2000 / BYTES_PER_WORD) /* Number of elements in each stack */
 
@@ -18,9 +18,9 @@ struct word {
     struct word *link;
     int flags;
     const char *name;
-    void *code[2];
+    void *code[1];
 };
-struct word11 {
+struct wide {
     void *link;
     int flags;
     const char *name;
@@ -76,7 +76,7 @@ intptr_t word(void)
 
 struct word *find(struct word *word, char *name, size_t count)
 {
-    while (word && strlen(word->name) == count && strncmp(word->name, name, count))
+    while (word && (((word->flags & (F_HIDDEN | F_LENMASK)) != count) || memcmp(word->name, name, count)))
         word = word->link;
 
     return word;
@@ -85,7 +85,7 @@ struct word *find(struct word *word, char *name, size_t count)
 int main(void)
 {
     static struct word prims[] = {
-        {.link = NULL, .flags = 0, .name = "DROP", .code = {&&DOCOL, &&DROP}},
+        {.link = NULL, .flags = 4, .name = "DROP", .code = {&&DROP}},
         DEFCODE("SWAP", 0, &&SWAP),
         DEFCODE("DUP", 0, &&DUP),
         DEFCODE("OVER", 0, &&OVER),
@@ -189,12 +189,12 @@ int main(void)
     };
 
     /* composite primitives */
-    static struct word11 comps[] = {
-        DEFCOMP(prims + (sizeof prims) / (sizeof *prims) - 1, ">DFA", 0, &&TCFA, &&INCR4),
-        DEFCOMP(comps + 0, ":", 0, &&WORD, &&CREATE, &&LIT, &&DOCOL, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&RBRAC),
-        DEFCOMP(comps + 1, ";", F_IMMED, &&LIT, &&EXIT, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&LBRAC),
-        DEFCOMP(comps + 2, "HIDE", 0, &&WORD, &&FIND, &&HIDDEN),
-        DEFCOMP(comps + 3, "QUIT", 0, &&RZ, &&RSPSTORE, &&INTERPRET, &&BRANCH, (void *)-2),
+    static struct wide comps[] = {
+        DEFWORD(prims + (sizeof prims) / (sizeof *prims) - 1, ">DFA", 0, &&TCFA, &&INCR4, &&EXIT),
+        DEFWORD(comps + 0, ":", 0, &&WORD, &&CREATE, &&LIT, &&DOCOL, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&RBRAC, &&EXIT),
+        DEFWORD(comps + 1, ";", F_IMMED, &&LIT, &&EXIT, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&LBRAC, &&EXIT),
+        DEFWORD(comps + 2, "HIDE", 0, &&WORD, &&FIND, &&HIDDEN, &&EXIT),
+        DEFWORD(comps + 3, "QUIT", 0, &&RZ, &&RSPSTORE, &&INTERPRET, &&BRANCH, (void *)-2),  /* no &&EXIT! */
     };
 
     static intptr_t memory[0x10000];
@@ -560,11 +560,10 @@ TCFA:
 CREATE:
     c = pop();
     s = (char *)pop();
-    r = strncpy((char *)here, s, c);
-    r[c] = '\0';
+    r = memcpy((char *)here, s, c);
     new = (struct word *)(here + (c + 1 + BYTES_PER_WORD) / BYTES_PER_WORD);
     new->link = latest;
-    new->flags = 0;
+    new->flags = c;
     new->name = r;
     *here++ = (intptr_t)&(new->code);
     latest = new;
