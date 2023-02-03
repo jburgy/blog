@@ -1,12 +1,11 @@
 /* A port of http://git.annexia.org/?p=jonesforth.git;a=blob;f=jonesforth.S to gcc */
 
 #include <assert.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/syscall.h>
-#include <unistd.h>
+#include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
+#include <stdlib.h> /* exit, strtol */
+#include <string.h> /* strncmp, memmove, strncpy */
+#include <sys/syscall.h> /* SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk */
+#include <unistd.h> /* read, write, intptr_t */
 
 #define NEXT do { target = ip++; goto **target; } while (0)
 #define DEFCODE(name_, flags_, label) {.link = prims + __COUNTER__, .flags = flags_, .name = name_, .code = {&&DOCOL, label}}
@@ -28,12 +27,11 @@ struct word11 {
     void *code[11];
 };
 
-static char buffer[0x1000];
 static char word_buffer[0x20];
 
 int key(void)
 {
-    static char *currkey = buffer, *bufftop = buffer;
+    static char buffer[0x1000], *currkey = buffer, *bufftop = buffer;
     ssize_t count;
 
     if (currkey >= bufftop)
@@ -200,7 +198,7 @@ int main(void)
     };
 
     static intptr_t memory[0x10000];
-    static intptr_t stack[STACK_SIZE];            /* Parameter stack */
+    static intptr_t stack[STACK_SIZE];  /* Parameter stack */
     static void *return_stack[STACK_SIZE / 2]; /* Return stack */
     static intptr_t state = 0;
     static intptr_t *here = memory;
