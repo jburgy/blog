@@ -2,14 +2,24 @@
 
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
-#include <stdlib.h> /* exit, strtol */
-#include <string.h> /* memcmp, memmove, memcpy */
-#include <sys/syscall.h> /* SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk */
-#include <unistd.h> /* read, write, intptr_t */
+#include <stdlib.h>  /* exit, strtol */
+#include <string.h>  /* memcmp, memmove, memcpy */
+#include <sys/syscall.h>  /* SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk */
+#include <unistd.h>  /* read, write, intptr_t */
 
 #define NEXT do { target = ip++; goto **target; } while (0)
-#define DEFCODE(name_, flags_, label) {.link = prims + __COUNTER__, .flags = flags_ | ((sizeof name_) - 1), .name = name_, .code = {label}}
-#define DEFWORD(link_, name_, flags_, ...) {.link = link_, .flags = flags_ | ((sizeof name_) - 1), .name = name_, .code = {&&DOCOL, __VA_ARGS__}}
+#define DEFCODE(_link, _flags, _name, _label) \
+    static struct word name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&_label}}; \
+_label
+
+#define DEFCONST(_link, _flags, _name, _label, _value) \
+    DEFCODE(_link, _flags, _name, _label): \
+    push((intptr_t)_value); \
+    NEXT
+
+#define DEFWORD(_link, _flags, _name, _label, ...) \
+    static struct word name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&DOCOL, __VA_ARGS__}}
+
 #define BYTES_PER_WORD sizeof(intptr_t)
 #define STACK_SIZE (0x2000 / BYTES_PER_WORD) /* Number of elements in each stack */
 
@@ -18,13 +28,7 @@ struct word {
     struct word *link;
     int flags;
     const char *name;
-    void *code[1];
-};
-struct wide {
-    void *link;
-    int flags;
-    const char *name;
-    void *code[11];
+    void *code[];
 };
 
 static char word_buffer[0x20];
@@ -71,6 +75,7 @@ intptr_t word(void)
         ch = key();
     } while (ch > ' ');
 
+    *s = '\0';
     return s - word_buffer;
 }
 
@@ -84,130 +89,12 @@ struct word *find(struct word *word, char *name, size_t count)
 
 int main(void)
 {
-    static struct word prims[] = {
-        {.link = NULL, .flags = 4, .name = "DROP", .code = {&&DROP}},
-        DEFCODE("SWAP", 0, &&SWAP),
-        DEFCODE("DUP", 0, &&DUP),
-        DEFCODE("OVER", 0, &&OVER),
-        DEFCODE("ROT", 0, &&ROT),
-        DEFCODE("-ROT", 0, &&NROT),
-        DEFCODE("2DROP", 0, &&TWODROP),
-        DEFCODE("2DUP", 0, &&TWODUP),
-        DEFCODE("2SWAP", 0, &&TWOSWAP),
-        DEFCODE("?DUP", 0, &&QDUP),
-        DEFCODE("1+", 0, &&INCR),
-        DEFCODE("1-", 0, &&DECR),
-        DEFCODE("4+", 0, &&INCR4),
-        DEFCODE("4-", 0, &&DECR4),
-        DEFCODE("+", 0, &&ADD),
-        DEFCODE("-", 0, &&SUB),
-        DEFCODE("*", 0, &&MUL),
-        DEFCODE("/MOD", 0, &&DIVMOD),
-        DEFCODE("=", 0, &&EQU),
-        DEFCODE("<>", 0, &&NEQU),
-        DEFCODE("<", 0, &&LT),
-        DEFCODE(">", 0, &&GT),
-        DEFCODE("<=", 0, &&LE),
-        DEFCODE(">=", 0, &&GE),
-        DEFCODE("0=", 0, &&ZEQU),
-        DEFCODE("0<>", 0, &&ZNEQU),
-        DEFCODE("0<", 0, &&ZLT),
-        DEFCODE("0>", 0, &&ZGT),
-        DEFCODE("0<=", 0, &&ZLE),
-        DEFCODE("0>=", 0, &&ZGE),
-        DEFCODE("AND", 0, &&AND),
-        DEFCODE("OR", 0, &&OR),
-        DEFCODE("XOR", 0, &&XOR),
-        DEFCODE("INVERT", 0, &&INVERT),
-        DEFCODE("EXIT", 0, &&EXIT),
-        DEFCODE("LIT", 0, &&LIT),
-        DEFCODE("!", 0, &&STORE),
-        DEFCODE("@", 0, &&FETCH),
-        DEFCODE("+!", 0, &&ADDSTORE),
-        DEFCODE("-!", 0, &&SUBSTORE),
-        DEFCODE("C!", 0, &&STOREBYTE),
-        DEFCODE("C@", 0, &&FETCHBYTE),
-        DEFCODE("C@C!", 0, &&CCOPY),
-        DEFCODE("CMOVE", 0, &&CMOVE),
-        DEFCODE("STATE", 0, &&STATE),
-        DEFCODE("HERE", 0, &&HERE),
-        DEFCODE("LATEST", 0, &&LATEST),
-        DEFCODE("S0", 0, &&S0),
-        DEFCODE("STATE", 0, &&BASE),
-        DEFCODE("VERSION", 0, &&JONES_VERSION),
-        DEFCODE("R0", 0, &&RZ),
-        DEFCODE("DOCOL", 0, &&DOCOL),
-        DEFCODE("F_IMMED", 0, &&__F_IMMED),
-        DEFCODE("F_HIDDEN", 0, &&__F_HIDDEN),
-        DEFCODE("F_LENMASK", 0, &&__F_LENMASK),
-        DEFCODE("SYS_EXIT", 0, &&SYS_EXIT),
-        DEFCODE("SYS_OPEN", 0, &&SYS_OPEN),
-        DEFCODE("SYS_CLOSE", 0, &&SYS_CLOSE),
-        DEFCODE("SYS_READ", 0, &&SYS_READ),
-        DEFCODE("SYS_WRITE", 0, &&SYS_WRITE),
-        DEFCODE("SYS_CREAT", 0, &&SYS_CREAT),
-        DEFCODE("SYS_BRK", 0, &&SYS_BRK),
-        DEFCODE("O_RDONLY", 0, &&__O_RDONLY),
-        DEFCODE("O_WRONLY", 0, &&__O_WRONLY),
-        DEFCODE("O_RDWR", 0, &&__O_RDWR),
-        DEFCODE("O_CREAT", 0, &&__O_CREAT),
-        DEFCODE("O_EXCL", 0, &&__O_EXCL),
-        DEFCODE("O_TRUNC", 0, &&__O_TRUNC),
-        DEFCODE("O_APPEND", 0, &&__O_APPEND),
-        DEFCODE("O_NONBLOCK", 0, &&__O_NONBLOCK),
-        DEFCODE(">R", 0, &&TOR),
-        DEFCODE("R>", 0, &&FROMR),
-        DEFCODE("RSP@", 0, &&RSPFETCH),
-        DEFCODE("RSP!", 0, &&RSPSTORE),
-        DEFCODE("RDROP", 0, &&RDROP),
-        DEFCODE("DSP@", 0, &&DSPFETCH),
-        DEFCODE("DSP!", 0, &&DSPSTORE),
-        DEFCODE("KEY", 0, &&KEY),
-        DEFCODE("EMIT", 0, &&EMIT),
-        DEFCODE("WORD", 0, &&WORD),
-        DEFCODE("NUMBER", 0, &&NUMBER),
-        DEFCODE("FIND", 0, &&FIND),
-        DEFCODE(">CFA", 0, &&TCFA),
-        DEFCODE("CREATE", 0, &&CREATE),
-        DEFCODE(",", 0, &&COMMA),
-        DEFCODE("[", F_IMMED, &&LBRAC),
-        DEFCODE("]", 0, &&RBRAC),
-        DEFCODE("IMMEDIATE", F_IMMED, &&IMMEDIATE),
-        DEFCODE("HIDDEN", 0, &&HIDDEN),
-        DEFCODE("'", 0, &&TICK),
-        DEFCODE("BRANCH", 0, &&BRANCH),
-        DEFCODE("0BRANCH", 0, &&ZBRANCH),
-        DEFCODE("LITSTRING", 0, &&LITSTRING),
-        DEFCODE("TELL", 0, &&TELL),
-        DEFCODE("INTERPRET", 0, &&INTERPRET),
-        DEFCODE("CHAR", 0, &&CHAR),
-        DEFCODE("EXECUTE", 0, &&EXECUTE),
-        DEFCODE("SYSCALL3", 0, &&SYSCALL3),
-        DEFCODE("SYSCALL2", 0, &&SYSCALL2),
-        DEFCODE("SYSCALL1", 0, &&SYSCALL1),
-        DEFCODE("SYSCALL0", 0, &&SYSCALL0),
-    };
-
-    /* composite primitives */
-    static struct wide comps[] = {
-        DEFWORD(prims + (sizeof prims) / (sizeof *prims) - 1, ">DFA", 0, &&TCFA, &&INCR4, &&EXIT),
-        DEFWORD(comps + 0, ":", 0, &&WORD, &&CREATE, &&LIT, &&DOCOL, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&RBRAC, &&EXIT),
-        DEFWORD(comps + 1, ";", F_IMMED, &&LIT, &&EXIT, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&LBRAC, &&EXIT),
-        DEFWORD(comps + 2, "HIDE", 0, &&WORD, &&FIND, &&HIDDEN, &&EXIT),
-        DEFWORD(comps + 3, "QUIT", 0, &&RZ, &&RSPSTORE, &&INTERPRET, &&BRANCH, (void *)-2),  /* no &&EXIT! */
-    };
-
     static intptr_t memory[0x10000];
     static intptr_t stack[STACK_SIZE];  /* Parameter stack */
     static void *return_stack[STACK_SIZE / 2]; /* Return stack */
-    static intptr_t state = 0;
-    static intptr_t *here = memory;
-    struct word *latest = (struct word *)(comps + (sizeof comps) / (sizeof *comps) - 1);
     static intptr_t *sp = stack;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
     static void **rsp = return_stack;  /* Initialize the return stack. (%ebp) */
-    static intptr_t base = 10;
-    static char errmsg[] = "PARSE ERROR: ";
-    register void **ip = latest->code, **target;  /* asm("%esi") */
+    register void **ip, **target;
     register intptr_t a, b, c, d, *p, is_literal = 0;
     char *r;
     register char *s;
@@ -225,28 +112,31 @@ int main(void)
         *sp++ = a; 
     }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
-    NEXT;  // Run interpreter!
-#pragma GCC diagnostic pop
-DROP:
+goto cold_start;
+
+DOCOL:
+    *rsp++ = ip;
+    ip = target + 1;
+    NEXT;
+
+DEFCODE(NULL, 0, "DROP", DROP):
     (void)pop();
     NEXT;
-SWAP:
+DEFCODE(&name_DROP, 0, "SWAP", SWAP):
     a = pop();
     b = pop();
     push(a);
     push(b);
     NEXT;
-DUP:
+DEFCODE(&name_DROP, 0, "DUP", DUP):
     a = sp[-1];
     push(a);
     NEXT;
-OVER:
+DEFCODE(&name_DUP, 0, "OVER", OVER):
     a = sp[-2];
     push(a);
     NEXT;
-ROT:
+DEFCODE(&name_OVER, 0, "ROT", ROT):
     a = pop();
     b = pop();
     c = pop();
@@ -254,7 +144,7 @@ ROT:
     push(c);
     push(b);
     NEXT;
-NROT:
+DEFCODE(&name_ROT, 0, "-ROT", NROT):
     a = pop();
     b = pop();
     c = pop();
@@ -262,17 +152,17 @@ NROT:
     push(c);
     push(b);
     NEXT;
-TWODROP:
+DEFCODE(&name_NROT, 0, "2DROP", TWODROP):
     (void)pop();
     (void)pop();
     NEXT;
-TWODUP:
+DEFCODE(&name_TWODROP, 0, "2DUP", TWODUP):
     a = sp[-1];
     b = sp[-2];
     push(a);
     push(b);
     NEXT;
-TWOSWAP:
+DEFCODE(&name_TWODUP, 0, "2SWAP", TWOSWAP):
     a = pop();
     b = pop();
     c = pop();
@@ -282,282 +172,244 @@ TWOSWAP:
     push(d);
     push(c);
     NEXT;
-QDUP:
+DEFCODE(&name_TWOSWAP, 0, "?DUP", QDUP):
     a = sp[-1];
     if (a)
         push(a);
     NEXT;
-INCR:
+DEFCODE(&name_QDUP, 0, "1+", INCR):
     ++sp[-1];
     NEXT;
-DECR:
+DEFCODE(&name_INCR, 0, "1-", DECR):
     --sp[-1];
     NEXT;
-INCR4:
+DEFCODE(&name_DECR, 0, "4+", INCR4):
     sp[-1] += BYTES_PER_WORD;
     NEXT;
-DECR4:
+DEFCODE(&name_INCR4, 0, "4-", DECR4):
     sp[-1] -= BYTES_PER_WORD;
     NEXT;
-ADD:
+DEFCODE(&name_DECR4, 0, "+", ADD):
     a = pop();
     sp[-1] += a;
     NEXT;
-SUB:
+DEFCODE(&name_ADD, 0, "-", SUB):
     a = pop();
     sp[-1] -= a;
     NEXT;
-MUL:
+DEFCODE(&name_SUB, 0, "*", MUL):
     a = pop();
     sp[-1] *= a;
     NEXT;
-DIVMOD:
+DEFCODE(&name_MUL, 0, "/MOD", DIVMOD):
     b = pop();
     a = pop();
     push(a % b);
     push(a / b);
     NEXT;
-EQU:
+DEFCODE(&name_DIVMOD, 0, "=", EQU):
     a = pop();
     b = pop();
     push(a == b ? ~0 : 0);
     NEXT;
-NEQU:
+DEFCODE(&name_EQU, 0, "<>", NEQU):
     a = pop();
     b = pop();
     push(a == b ? 0 : ~0);
     NEXT;
-LT:
+DEFCODE(&name_NEQU, 0, "<", LT):
     a = pop();
     b = pop();
     push(a < b ? ~0 : 0);
     NEXT;
-GT:
+DEFCODE(&name_LT, 0, ">", GT):
     a = pop();
     b = pop();
     push(a > b ? ~0 : 0);
     NEXT;
-LE:
+DEFCODE(&name_GT, 0, "<=", LE):
     a = pop();
     b = pop();
     push(a <= b ? ~0 : 0);
     NEXT;
-GE:
+DEFCODE(&name_LE, 0, ">=", GE):
     a = pop();
     b = pop();
     push(a >= b ? ~0 : 0);
     NEXT;
-ZEQU:
+DEFCODE(&name_GE, 0, "0=", ZEQU):
     a = pop();
     push(a ? 0 : ~0);
     NEXT;
-ZNEQU:
+DEFCODE(&name_ZEQU, 0, "0<>", ZNEQU):
     a = pop();
     push(a ? ~0 : 0);
     NEXT;
-ZLT:
+DEFCODE(&name_ZNEQU, 0, "0<", ZLT):
     a = pop();
     push(0 < a ? ~0 : 0);
     NEXT;
-ZGT:
+DEFCODE(&name_ZLT, 0, "0>", ZGT):
     a = pop();
     push(0 > a ? ~0 : 0);
     NEXT;
-ZLE:
+DEFCODE(&name_ZGT, 0, "0<=", ZLE):
     a = pop();
     push(0 <= a ? ~0 : 0);
     NEXT;
-ZGE:
+DEFCODE(&name_ZLE, 0, "0>=", ZGE):
     a = pop();
     push(0 >= a ? ~0 : 0);
     NEXT;
-AND:
+DEFCODE(&name_ZGE, 0, "AND", AND):
     a = pop();
     sp[-1] &= a;
     NEXT;
-OR:
+DEFCODE(&name_AND, 0, "OR", OR):
     a = pop();
     sp[-1] |= a;
     NEXT;
-XOR:
+DEFCODE(&name_OR, 0, "XOR", XOR):
     a = pop();
     sp[-1] ^= a;
     NEXT;
-INVERT:
+DEFCODE(&name_XOR, 0, "INVERT", INVERT):
     sp[-1] = ~sp[-1];
     NEXT;
-EXIT:
+DEFCODE(&name_INVERT, 0, "EXIT", EXIT):
     ip = *--rsp;
     NEXT;
-LIT:
+DEFCODE(&name_EXIT, 0, "LIT", LIT):
     push((intptr_t)*ip++);
     NEXT;
-STORE:
+DEFCODE(&name_LIT, 0, "!", STORE):
     p = (intptr_t *)pop();
     *p = pop();
     NEXT;
-FETCH:
+DEFCODE(&name_STORE, 0, "@", FETCH):
     p = (intptr_t *)pop();
     push(*p);
     NEXT;
-ADDSTORE:
+DEFCODE(&name_FETCH, 0, "+!", ADDSTORE):
     p = (intptr_t *)pop();
     *p += pop();
     NEXT;
-SUBSTORE:
+DEFCODE(&name_ADDSTORE, 0, "-!", SUBSTORE):
     p = (intptr_t *)pop();
     *p -= pop();
     NEXT;
-STOREBYTE:
+DEFCODE(&name_SUBSTORE, 0, "C!", STOREBYTE):
     s = (char *)pop();
     *s = (char)pop();
     NEXT;
-FETCHBYTE:
+DEFCODE(&name_STOREBYTE, 0, "C@", FETCHBYTE):
     s = (char *)pop();
     push(*s);
     NEXT;
-CCOPY:
+DEFCODE(&name_FETCHBYTE, 0, "C@C!", CCOPY):
     s = (char *)pop();
     r = (char *)pop();
     *r = *s;
     push((intptr_t)r);
     NEXT;
-CMOVE:
+DEFCODE(&name_CCOPY, 0, "CMOVE", CMOVE):
     c = pop();
     r = (char *)pop();
     s = (char *)pop();
     push((intptr_t)memmove(r, s, c));
     NEXT;
-STATE:
+    static intptr_t state = 0;
+DEFCODE(&name_CMOVE, 0, "STATE", STATE):
     push((intptr_t)&state);
     NEXT;
-LATEST:
-    push((intptr_t)latest);
-    NEXT;
-HERE:
+    static intptr_t *here = memory;
+DEFCODE(&name_STATE, 0, "HERE", HERE):
     push((intptr_t)here);
     NEXT;
-S0:
+    static struct word *latest;
+DEFCODE(&name_HERE, 0, "LATEST", LATEST):
+    push((intptr_t)latest);
+    NEXT;
+DEFCODE(&name_LATEST, 0, "S0", SZ):
     push((intptr_t)stack);
     NEXT;
-BASE:
+    static intptr_t base = 10;
+DEFCODE(&name_SZ, 0, "BASE", BASE):
     push((intptr_t)&base);
     NEXT;
-JONES_VERSION:
-    push(7);
-    NEXT;
-RZ:
-    push((intptr_t)return_stack);
-    NEXT;
-DOCOL:
-    *rsp++ = ip;
-    ip = target + 1;
-    NEXT;
-__F_IMMED:
-    push(F_IMMED);
-    NEXT;
-__F_HIDDEN:
-    push(F_HIDDEN);
-    NEXT;
-__F_LENMASK:
-    push(F_LENMASK);
-    NEXT;
-SYS_EXIT:
-    push(SYS_exit);
-    NEXT;
-SYS_OPEN:
-    push(SYS_open);
-    NEXT;
-SYS_CLOSE:
-    push(SYS_close);
-    NEXT;
-SYS_READ:
-    push(SYS_read);
-    NEXT;
-SYS_WRITE:
-    push(SYS_write);
-    NEXT;
-SYS_CREAT:
-    push(SYS_creat);
-    NEXT;
-SYS_BRK:
-    push(SYS_brk);
-    NEXT;
-__O_RDONLY:
-    push(O_RDONLY);
-    NEXT;
-__O_WRONLY:
-    push(O_WRONLY);
-    NEXT;
-__O_RDWR:
-    push(O_RDWR);
-    NEXT;
-__O_CREAT:
-    push(O_CREAT);
-    NEXT;
-__O_EXCL:
-    push(O_EXCL);
-    NEXT;
-__O_TRUNC:
-    push(O_TRUNC);
-    NEXT;
-__O_APPEND:
-    push(O_APPEND);
-    NEXT;
-__O_NONBLOCK:
-    push(O_NONBLOCK);
-    NEXT;
-TOR:
+DEFCONST(&name_BASE, 0, "VERSION", VERSION, 47);
+DEFCONST(&name_VERSION, 0, "R0", RZ, return_stack);
+DEFCONST(&name_RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
+DEFCONST(&name___DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED);
+DEFCONST(&name___F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN);
+DEFCONST(&name___F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK);
+DEFCONST(&name___F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, SYS_exit);
+DEFCONST(&name_SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, SYS_open);
+DEFCONST(&name_SYS_OPEN, 0, "SYS_CLOSE", SYS_CLOSE, SYS_close);
+DEFCONST(&name_SYS_CLOSE, 0, "SYS_READ", SYS_READ, SYS_read);
+DEFCONST(&name_SYS_READ, 0, "SYS_WRITE", SYS_WRITE, SYS_write);
+DEFCONST(&name_SYS_WRITE, 0, "SYS_CREAT", SYS_CREAT, SYS_creat);
+DEFCONST(&name_SYS_CREAT, 0, "SYS_BRK", SYS_BRK, SYS_brk);
+DEFCONST(&name_SYS_BRK, 0, "O_RDONLY", __O_RDONLY, O_RDONLY);
+DEFCONST(&name___O_RDONLY, 0, "O_WRONL", __O_WRONLY, O_WRONLY);
+DEFCONST(&name___O_WRONLY, 0, "O_RDWR", __O_RDWR, O_RDWR);
+DEFCONST(&name___O_RDWR, 0, "O_CREAT", __O_CREAT, O_CREAT);
+DEFCONST(&name___O_CREAT, 0, "O_EXCL", __O_EXCL, O_EXCL);
+DEFCONST(&name___O_EXCL, 0, "O_TRUNC", __O_TRUNC, O_TRUNC);
+DEFCONST(&name___O_TRUNC, 0, "O_APPEND", __O_APPEND, O_APPEND);
+DEFCONST(&name___O_APPEND, 0, "O_NONBLOCK", __O_NONBLOCK, O_NONBLOCK);
+DEFCODE(&name___O_NONBLOCK, 0, ">R", TOR):
     *rsp++ = (void *)pop();
     NEXT;
-FROMR:
+DEFCODE(&name_TOR, 0, "R>", FROMR):
     push((intptr_t)*--rsp);
     NEXT;
-RSPFETCH:
+DEFCODE(&name_FROMR, 0, "RSP@", RSPFETCH):
     push((intptr_t)rsp);
     NEXT;
-RSPSTORE:
+DEFCODE(&name_RSPFETCH, 0, "RSP!", RSPSTORE):
     rsp = (void **)pop();
     NEXT;
-RDROP:
+DEFCODE(&name_RSPSTORE, 0, "RDROP", RDROP):
     --rsp;
     NEXT;
-DSPFETCH:
+DEFCODE(&name_RDROP, 0, "DSP@", DSPFETCH):
     a = (intptr_t)sp;
     push(a);
     NEXT;
-DSPSTORE:
+DEFCODE(&name_DSPFETCH, 0, "DSP!", DSPSTORE):
     a = pop();
     sp = (intptr_t *)a;
     NEXT;
-KEY:
+DEFCODE(&name_DSPSTORE, 0, "KEY", KEY):
     push(key());
     NEXT;
-EMIT:
+DEFCODE(&name_KEY, 0, "EMIT", EMIT):
     emit(pop());
     NEXT;
-WORD:
+DEFCODE(&name_EMIT, 0, "WORD", WORD):
     push((intptr_t)word_buffer);
     push(word());
     NEXT;
-NUMBER:
+DEFCODE(&name_WORD, 0, "NUMBER", NUMBER):
     c = pop(); /* length of string */
     s = (char *)pop(); /* start address of string */
     r = s + c;
     push(strtol(s, &r, base));
     push(r - s - c);
     NEXT;
-FIND:
+DEFCODE(&name_NUMBER, 0, "FIND", FIND):
     c = pop();
     s = (char *)pop();
     a = (intptr_t)find(latest, s, c);
     push(a);
     NEXT;
-TCFA:
+DEFCODE(&name_FIND, 0, ">CFA", TCFA):
     new = (struct word *)pop();
     push((intptr_t)new->code);
     NEXT;
-CREATE:
+DEFWORD(&name_TCFA, 0, ">DFA", TDFA, &&TCFA, &&INCR4, &&EXIT);
+DEFCODE(&name_TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
     r = memcpy((char *)here, s, c);
@@ -565,49 +417,54 @@ CREATE:
     new->link = latest;
     new->flags = c;
     new->name = r;
-    *here++ = (intptr_t)&(new->code);
+    here = (intptr_t *)&(new->code);
     latest = new;
     NEXT;
-COMMA:
+DEFCODE(&name_CREATE, 0, ",", COMMA):
     *here++ = pop();
     NEXT;
-LBRAC:
+DEFCODE(&name_COMMA, 0, "[", LBRAC):
     state = 0;
     NEXT;
-RBRAC:
+DEFCODE(&name_LBRAC, 0, "]", RBRAC):
     state = 1;
     NEXT;
-IMMEDIATE:
+DEFWORD(&name_RBRAC, 0, ":", COLON, &&WORD, &&CREATE, &&LIT, &&DOCOL, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&RBRAC, &&EXIT);
+DEFWORD(&name_COLON, F_IMMED, ";", SEMICOLON, &&LIT, &&EXIT, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&LBRAC, &&EXIT);
+DEFCODE(&name_SEMICOLON, F_IMMED, "IMMEDIATE", IMMEDIATE):
     latest->flags ^= F_IMMED;
     NEXT;
-HIDDEN:
+DEFCODE(&name_IMMEDIATE, 0, "HIDDEN", HIDDEN):
     latest->flags ^= F_HIDDEN;
     NEXT;
-TICK:
+DEFWORD(&name_HIDDEN, 0, "HIDE", HIDE, &&WORD, &&FIND, &&HIDDEN, &&EXIT);
+DEFCODE(&name_HIDE, 0, "'", TICK):
     target = ip++;
     push((intptr_t)target);
     NEXT;
-BRANCH:
+DEFCODE(&name_TICK, 0, "BRANCH", BRANCH):
     ip += (intptr_t)*ip;
     NEXT;
-ZBRANCH:
+DEFCODE(&name_BRANCH, 0, "0BRANCH", ZBRANCH):
     if (!pop())
         goto BRANCH;
     else
         ip++;
     NEXT;
-LITSTRING:
+DEFCODE(&name_ZBRANCH, 0, "LITSTRING", LITSTRING):
     c = (intptr_t)*ip++;
     push(c);
     push((intptr_t)ip);
     ip += (c + BYTES_PER_WORD) / BYTES_PER_WORD;
     NEXT;
-TELL:
+DEFCODE(&name_LITSTRING, 0, "TELL", TELL):
     c = pop();
     s = (char *)pop();
     write(STDOUT_FILENO, s, c);
     NEXT;
-INTERPRET:
+DEFWORD(&name_TELL, 0, "QUIT", QUIT, &&RZ, &&RSPSTORE, &&INTERPRET, &&BRANCH, (void **)-2);
+    static char errmsg[] = "PARSE ERROR: ";
+DEFCODE(&name_QUIT, 0, "INTERPRET", INTERPRET):
     c = word();
     is_literal = 0;
     new = find(latest, word_buffer, c);
@@ -629,39 +486,44 @@ INTERPRET:
     if (state && !b) {
         *here++ = (intptr_t)target;
         if (is_literal)
-            *here += a;
+            *here++ = a;
     } else if (is_literal) {
         push(a);
     } else {
         goto **target;
     }
     NEXT;
-CHAR:
+DEFCODE(&name_INTERPRET, 0, "CHAR", CHAR):
     word();
     push((intptr_t)*word_buffer);
     NEXT;
-EXECUTE:
+DEFCODE(&name_CHAR, 0, "EXECUTE", EXECUTE):
     goto *(void *)pop();
-SYSCALL3:
+DEFCODE(&name_EXECUTE, 0, "SYSCALL3", SYSCALL3):
     a = pop();
     b = pop();
     c = pop();
     d = pop();
     push(syscall(a, b, c, d));
     NEXT;
-SYSCALL2:
+DEFCODE(&name_SYSCALL3, 0, "SYSCALL2", SYSCALL2):
     a = pop();
     b = pop();
     c = pop();
     push(syscall(a, b, c));
     NEXT;
-SYSCALL1:
+DEFCODE(&name_SYSCALL2, 0, "SYSCALL1", SYSCALL1):
     a = pop();
     b = pop();
     push(syscall(a, b));
     NEXT;
-SYSCALL0:
+DEFCODE(&name_SYSCALL1, 0, "SYSCALL0", SYSCALL0):
     a = pop();
     push(syscall(a));
     NEXT;
+
+cold_start:
+    latest = &name_SYSCALL0;
+    ip = name_QUIT.code;
+    NEXT;  // Run interpreter!
 }
