@@ -1,11 +1,16 @@
 /* A port of http://git.annexia.org/?p=jonesforth.git;a=blob;f=jonesforth.S to gcc */
 
+#if __has_include ("cosmopolitan.h")  /* https://justine.lol/ape.html */
+#include "cosmopolitan.h"
+#define __NR_brk __NR_linux_brk
+#else
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
-#include <stdlib.h>  /* exit, strtol */
+#include <stdlib.h>  /* exit, strtol, syscall */
 #include <string.h>  /* memcmp, memmove, memcpy */
-#include <sys/syscall.h>  /* SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk */
+#include <sys/syscall.h>  /* __NR_exit, __NR_open, __NR_close, __NR_read, __NR_write, __NR_creat, __NR_brk */
 #include <unistd.h>  /* read, write, intptr_t */
+#endif
 
 #define NEXT do { target = ip++; goto **target; } while (0)
 #define DEFCODE(_link, _flags, _name, _label) \
@@ -343,13 +348,13 @@ DEFCONST(&name_RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
 DEFCONST(&name___DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED);
 DEFCONST(&name___F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN);
 DEFCONST(&name___F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK);
-DEFCONST(&name___F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, SYS_exit);
-DEFCONST(&name_SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, SYS_open);
-DEFCONST(&name_SYS_OPEN, 0, "SYS_CLOSE", SYS_CLOSE, SYS_close);
-DEFCONST(&name_SYS_CLOSE, 0, "SYS_READ", SYS_READ, SYS_read);
-DEFCONST(&name_SYS_READ, 0, "SYS_WRITE", SYS_WRITE, SYS_write);
-DEFCONST(&name_SYS_WRITE, 0, "SYS_CREAT", SYS_CREAT, SYS_creat);
-DEFCONST(&name_SYS_CREAT, 0, "SYS_BRK", SYS_BRK, SYS_brk);
+DEFCONST(&name___F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, __NR_exit);
+DEFCONST(&name_SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, __NR_open);
+DEFCONST(&name_SYS_OPEN, 0, "SYS_CLOSE", SYS_CLOSE, __NR_close);
+DEFCONST(&name_SYS_CLOSE, 0, "SYS_READ", SYS_READ, __NR_read);
+DEFCONST(&name_SYS_READ, 0, "SYS_WRITE", SYS_WRITE, __NR_write);
+DEFCONST(&name_SYS_WRITE, 0, "SYS_CREAT", SYS_CREAT, __NR_creat);
+DEFCONST(&name_SYS_CREAT, 0, "SYS_BRK", SYS_BRK, __NR_brk);
 DEFCONST(&name_SYS_BRK, 0, "O_RDONLY", __O_RDONLY, O_RDONLY);
 DEFCONST(&name___O_RDONLY, 0, "O_WRONL", __O_WRONLY, O_WRONLY);
 DEFCONST(&name___O_WRONLY, 0, "O_RDWR", __O_RDWR, O_RDWR);
