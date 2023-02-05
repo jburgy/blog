@@ -6,6 +6,7 @@
 #else
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
+#include <stdio.h>  /* EOF, getchar_unlocked, putchar_unlocked */
 #include <stdlib.h>  /* exit, strtol, syscall */
 #include <string.h>  /* memcmp, memmove, memcpy */
 #include <sys/syscall.h>  /* __NR_exit, __NR_open, __NR_close, __NR_read, __NR_write, __NR_creat, __NR_brk */
@@ -40,25 +41,11 @@ static char word_buffer[0x20];
 
 int key(void)
 {
-    static char buffer[0x1000], *currkey = buffer, *bufftop = buffer;
-    ssize_t count;
+    int ch = getchar_unlocked();
 
-    if (currkey >= bufftop)
-    {
-        currkey = buffer;
-        count = read(STDIN_FILENO, buffer, sizeof buffer);
-        if (count == 0)
-            exit(0);
-        bufftop = buffer + count;
-    }
-    return *currkey++;
-}
-
-ssize_t emit(char ch)
-{
-    char emit_scratch[1] = {ch};
-
-    return write(STDOUT_FILENO, emit_scratch, sizeof emit_scratch);
+    if (ch == EOF)
+        exit(0);
+    return ch;
 }
 
 intptr_t word(void)
@@ -390,7 +377,7 @@ DEFCODE(&name_DSPSTORE, 0, "KEY", KEY):
     push(key());
     NEXT;
 DEFCODE(&name_KEY, 0, "EMIT", EMIT):
-    emit(pop());
+    putchar_unlocked(pop());
     NEXT;
 DEFCODE(&name_EMIT, 0, "WORD", WORD):
     push((intptr_t)word_buffer);
