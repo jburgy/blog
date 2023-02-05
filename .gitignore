@@ -46,3 +46,11 @@ MANIFEST
 
 # mypy
 .mypy_cache/
+
+# binaries
+*.o
+*.a
+*.com*
+*.zip
+ape.lds
+cosmopolitan.h
