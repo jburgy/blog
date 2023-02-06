@@ -272,7 +272,7 @@ DEFCODE(&name_INVERT, 0, "EXIT", EXIT):
     ip = *--rsp;
     NEXT;
 DEFCODE(&name_EXIT, 0, "LIT", LIT):
-    push((intptr_t)*++ip);
+    push((intptr_t)*ip++);
     NEXT;
 DEFCODE(&name_LIT, 0, "!", STORE):
     p = (intptr_t *)pop();
@@ -316,14 +316,14 @@ DEFCODE(&name_CMOVE, 0, "STATE", STATE):
     NEXT;
     static intptr_t *here = memory;
 DEFCODE(&name_STATE, 0, "HERE", HERE):
-    push((intptr_t)here);
+    push((intptr_t)&here);
     NEXT;
     static struct word *latest;
 DEFCODE(&name_HERE, 0, "LATEST", LATEST):
-    push((intptr_t)latest);
+    push((intptr_t)&latest);
     NEXT;
 DEFCODE(&name_LATEST, 0, "S0", SZ):
-    push((intptr_t)stack);
+    push((intptr_t)&stack);
     NEXT;
     static intptr_t base = 10;
 DEFCODE(&name_SZ, 0, "BASE", BASE):
@@ -427,7 +427,8 @@ DEFCODE(&name_SEMICOLON, F_IMMED, "IMMEDIATE", IMMEDIATE):
     latest->flags ^= F_IMMED;
     NEXT;
 DEFCODE(&name_IMMEDIATE, 0, "HIDDEN", HIDDEN):
-    latest->flags ^= F_HIDDEN;
+    new = (struct word *)pop();
+    new->flags ^= F_HIDDEN;
     NEXT;
 DEFWORD(&name_HIDDEN, 0, "HIDE", HIDE, &&WORD, &&FIND, &&HIDDEN, &&EXIT);
 DEFCODE(&name_HIDE, 0, "'", TICK):
@@ -476,7 +477,7 @@ DEFCODE(&name_QUIT, 0, "INTERPRET", INTERPRET):
         target = &&LIT;
     }
     if (state && !b) {
-        *here++ = (intptr_t)target;
+        *here++ = (intptr_t)(*target == &&DOCOL ? target : *target);
         if (is_literal)
             *here++ = a;
     } else if (is_literal) {
