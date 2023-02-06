@@ -120,7 +120,7 @@ DEFCODE(&name_DROP, 0, "SWAP", SWAP):
     push(a);
     push(b);
     NEXT;
-DEFCODE(&name_DROP, 0, "DUP", DUP):
+DEFCODE(&name_SWAP, 0, "DUP", DUP):
     a = sp[-1];
     push(a);
     NEXT;
@@ -272,7 +272,7 @@ DEFCODE(&name_INVERT, 0, "EXIT", EXIT):
     ip = *--rsp;
     NEXT;
 DEFCODE(&name_EXIT, 0, "LIT", LIT):
-    push((intptr_t)*ip++);
+    push((intptr_t)*++ip);
     NEXT;
 DEFCODE(&name_LIT, 0, "!", STORE):
     p = (intptr_t *)pop();
@@ -415,7 +415,7 @@ DEFCODE(&name_TDFA, 0, "CREATE", CREATE):
 DEFCODE(&name_CREATE, 0, ",", COMMA):
     *here++ = pop();
     NEXT;
-DEFCODE(&name_COMMA, 0, "[", LBRAC):
+DEFCODE(&name_COMMA, F_IMMED, "[", LBRAC):
     state = 0;
     NEXT;
 DEFCODE(&name_LBRAC, 0, "]", RBRAC):
