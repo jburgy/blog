@@ -6,6 +6,7 @@
 #else
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
+#include <signal.h>
 #include <stdio.h>  /* EOF, getchar_unlocked, putchar_unlocked */
 #include <stdlib.h>  /* exit, strtol, syscall */
 #include <string.h>  /* memcmp, memmove, memcpy */
@@ -109,6 +110,11 @@ goto cold_start;
 DOCOL:
     *rsp++ = ip;
     ip = target + 1;
+    NEXT;
+
+DEREF:
+    *rsp++ = ip + 1;
+    ip = *ip;
     NEXT;
 
 DEFCODE(NULL, 0, "DROP", DROP):
@@ -455,7 +461,7 @@ DEFCODE(&name_LITSTRING, 0, "TELL", TELL):
     s = (char *)pop();
     write(STDOUT_FILENO, s, c);
     NEXT;
-DEFWORD(&name_TELL, 0, "QUIT", QUIT, &&RZ, &&RSPSTORE, &&INTERPRET, &&BRANCH, (void **)-2);
+DEFWORD(&name_TELL, 0, "QUIT", QUIT, &&RZ, &&RSPSTORE, &&INTERPRET, &&BRANCH, (void *)-2);
     static char errmsg[] = "PARSE ERROR: ";
 DEFCODE(&name_QUIT, 0, "INTERPRET", INTERPRET):
     c = word();
@@ -474,12 +480,16 @@ DEFCODE(&name_QUIT, 0, "INTERPRET", INTERPRET):
             NEXT;
         }
         b = 0;
-        target = &&LIT;
     }
     if (state && !b) {
-        *here++ = (intptr_t)(*target == &&DOCOL ? target : *target);
-        if (is_literal)
+        if (is_literal) {
+            *here++ = &&LIT;
             *here++ = a;
+        } else if (*target == &&DOCOL) {
+            *here++ = (intptr_t)&&DEREF;
+            *here++ = (intptr_t)(target + 1);
+        } else
+            *here++ = (intptr_t)*target;
     } else if (is_literal) {
         push(a);
     } else {
