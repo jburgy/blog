@@ -14,10 +14,10 @@
 #include <unistd.h>  /* read, write, intptr_t */
 #endif
 
-#define NEXT do { target = ip++; goto **target; } while (0)
+#define NEXT do { target = *ip++; goto **target; } while (0)
 #define DEFCODE(_link, _flags, _name, _label) \
-    static struct word name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&_label}}; \
-_label
+    static struct code_t name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&code_##_label}}; \
+code_##_label
 
 #define DEFCONST(_link, _flags, _name, _label, _value) \
     DEFCODE(_link, _flags, _name, _label): \
@@ -25,17 +25,24 @@ _label
     NEXT
 
 #define DEFWORD(_link, _flags, _name, _label, ...) \
-    static struct word name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&DOCOL, __VA_ARGS__}}
+    static void **code_##_label[] = {__VA_ARGS__}; \
+    static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {DOCOL, (void **)code_##_label}}
 
 #define BYTES_PER_WORD sizeof(intptr_t)
 #define STACK_SIZE (0x2000 / BYTES_PER_WORD) /* Number of elements in each stack */
 
 enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
-struct word {
-    struct word *link;
+struct code_t {
+    void *link;
     int flags;
     const char *name;
     void *code[];
+};
+struct word_t {
+    void *link;
+    int flags;
+    const char *name;
+    void **code[];
 };
 
 static char word_buffer[0x20];
@@ -72,7 +79,7 @@ intptr_t word(void)
     return s - word_buffer;
 }
 
-struct word *find(struct word *word, char *name, size_t count)
+struct word_t *find(struct word_t *word, char *name, size_t count)
 {
     while (word && (((word->flags & (F_HIDDEN | F_LENMASK)) != count) || memcmp(word->name, name, count)))
         word = word->link;
@@ -87,11 +94,11 @@ int main(void)
     static void *return_stack[STACK_SIZE / 2]; /* Return stack */
     static intptr_t *sp = stack;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
     static void **rsp = return_stack;  /* Initialize the return stack. (%ebp) */
-    register void **ip, **target;
+    register void ***ip, **target;
     register intptr_t a, b, c, d, *p, is_literal = 0;
     char *r;
     register char *s;
-    register struct word *new;
+    register struct word_t *new;
 
     /* https://gcc.gnu.org/onlinedocs/gcc/Inline.html */
     inline intptr_t pop(void)
@@ -107,15 +114,12 @@ int main(void)
 
 goto cold_start;
 
-DOCOL:
+    static void *DOCOL[] = {&&code_DOCOL};
+code_DOCOL:
     *rsp++ = ip;
-    ip = target + 1;
-    NEXT;
-
-DEREF:
-    *rsp++ = ip + 1;
-    ip = *ip;
-    NEXT;
+    ip = (void ***)*ip;
+    target = *ip++;
+    goto **target;
 
 DEFCODE(NULL, 0, "DROP", DROP):
     (void)pop();
@@ -324,7 +328,7 @@ DEFCODE(&name_CMOVE, 0, "STATE", STATE):
 DEFCODE(&name_STATE, 0, "HERE", HERE):
     push((intptr_t)&here);
     NEXT;
-    static struct word *latest;
+    static struct word_t *latest;
 DEFCODE(&name_HERE, 0, "LATEST", LATEST):
     push((intptr_t)&latest);
     NEXT;
@@ -336,8 +340,10 @@ DEFCODE(&name_SZ, 0, "BASE", BASE):
     push((intptr_t)&base);
     NEXT;
 DEFCONST(&name_BASE, 0, "VERSION", VERSION, 47);
-DEFCONST(&name_VERSION, 0, "R0", RZ, return_stack);
-DEFCONST(&name_RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
+DEFCODE(&name_VERSION, 0, "R0", RZ):
+    push((intptr_t)return_stack);
+    NEXT;
+DEFCONST(&name_RZ, 0, "DOCOL", __DOCOL, DOCOL);
 DEFCONST(&name___DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED);
 DEFCONST(&name___F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN);
 DEFCONST(&name___F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK);
@@ -403,15 +409,15 @@ DEFCODE(&name_NUMBER, 0, "FIND", FIND):
     push(a);
     NEXT;
 DEFCODE(&name_FIND, 0, ">CFA", TCFA):
-    new = (struct word *)pop();
+    new = (struct word_t *)pop();
     push((intptr_t)new->code);
     NEXT;
-DEFWORD(&name_TCFA, 0, ">DFA", TDFA, &&TCFA, &&INCR4, &&EXIT);
+DEFWORD(&name_TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR4.code, name_EXIT.code);
 DEFCODE(&name_TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
     r = memcpy((char *)here, s, c);
-    new = (struct word *)(here + (c + 1 + BYTES_PER_WORD) / BYTES_PER_WORD);
+    new = (struct word_t *)(here + (c + 1 + BYTES_PER_WORD) / BYTES_PER_WORD);
     new->link = latest;
     new->flags = c;
     new->name = r;
@@ -427,26 +433,26 @@ DEFCODE(&name_COMMA, F_IMMED, "[", LBRAC):
 DEFCODE(&name_LBRAC, 0, "]", RBRAC):
     state = 1;
     NEXT;
-DEFWORD(&name_RBRAC, 0, ":", COLON, &&WORD, &&CREATE, &&LIT, &&DOCOL, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&RBRAC, &&EXIT);
-DEFWORD(&name_COLON, F_IMMED, ";", SEMICOLON, &&LIT, &&EXIT, &&COMMA, &&LATEST, &&FETCH, &&HIDDEN, &&LBRAC, &&EXIT);
-DEFCODE(&name_SEMICOLON, F_IMMED, "IMMEDIATE", IMMEDIATE):
+DEFCODE(&name_RBRAC, F_IMMED, "IMMEDIATE", IMMEDIATE):
     latest->flags ^= F_IMMED;
     NEXT;
 DEFCODE(&name_IMMEDIATE, 0, "HIDDEN", HIDDEN):
-    new = (struct word *)pop();
+    new = (struct word_t *)pop();
     new->flags ^= F_HIDDEN;
     NEXT;
-DEFWORD(&name_HIDDEN, 0, "HIDE", HIDE, &&WORD, &&FIND, &&HIDDEN, &&EXIT);
-DEFCODE(&name_HIDE, 0, "'", TICK):
-    target = ip++;
-    push((intptr_t)target);
+DEFWORD(&name_HIDDEN, 0, "HIDE", HIDE, name_WORD.code, name_FIND.code, name_HIDDEN.code, name_EXIT.code);
+/* FIXME: >CFA INCR4 , maybe? */
+DEFWORD(&name_HIDE, 0, ":", COLON, name_WORD.code, name_CREATE.code, name_LIT.code, DOCOL, name_COMMA.code,name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_RBRAC.code, name_EXIT.code);
+DEFWORD(&name_COLON, F_IMMED, ";", SEMICOLON, name_LIT.code, name_EXIT.code, name_COMMA.code, name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_LBRAC.code, name_EXIT.code);
+DEFCODE(&name_SEMICOLON, 0, "'", TICK):
+    push((intptr_t)ip++);
     NEXT;
 DEFCODE(&name_TICK, 0, "BRANCH", BRANCH):
     ip += (intptr_t)*ip;
     NEXT;
 DEFCODE(&name_BRANCH, 0, "0BRANCH", ZBRANCH):
     if (!pop())
-        goto BRANCH;
+        goto code_BRANCH;
     else
         ip++;
     NEXT;
@@ -461,15 +467,14 @@ DEFCODE(&name_LITSTRING, 0, "TELL", TELL):
     s = (char *)pop();
     write(STDOUT_FILENO, s, c);
     NEXT;
-DEFWORD(&name_TELL, 0, "QUIT", QUIT, &&RZ, &&RSPSTORE, &&INTERPRET, &&BRANCH, (void *)-2);
     static char errmsg[] = "PARSE ERROR: ";
-DEFCODE(&name_QUIT, 0, "INTERPRET", INTERPRET):
+DEFCODE(&name_TELL, 0, "INTERPRET", INTERPRET):
     c = word();
     is_literal = 0;
     new = find(latest, word_buffer, c);
     if (new) {
         b = new->flags & F_IMMED;
-        target = new->code;
+        target = (void **)new->code;
     } else {
         ++is_literal;
         a = strtol(word_buffer, &r, base);
@@ -483,20 +488,18 @@ DEFCODE(&name_QUIT, 0, "INTERPRET", INTERPRET):
     }
     if (state && !b) {
         if (is_literal) {
-            *here++ = &&LIT;
+            *here++ = (intptr_t)name_LIT.code;
             *here++ = a;
-        } else if (*target == &&DOCOL) {
-            *here++ = (intptr_t)&&DEREF;
-            *here++ = (intptr_t)(target + 1);
         } else
-            *here++ = (intptr_t)*target;
+            *here++ = (intptr_t)target;
     } else if (is_literal) {
         push(a);
     } else {
         goto **target;
     }
     NEXT;
-DEFCODE(&name_INTERPRET, 0, "CHAR", CHAR):
+DEFWORD(&name_INTERPRET, 0, "QUIT", QUIT, name_RZ.code, name_RSPSTORE.code, name_INTERPRET.code, name_BRANCH.code, (void **)-2);
+DEFCODE(&name_QUIT, 0, "CHAR", CHAR):
     word();
     push((intptr_t)*word_buffer);
     NEXT;
@@ -526,7 +529,7 @@ DEFCODE(&name_SYSCALL1, 0, "SYSCALL0", SYSCALL0):
     NEXT;
 
 cold_start:
-    latest = &name_SYSCALL0;
+    latest = (struct word_t *)&name_SYSCALL0;
     ip = name_QUIT.code;
-    NEXT;  // Run interpreter!
+    NEXT;  /* Run interpreter! */
 }
