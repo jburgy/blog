@@ -6,7 +6,6 @@
 #else
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
-#include <signal.h>
 #include <stdio.h>  /* EOF, getchar_unlocked, putchar_unlocked */
 #include <stdlib.h>  /* exit, strtol, syscall */
 #include <string.h>  /* memcmp, memmove, memcpy */
@@ -16,7 +15,7 @@
 
 #define NEXT do { target = *ip++; goto **target; } while (0)
 #define DEFCODE(_link, _flags, _name, _label) \
-    static struct code_t name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&code_##_label}}; \
+    static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&code_##_label}}; \
 code_##_label
 
 #define DEFCONST(_link, _flags, _name, _label, _value) \
@@ -25,24 +24,17 @@ code_##_label
     NEXT
 
 #define DEFWORD(_link, _flags, _name, _label, ...) \
-    static void **code_##_label[] = {__VA_ARGS__}; \
-    static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {DOCOL, (void **)code_##_label}}
+    static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&DOCOL, __VA_ARGS__}}
 
 #define BYTES_PER_WORD sizeof(intptr_t)
 #define STACK_SIZE (0x2000 / BYTES_PER_WORD) /* Number of elements in each stack */
 
 enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
-struct code_t {
-    void *link;
+struct word_t {
+    struct word_t *link;
     int flags;
     const char *name;
     void *code[];
-};
-struct word_t {
-    void *link;
-    int flags;
-    const char *name;
-    void **code[];
 };
 
 static char word_buffer[0x20];
@@ -112,14 +104,12 @@ int main(void)
         *sp++ = a; 
     }
 
-goto cold_start;
+goto _start;
 
-    static void *DOCOL[] = {&&code_DOCOL};
-code_DOCOL:
+DOCOL:
     *rsp++ = ip;
-    ip = (void ***)*ip;
-    target = *ip++;
-    goto **target;
+    ip = (void ***)target + 1;
+    NEXT;
 
 DEFCODE(NULL, 0, "DROP", DROP):
     (void)pop();
@@ -340,10 +330,8 @@ DEFCODE(&name_SZ, 0, "BASE", BASE):
     push((intptr_t)&base);
     NEXT;
 DEFCONST(&name_BASE, 0, "VERSION", VERSION, 47);
-DEFCODE(&name_VERSION, 0, "R0", RZ):
-    push((intptr_t)return_stack);
-    NEXT;
-DEFCONST(&name_RZ, 0, "DOCOL", __DOCOL, DOCOL);
+DEFCONST(&name_VERSION, 0, "R0", RZ, return_stack);
+DEFCONST(&name_RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
 DEFCONST(&name___DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED);
 DEFCONST(&name___F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN);
 DEFCONST(&name___F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK);
@@ -441,8 +429,7 @@ DEFCODE(&name_IMMEDIATE, 0, "HIDDEN", HIDDEN):
     new->flags ^= F_HIDDEN;
     NEXT;
 DEFWORD(&name_HIDDEN, 0, "HIDE", HIDE, name_WORD.code, name_FIND.code, name_HIDDEN.code, name_EXIT.code);
-/* FIXME: >CFA INCR4 , maybe? */
-DEFWORD(&name_HIDE, 0, ":", COLON, name_WORD.code, name_CREATE.code, name_LIT.code, DOCOL, name_COMMA.code,name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_RBRAC.code, name_EXIT.code);
+DEFWORD(&name_HIDE, 0, ":", COLON, name_WORD.code, name_CREATE.code, name_LIT.code, &&DOCOL, name_COMMA.code,name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_RBRAC.code, name_EXIT.code);
 DEFWORD(&name_COLON, F_IMMED, ";", SEMICOLON, name_LIT.code, name_EXIT.code, name_COMMA.code, name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_LBRAC.code, name_EXIT.code);
 DEFCODE(&name_SEMICOLON, 0, "'", TICK):
     push((intptr_t)ip++);
@@ -528,8 +515,9 @@ DEFCODE(&name_SYSCALL1, 0, "SYSCALL0", SYSCALL0):
     push(syscall(a));
     NEXT;
 
-cold_start:
-    latest = (struct word_t *)&name_SYSCALL0;
-    ip = name_QUIT.code;
+    static void *cold_start[] = {name_QUIT.code};
+_start:
+    latest = &name_SYSCALL0;
+    ip = (void ***)cold_start;
     NEXT;  /* Run interpreter! */
 }
