@@ -175,13 +175,13 @@ DEFCODE(&name_QDUP, 0, "1+", INCR):
 DEFCODE(&name_INCR, 0, "1-", DECR):
     --sp[-1];
     NEXT;
-DEFCODE(&name_DECR, 0, "4+", INCR4):
+DEFCODE(&name_DECR, 0, "8+", INCR8):
     sp[-1] += BYTES_PER_WORD;
     NEXT;
-DEFCODE(&name_INCR4, 0, "4-", DECR4):
+DEFCODE(&name_INCR8, 0, "8-", DECR8):
     sp[-1] -= BYTES_PER_WORD;
     NEXT;
-DEFCODE(&name_DECR4, 0, "+", ADD):
+DEFCODE(&name_DECR8, 0, "+", ADD):
     a = pop();
     sp[-1] += a;
     NEXT;
@@ -283,12 +283,12 @@ DEFCODE(&name_STORE, 0, "@", FETCH):
     push(*p);
     NEXT;
 DEFCODE(&name_FETCH, 0, "+!", ADDSTORE):
-    p = (intptr_t *)pop();
-    *p += pop();
+    s = (char *)pop();
+    s += pop();
     NEXT;
 DEFCODE(&name_ADDSTORE, 0, "-!", SUBSTORE):
-    p = (intptr_t *)pop();
-    *p -= pop();
+    s = (char *)pop();
+    s -= pop();
     NEXT;
 DEFCODE(&name_SUBSTORE, 0, "C!", STOREBYTE):
     s = (char *)pop();
@@ -400,7 +400,7 @@ DEFCODE(&name_FIND, 0, ">CFA", TCFA):
     new = (struct word_t *)pop();
     push((intptr_t)new->code);
     NEXT;
-DEFWORD(&name_TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR4.code, name_EXIT.code);
+DEFWORD(&name_TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR8.code, name_EXIT.code);
 DEFCODE(&name_TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
