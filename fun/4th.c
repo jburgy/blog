@@ -432,10 +432,10 @@ DEFWORD(&name_HIDDEN, 0, "HIDE", HIDE, name_WORD.code, name_FIND.code, name_HIDD
 DEFWORD(&name_HIDE, 0, ":", COLON, name_WORD.code, name_CREATE.code, name_LIT.code, &&DOCOL, name_COMMA.code,name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_RBRAC.code, name_EXIT.code);
 DEFWORD(&name_COLON, F_IMMED, ";", SEMICOLON, name_LIT.code, name_EXIT.code, name_COMMA.code, name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_LBRAC.code, name_EXIT.code);
 DEFCODE(&name_SEMICOLON, 0, "'", TICK):
-    push((intptr_t)ip++);
+    push((intptr_t)*ip++);
     NEXT;
 DEFCODE(&name_TICK, 0, "BRANCH", BRANCH):
-    ip += (intptr_t)*ip;
+    ip += ((intptr_t)*ip) / BYTES_PER_WORD;
     NEXT;
 DEFCODE(&name_BRANCH, 0, "0BRANCH", ZBRANCH):
     if (!pop())
@@ -485,7 +485,7 @@ DEFCODE(&name_TELL, 0, "INTERPRET", INTERPRET):
         goto **target;
     }
     NEXT;
-DEFWORD(&name_INTERPRET, 0, "QUIT", QUIT, name_RZ.code, name_RSPSTORE.code, name_INTERPRET.code, name_BRANCH.code, (void **)-2);
+DEFWORD(&name_INTERPRET, 0, "QUIT", QUIT, name_RZ.code, name_RSPSTORE.code, name_INTERPRET.code, name_BRANCH.code, (void **)(-2 * BYTES_PER_WORD));
 DEFCODE(&name_QUIT, 0, "CHAR", CHAR):
     word();
     push((intptr_t)*word_buffer);
