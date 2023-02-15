@@ -67,7 +67,6 @@ intptr_t word(void)
         ch = key();
     } while (ch > ' ');
 
-    *s = '\0';
     return s - word_buffer;
 }
 
@@ -132,9 +131,9 @@ DEFCODE(&name_OVER, 0, "ROT", ROT):
     a = pop();
     b = pop();
     c = pop();
+    push(b);
     push(a);
     push(c);
-    push(b);
     NEXT;
 DEFCODE(&name_ROT, 0, "-ROT", NROT):
     a = pop();
@@ -205,28 +204,28 @@ DEFCODE(&name_DIVMOD, 0, "=", EQU):
     push(a == b ? ~0 : 0);
     NEXT;
 DEFCODE(&name_EQU, 0, "<>", NEQU):
-    a = pop();
     b = pop();
+    a = pop();
     push(a == b ? 0 : ~0);
     NEXT;
 DEFCODE(&name_NEQU, 0, "<", LT):
-    a = pop();
     b = pop();
+    a = pop();
     push(a < b ? ~0 : 0);
     NEXT;
 DEFCODE(&name_LT, 0, ">", GT):
-    a = pop();
     b = pop();
+    a = pop();
     push(a > b ? ~0 : 0);
     NEXT;
 DEFCODE(&name_GT, 0, "<=", LE):
-    a = pop();
     b = pop();
+    a = pop();
     push(a <= b ? ~0 : 0);
     NEXT;
 DEFCODE(&name_LE, 0, ">=", GE):
-    a = pop();
     b = pop();
+    a = pop();
     push(a >= b ? ~0 : 0);
     NEXT;
 DEFCODE(&name_GE, 0, "0=", ZEQU):
@@ -239,19 +238,19 @@ DEFCODE(&name_ZEQU, 0, "0<>", ZNEQU):
     NEXT;
 DEFCODE(&name_ZNEQU, 0, "0<", ZLT):
     a = pop();
-    push(0 < a ? ~0 : 0);
+    push(a < 0 ? ~0 : 0);
     NEXT;
 DEFCODE(&name_ZLT, 0, "0>", ZGT):
     a = pop();
-    push(0 > a ? ~0 : 0);
+    push(a > 0 ? ~0 : 0);
     NEXT;
 DEFCODE(&name_ZGT, 0, "0<=", ZLE):
     a = pop();
-    push(0 <= a ? ~0 : 0);
+    push(a <= 0 ? ~0 : 0);
     NEXT;
 DEFCODE(&name_ZLE, 0, "0>=", ZGE):
     a = pop();
-    push(0 >= a ? ~0 : 0);
+    push(a >= 0 ? ~0 : 0);
     NEXT;
 DEFCODE(&name_ZGE, 0, "AND", AND):
     a = pop();
@@ -378,6 +377,7 @@ DEFCODE(&name_DSPSTORE, 0, "KEY", KEY):
     NEXT;
 DEFCODE(&name_KEY, 0, "EMIT", EMIT):
     putchar_unlocked(pop());
+    fflush(stdout);
     NEXT;
 DEFCODE(&name_EMIT, 0, "WORD", WORD):
     push((intptr_t)word_buffer);
