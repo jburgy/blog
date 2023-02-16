@@ -320,8 +320,9 @@ DEFCODE(&name_STATE, 0, "HERE", HERE):
 DEFCODE(&name_HERE, 0, "LATEST", LATEST):
     push((intptr_t)&latest);
     NEXT;
+    static intptr_t *s0 = stack;
 DEFCODE(&name_LATEST, 0, "S0", SZ):
-    push((intptr_t)&stack);
+    push((intptr_t)&s0);
     NEXT;
     static intptr_t base = 10;
 DEFCODE(&name_SZ, 0, "BASE", BASE):
@@ -376,7 +377,7 @@ DEFCODE(&name_DSPSTORE, 0, "KEY", KEY):
     NEXT;
 DEFCODE(&name_KEY, 0, "EMIT", EMIT):
     putchar_unlocked(pop());
-    fflush(stdout);
+    fflush_unlocked(stdout);
     NEXT;
 DEFCODE(&name_EMIT, 0, "WORD", WORD):
     push((intptr_t)word_buffer);
