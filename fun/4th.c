@@ -446,8 +446,8 @@ DEFCODE(&name_BRANCH, 0, "0BRANCH", ZBRANCH):
     NEXT;
 DEFCODE(&name_ZBRANCH, 0, "LITSTRING", LITSTRING):
     c = (intptr_t)*ip++;
-    push(c);
     push((intptr_t)ip);
+    push(c);
     ip += (c + BYTES_PER_WORD) / BYTES_PER_WORD;
     NEXT;
 DEFCODE(&name_LITSTRING, 0, "TELL", TELL):
