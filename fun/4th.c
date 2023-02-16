@@ -80,7 +80,6 @@ struct word_t *find(struct word_t *word, char *name, size_t count)
 
 int main(void)
 {
-    static intptr_t memory[0x10000];
     static intptr_t stack[STACK_SIZE];  /* Parameter stack */
     static void *return_stack[STACK_SIZE / 2]; /* Return stack */
     static intptr_t *sp = stack;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
@@ -88,7 +87,7 @@ int main(void)
     register void ***ip, **target;
     register intptr_t a, b, c, d, *p, is_literal = 0;
     char *r;
-    register char *s;
+    register char *s, **t;
     register struct word_t *new;
 
     /* https://gcc.gnu.org/onlinedocs/gcc/Inline.html */
@@ -282,12 +281,12 @@ DEFCODE(&name_STORE, 0, "@", FETCH):
     push(*p);
     NEXT;
 DEFCODE(&name_FETCH, 0, "+!", ADDSTORE):
-    s = (char *)pop();
-    s += pop();
+    t = (char **)pop();
+    *t += pop();
     NEXT;
 DEFCODE(&name_ADDSTORE, 0, "-!", SUBSTORE):
-    s = (char *)pop();
-    s -= pop();
+    t = (char **)pop();
+    *t -= pop();
     NEXT;
 DEFCODE(&name_SUBSTORE, 0, "C!", STOREBYTE):
     s = (char *)pop();
@@ -313,7 +312,7 @@ DEFCODE(&name_CCOPY, 0, "CMOVE", CMOVE):
 DEFCODE(&name_CMOVE, 0, "STATE", STATE):
     push((intptr_t)&state);
     NEXT;
-    static intptr_t *here = memory;
+    static char *here;
 DEFCODE(&name_STATE, 0, "HERE", HERE):
     push((intptr_t)&here);
     NEXT;
@@ -404,16 +403,18 @@ DEFWORD(&name_TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR8.code, name_EXIT.
 DEFCODE(&name_TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
-    r = memcpy((char *)here, s, c);
-    new = (struct word_t *)(here + (c + 1 + BYTES_PER_WORD) / BYTES_PER_WORD);
+    r = memcpy(here, s, c);
+    new = (struct word_t *)(~(BYTES_PER_WORD - 1) & (intptr_t)(here + c + BYTES_PER_WORD));
     new->link = latest;
     new->flags = c;
     new->name = r;
-    here = (intptr_t *)&(new->code);
+    here = (char *)&(new->code);
     latest = new;
     NEXT;
 DEFCODE(&name_CREATE, 0, ",", COMMA):
-    *here++ = pop();
+    p = (intptr_t *)here;
+    *p++ = pop();
+    here = (char *)p;
     NEXT;
 DEFCODE(&name_COMMA, F_IMMED, "[", LBRAC):
     state = 0;
@@ -429,7 +430,7 @@ DEFCODE(&name_IMMEDIATE, 0, "HIDDEN", HIDDEN):
     new->flags ^= F_HIDDEN;
     NEXT;
 DEFWORD(&name_HIDDEN, 0, "HIDE", HIDE, name_WORD.code, name_FIND.code, name_HIDDEN.code, name_EXIT.code);
-DEFWORD(&name_HIDE, 0, ":", COLON, name_WORD.code, name_CREATE.code, name_LIT.code, &&DOCOL, name_COMMA.code,name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_RBRAC.code, name_EXIT.code);
+DEFWORD(&name_HIDE, 0, ":", COLON, name_WORD.code, name_CREATE.code, name_LIT.code, &&DOCOL, name_COMMA.code, name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_RBRAC.code, name_EXIT.code);
 DEFWORD(&name_COLON, F_IMMED, ";", SEMICOLON, name_LIT.code, name_EXIT.code, name_COMMA.code, name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_LBRAC.code, name_EXIT.code);
 DEFCODE(&name_SEMICOLON, 0, "'", TICK):
     push((intptr_t)*ip++);
@@ -474,11 +475,13 @@ DEFCODE(&name_TELL, 0, "INTERPRET", INTERPRET):
         b = 0;
     }
     if (state && !b) {
+        p = (intptr_t *)here;
         if (is_literal) {
-            *here++ = (intptr_t)name_LIT.code;
-            *here++ = a;
+            *p++ = (intptr_t)name_LIT.code;
+            *p++ = a;
         } else
-            *here++ = (intptr_t)target;
+            *p++ = (intptr_t)target;
+        here = (char *)p;
     } else if (is_literal) {
         push(a);
     } else {
@@ -518,6 +521,7 @@ DEFCODE(&name_SYSCALL1, 0, "SYSCALL0", SYSCALL0):
     static void *cold_start[] = {name_QUIT.code};
 _start:
     latest = &name_SYSCALL0;
+    here = sbrk(0x10000);
     ip = (void ***)cold_start;
     NEXT;  /* Run interpreter! */
 }
