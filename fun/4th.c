@@ -82,8 +82,8 @@ int main(void)
 {
     static intptr_t stack[STACK_SIZE];  /* Parameter stack */
     static void *return_stack[STACK_SIZE / 2]; /* Return stack */
-    static intptr_t *sp = stack;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
-    static void **rsp = return_stack;  /* Initialize the return stack. (%ebp) */
+    static intptr_t *sp = stack + STACK_SIZE;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
+    static void **rsp = return_stack + STACK_SIZE / 2;  /* Initialize the return stack. (%ebp) */
     register void ***ip, **target;
     register intptr_t a, b, c, d, *p, is_literal = 0;
     char *r;
@@ -93,19 +93,19 @@ int main(void)
     /* https://gcc.gnu.org/onlinedocs/gcc/Inline.html */
     inline intptr_t pop(void)
     {
-        assert(sp > stack);
-        return *--sp; 
+        assert(sp < stack + STACK_SIZE);
+        return *sp++;
     }
     inline void push(intptr_t a)
     {
-        assert(sp < stack + STACK_SIZE);
-        *sp++ = a; 
+        assert(sp > stack);
+        *--sp = a;
     }
 
 goto _start;
 
 DOCOL:
-    *rsp++ = ip;
+    *--rsp = ip;
     ip = (void ***)target + 1;
     NEXT;
 
@@ -119,11 +119,11 @@ DEFCODE(&name_DROP, 0, "SWAP", SWAP):
     push(b);
     NEXT;
 DEFCODE(&name_SWAP, 0, "DUP", DUP):
-    a = sp[-1];
+    a = sp[0];
     push(a);
     NEXT;
 DEFCODE(&name_DUP, 0, "OVER", OVER):
-    a = sp[-2];
+    a = sp[1];
     push(a);
     NEXT;
 DEFCODE(&name_OVER, 0, "ROT", ROT):
@@ -147,8 +147,8 @@ DEFCODE(&name_NROT, 0, "2DROP", TWODROP):
     (void)pop();
     NEXT;
 DEFCODE(&name_TWODROP, 0, "2DUP", TWODUP):
-    a = sp[-1];
-    b = sp[-2];
+    a = sp[0];
+    b = sp[1];
     push(a);
     push(b);
     NEXT;
@@ -163,33 +163,33 @@ DEFCODE(&name_TWODUP, 0, "2SWAP", TWOSWAP):
     push(c);
     NEXT;
 DEFCODE(&name_TWOSWAP, 0, "?DUP", QDUP):
-    a = sp[-1];
+    a = sp[0];
     if (a)
         push(a);
     NEXT;
 DEFCODE(&name_QDUP, 0, "1+", INCR):
-    ++sp[-1];
+    ++sp[0];
     NEXT;
 DEFCODE(&name_INCR, 0, "1-", DECR):
-    --sp[-1];
+    --sp[0];
     NEXT;
 DEFCODE(&name_DECR, 0, "8+", INCR8):
-    sp[-1] += BYTES_PER_WORD;
+    sp[0] += BYTES_PER_WORD;
     NEXT;
 DEFCODE(&name_INCR8, 0, "8-", DECR8):
-    sp[-1] -= BYTES_PER_WORD;
+    sp[0] -= BYTES_PER_WORD;
     NEXT;
 DEFCODE(&name_DECR8, 0, "+", ADD):
     a = pop();
-    sp[-1] += a;
+    sp[0] += a;
     NEXT;
 DEFCODE(&name_ADD, 0, "-", SUB):
     a = pop();
-    sp[-1] -= a;
+    sp[0] -= a;
     NEXT;
 DEFCODE(&name_SUB, 0, "*", MUL):
     a = pop();
-    sp[-1] *= a;
+    sp[0] *= a;
     NEXT;
 DEFCODE(&name_MUL, 0, "/MOD", DIVMOD):
     b = pop();
@@ -253,21 +253,21 @@ DEFCODE(&name_ZLE, 0, "0>=", ZGE):
     NEXT;
 DEFCODE(&name_ZGE, 0, "AND", AND):
     a = pop();
-    sp[-1] &= a;
+    sp[0] &= a;
     NEXT;
 DEFCODE(&name_AND, 0, "OR", OR):
     a = pop();
-    sp[-1] |= a;
+    sp[0] |= a;
     NEXT;
 DEFCODE(&name_OR, 0, "XOR", XOR):
     a = pop();
-    sp[-1] ^= a;
+    sp[0] ^= a;
     NEXT;
 DEFCODE(&name_XOR, 0, "INVERT", INVERT):
-    sp[-1] = ~sp[-1];
+    sp[0] = ~sp[0];
     NEXT;
 DEFCODE(&name_INVERT, 0, "EXIT", EXIT):
-    ip = *--rsp;
+    ip = *rsp++;
     NEXT;
 DEFCODE(&name_EXIT, 0, "LIT", LIT):
     push((intptr_t)*ip++);
@@ -320,7 +320,7 @@ DEFCODE(&name_STATE, 0, "HERE", HERE):
 DEFCODE(&name_HERE, 0, "LATEST", LATEST):
     push((intptr_t)&latest);
     NEXT;
-    static intptr_t *s0 = stack;
+    static intptr_t *s0 = stack + STACK_SIZE;
 DEFCODE(&name_LATEST, 0, "S0", SZ):
     push((intptr_t)&s0);
     NEXT;
@@ -329,7 +329,7 @@ DEFCODE(&name_SZ, 0, "BASE", BASE):
     push((intptr_t)&base);
     NEXT;
 DEFCONST(&name_BASE, 0, "VERSION", VERSION, 47);
-DEFCONST(&name_VERSION, 0, "R0", RZ, return_stack);
+DEFCONST(&name_VERSION, 0, "R0", RZ, return_stack + STACK_SIZE / 2);
 DEFCONST(&name_RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
 DEFCONST(&name___DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED);
 DEFCONST(&name___F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN);
@@ -350,10 +350,10 @@ DEFCONST(&name___O_EXCL, 0, "O_TRUNC", __O_TRUNC, O_TRUNC);
 DEFCONST(&name___O_TRUNC, 0, "O_APPEND", __O_APPEND, O_APPEND);
 DEFCONST(&name___O_APPEND, 0, "O_NONBLOCK", __O_NONBLOCK, O_NONBLOCK);
 DEFCODE(&name___O_NONBLOCK, 0, ">R", TOR):
-    *rsp++ = (void *)pop();
+    *--rsp = (void *)pop();
     NEXT;
 DEFCODE(&name_TOR, 0, "R>", FROMR):
-    push((intptr_t)*--rsp);
+    push((intptr_t)*rsp++);
     NEXT;
 DEFCODE(&name_FROMR, 0, "RSP@", RSPFETCH):
     push((intptr_t)rsp);
@@ -362,7 +362,7 @@ DEFCODE(&name_RSPFETCH, 0, "RSP!", RSPSTORE):
     rsp = (void **)pop();
     NEXT;
 DEFCODE(&name_RSPSTORE, 0, "RDROP", RDROP):
-    --rsp;
+    ++rsp;
     NEXT;
 DEFCODE(&name_RDROP, 0, "DSP@", DSPFETCH):
     a = (intptr_t)sp;
