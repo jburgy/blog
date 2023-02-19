@@ -26,8 +26,33 @@ code_##_label
 #define DEFWORD(_link, _flags, _name, _label, ...) \
     static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&DOCOL, __VA_ARGS__}}
 
-#define BYTES_PER_WORD sizeof(intptr_t)
-#define STACK_SIZE (0x2000 / BYTES_PER_WORD) /* Number of elements in each stack */
+#define STACK_SIZE (0x2000 / __SIZEOF_POINTER__) /* Number of elements in each stack */
+
+#ifdef EMSCRIPTEN
+#include <stdarg.h>
+
+/* https://github.com/emscripten-core/emscripten/issues/6708 */
+enum SYS {__NR_read, __NR_write, __NR_open, __NR_close, __NR_brk=0x0c, __NR_exit=0x3c, __NR_creat=0x55};
+int syscall(int sysno, ...)
+{
+    va_list ap;
+    va_start(ap, sysno);
+    int status;
+
+    switch(sysno)
+    {
+    case __NR_read : status = read(va_arg(ap, int), va_arg(ap, void *), va_arg(ap, size_t)); break;
+    case __NR_write: status = write(va_arg(ap, int), va_arg(ap, const void *), va_arg(ap, size_t)); break;
+    case __NR_open : status = open(va_arg(ap, const char *), va_arg(ap, int), va_arg(ap, mode_t)); break;
+    case __NR_close: status = close(va_arg(ap, int)); break;
+    case __NR_brk  : status = brk(va_arg(ap, void *)); break;
+    case __NR_exit : status = va_arg(ap, int); va_end(ap); exit(status);
+    case __NR_creat: status = creat(va_arg(ap, const char *), va_arg(ap, mode_t)); break;
+    }
+    va_end(ap);
+    return status;
+}
+#endif
 
 enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
 struct word_t {
@@ -85,11 +110,24 @@ int main(void)
     static intptr_t *sp = stack + STACK_SIZE;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
     static void **rsp = return_stack + STACK_SIZE / 2;  /* Initialize the return stack. (%ebp) */
     register void ***ip, **target;
-    register intptr_t a, b, c, d, *p, is_literal = 0;
+    register intptr_t a, b, c, d __attribute__((unused)), *p, is_literal = 0;
     char *r;
     register char *s, **t;
     register struct word_t *new;
 
+#ifdef __clang__
+    /* https://clang.llvm.org/docs/BlockLanguageSpec.html */
+    intptr_t (^pop)(void) = ^(void)
+    {
+        assert(sp < stack + STACK_SIZE);
+        return *sp++;
+    };
+    void (^push)(intptr_t) = ^(intptr_t a)
+    {
+        assert(sp > stack);
+        *--sp = a;
+    };
+#else
     /* https://gcc.gnu.org/onlinedocs/gcc/Inline.html */
     inline intptr_t pop(void)
     {
@@ -101,6 +139,7 @@ int main(void)
         assert(sp > stack);
         *--sp = a;
     }
+#endif
 
 goto _start;
 
@@ -174,10 +213,10 @@ DEFCODE(&name_INCR, 0, "1-", DECR):
     --sp[0];
     NEXT;
 DEFCODE(&name_DECR, 0, "8+", INCR8):
-    sp[0] += BYTES_PER_WORD;
+    sp[0] += __SIZEOF_POINTER__;
     NEXT;
 DEFCODE(&name_INCR8, 0, "8-", DECR8):
-    sp[0] -= BYTES_PER_WORD;
+    sp[0] -= __SIZEOF_POINTER__;
     NEXT;
 DEFCODE(&name_DECR8, 0, "+", ADD):
     a = pop();
@@ -320,7 +359,7 @@ DEFCODE(&name_STATE, 0, "HERE", HERE):
 DEFCODE(&name_HERE, 0, "LATEST", LATEST):
     push((intptr_t)&latest);
     NEXT;
-    static intptr_t *s0 = stack + STACK_SIZE;
+    static intptr_t *s0 __attribute__((used)) = stack + STACK_SIZE;
 DEFCODE(&name_LATEST, 0, "S0", SZ):
     push((intptr_t)&s0);
     NEXT;
@@ -393,8 +432,8 @@ DEFCODE(&name_WORD, 0, "NUMBER", NUMBER):
 DEFCODE(&name_NUMBER, 0, "FIND", FIND):
     c = pop();
     s = (char *)pop();
-    a = (intptr_t)find(latest, s, c);
-    push(a);
+    new = find(latest, s, c);
+    push((intptr_t)new);
     NEXT;
 DEFCODE(&name_FIND, 0, ">CFA", TCFA):
     new = (struct word_t *)pop();
@@ -405,7 +444,7 @@ DEFCODE(&name_TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
     r = memcpy(here, s, c);
-    new = (struct word_t *)(~(BYTES_PER_WORD - 1) & (intptr_t)(here + c + BYTES_PER_WORD));
+    new = (struct word_t *)(~(__SIZEOF_POINTER__ - 1) & (intptr_t)(here + c + __SIZEOF_POINTER__));
     new->link = latest;
     new->flags = c;
     new->name = r;
@@ -437,7 +476,7 @@ DEFCODE(&name_SEMICOLON, 0, "'", TICK):
     push((intptr_t)*ip++);
     NEXT;
 DEFCODE(&name_TICK, 0, "BRANCH", BRANCH):
-    ip += ((intptr_t)*ip) / BYTES_PER_WORD;
+    ip += ((intptr_t)*ip) / __SIZEOF_POINTER__;
     NEXT;
 DEFCODE(&name_BRANCH, 0, "0BRANCH", ZBRANCH):
     if (!pop())
@@ -449,7 +488,7 @@ DEFCODE(&name_ZBRANCH, 0, "LITSTRING", LITSTRING):
     c = (intptr_t)*ip++;
     push((intptr_t)ip);
     push(c);
-    ip += (c + BYTES_PER_WORD) / BYTES_PER_WORD;
+    ip += (c + __SIZEOF_POINTER__) / __SIZEOF_POINTER__;
     NEXT;
 DEFCODE(&name_LITSTRING, 0, "TELL", TELL):
     c = pop();
@@ -489,7 +528,7 @@ DEFCODE(&name_TELL, 0, "INTERPRET", INTERPRET):
         goto **target;
     }
     NEXT;
-DEFWORD(&name_INTERPRET, 0, "QUIT", QUIT, name_RZ.code, name_RSPSTORE.code, name_INTERPRET.code, name_BRANCH.code, (void **)(-2 * BYTES_PER_WORD));
+DEFWORD(&name_INTERPRET, 0, "QUIT", QUIT, name_RZ.code, name_RSPSTORE.code, name_INTERPRET.code, name_BRANCH.code, (void **)(-2 * __SIZEOF_POINTER__));
 DEFCODE(&name_QUIT, 0, "CHAR", CHAR):
     word();
     push((intptr_t)*word_buffer);

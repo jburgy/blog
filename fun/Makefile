@@ -13,6 +13,12 @@ all: 4th.com
 %.com.dbg : %.c crt.o ape-no-modify-self.o ape.lds
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(CPPFLAGS) $(call allbutlast, $^) $(LDLIBS)
 
+%.wasm : %.c
+	emcc -Wall -Wextra -fblocks -g -O0 -o $@ $^
+
+% : %.c
+	$(CC) -Wall -Wextra -ggdb -O3 -o $@ $^
+
 crt.o ape-no-modify-self.o ape.lds &: cosmopolitan-amalgamation-2.2.zip
 	unzip -u $<
 
