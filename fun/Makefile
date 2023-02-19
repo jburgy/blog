@@ -1,5 +1,7 @@
 CC=gcc
+ES=emcc
 CFLAGS=-g -O -static -fno-pie -no-pie -mno-red-zone -nostdlib -nostdinc
+EFLAGS=-g -O -Wall -Wextra -fblocks -sNO_EXIT_RUNTIME=1 -sFORCE_FILESYSTEM=1
 CPPFLAGS=-include cosmopolitan.h -I.
 LDFLAGS=-Wl,--oformat=binary -Wl,--gc-sections -Wl,-z,max-page-size=0x1000 -fuse-ld=bfd -gdwarf-4 -Wl,-T,ape.lds
 LDLIBS=cosmopolitan.a
@@ -14,10 +16,17 @@ all: 4th.com
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(CPPFLAGS) $(call allbutlast, $^) $(LDLIBS)
 
 %.wasm : %.c
-	emcc -Wall -Wextra -fblocks -g -O0 -o $@ $^
+	$(ES) $(EFLAGS) -o $@ $^
+
+%.js : %.c
+	$(ES) $(EFLAGS) -o $@ $^
 
 % : %.c
 	$(CC) -Wall -Wextra -ggdb -O3 -o $@ $^
+
+serve: 4th.js
+	open http://localhost:8000/4th.html
+	python 4th.server.py
 
 crt.o ape-no-modify-self.o ape.lds &: cosmopolitan-amalgamation-2.2.zip
 	unzip -u $<
