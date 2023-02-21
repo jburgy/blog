@@ -1,7 +1,7 @@
 CC=gcc
 ES=emcc
 CFLAGS=-g -O -static -fno-pie -no-pie -mno-red-zone -nostdlib -nostdinc
-EFLAGS=-g -O -Wall -Wextra -fblocks -sNO_EXIT_RUNTIME=1 -sFORCE_FILESYSTEM=1
+EFLAGS=-g -gsource-map --source-map-base http://localhost:8000/ -O -Wall -Wextra -fblocks -sNO_EXIT_RUNTIME=1 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1
 CPPFLAGS=-include cosmopolitan.h -I.
 LDFLAGS=-Wl,--oformat=binary -Wl,--gc-sections -Wl,-z,max-page-size=0x1000 -fuse-ld=bfd -gdwarf-4 -Wl,-T,ape.lds
 LDLIBS=cosmopolitan.a
