@@ -212,13 +212,25 @@ DEFCODE(&name_QDUP, 0, "1+", INCR):
 DEFCODE(&name_INCR, 0, "1-", DECR):
     --sp[0];
     NEXT;
+#if __SIZEOF_POINTER__ == 4
+DEFCODE(&name_DECR, 0, "4+", INCR4):
+#elif __SIZEOF_POINTER__ == 8
 DEFCODE(&name_DECR, 0, "8+", INCR8):
+#endif
     sp[0] += __SIZEOF_POINTER__;
     NEXT;
+#if __SIZEOF_POINTER__ == 4
+DEFCODE(&name_INCR4, 0, "4-", DECR4):
+#elif __SIZEOF_POINTER__ == 8
 DEFCODE(&name_INCR8, 0, "8-", DECR8):
+#endif
     sp[0] -= __SIZEOF_POINTER__;
     NEXT;
+#if __SIZEOF_POINTER__ == 4
+DEFCODE(&name_DECR4, 0, "+", ADD):
+#elif __SIZEOF_POINTER__ == 8
 DEFCODE(&name_DECR8, 0, "+", ADD):
+#endif
     a = pop();
     sp[0] += a;
     NEXT;
@@ -439,7 +451,11 @@ DEFCODE(&name_FIND, 0, ">CFA", TCFA):
     new = (struct word_t *)pop();
     push((intptr_t)new->code);
     NEXT;
+#if __SIZEOF_POINTER__ == 4
+DEFWORD(&name_TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR4.code, name_EXIT.code);
+#elif __SIZEOF_POINTER__ == 8
 DEFWORD(&name_TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR8.code, name_EXIT.code);
+#endif
 DEFCODE(&name_TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();

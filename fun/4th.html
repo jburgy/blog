@@ -19,7 +19,14 @@
         xterm.loadAddon(master);
 
         const worker = new Worker("./4th.worker.js");
-        new TtyServer(slave).start(worker);
+        const server = new TtyServer(slave);
+        
+        fetch("https://raw.githubusercontent.com/nornagon/jonesforth/master/jonesforth.f")
+            .then((response) => response.arrayBuffer())
+            .then((buffer) => {
+                server.toWorkerBuf.push(...new Uint8Array(buffer));
+                server.start(worker);
+            });
     </script>
 </body>
 
