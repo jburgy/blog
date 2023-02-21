@@ -5,6 +5,18 @@
 <head>
     <title>demo</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@4.17.0/css/xterm.css">
+    <script>
+        // https://stefnotch.github.io/web/COOP%20and%20COEP%20Service%20Worker/
+        navigator.serviceWorker.register(new URL("./4th.sw.js", import.meta.url)).then(
+            (registration) => {
+                console.log("COOP/COEP Service Worker registered", registration.scope);
+                // If the registration is active, but it's not controlling the page
+                if (registration.active && !navigator.serviceWorker.controller)
+                    window.location.reload();
+            },
+            (err) => console.log("COOP/COEP Service Worker failed to register", err)
+        );
+    </script>
 </head>
 
 <body>
@@ -20,7 +32,7 @@
 
         const worker = new Worker("./4th.worker.js");
         const server = new TtyServer(slave);
-        
+
         fetch("https://raw.githubusercontent.com/nornagon/jonesforth/master/jonesforth.f")
             .then((response) => response.arrayBuffer())
             .then((buffer) => {

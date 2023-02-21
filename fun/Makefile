@@ -26,7 +26,7 @@ all: 4th.com
 
 serve: 4th.js
 	open http://localhost:8000/4th.html
-	python 4th.server.py
+	python -m http.server
 
 crt.o ape-no-modify-self.o ape.lds &: cosmopolitan-amalgamation-2.2.zip
 	unzip -u $<
