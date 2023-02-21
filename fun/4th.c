@@ -45,7 +45,7 @@ int syscall(int sysno, ...)
     case __NR_write: status = write(va_arg(ap, int), va_arg(ap, const void *), va_arg(ap, size_t)); break;
     case __NR_open : status = open(va_arg(ap, const char *), va_arg(ap, int), va_arg(ap, mode_t)); break;
     case __NR_close: status = close(va_arg(ap, int)); break;
-    case __NR_brk  : status = brk(va_arg(ap, void *)); break;
+    case __NR_brk  : status = (intptr_t)va_arg(ap, void *); status = status ? brk((void *)status) : (intptr_t)sbrk(0); break;
     case __NR_exit : status = va_arg(ap, int); va_end(ap); exit(status);
     case __NR_creat: status = creat(va_arg(ap, const char *), va_arg(ap, mode_t)); break;
     }
