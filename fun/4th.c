@@ -6,6 +6,7 @@
 #else
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
+#include <stddef.h>  /* size_t, offsetof */
 #include <stdio.h>  /* EOF, getchar_unlocked, putchar_unlocked */
 #include <stdlib.h>  /* exit, strtol, syscall */
 #include <string.h>  /* memcmp, memmove, memcpy */
@@ -57,8 +58,8 @@ int syscall(int sysno, ...)
 enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
 struct word_t {
     struct word_t *link;
-    int flags;
-    const char *name;
+    char flags;
+    char name[15];  /* big enough for builtins, forth words might overflow  */
     void *code[];
 };
 
@@ -101,6 +102,19 @@ struct word_t *find(struct word_t *word, char *name, size_t count)
         word = word->link;
 
     return word;
+}
+
+void *code_field_address(struct word_t *word)
+{
+    size_t offset = offsetof(struct word_t, name) + (word->flags & F_LENMASK);
+
+    offset += __SIZEOF_POINTER__;
+    offset &= ~(__SIZEOF_POINTER__ - 1);
+
+    if (offset < offsetof(struct word_t, code))
+        offset = offsetof(struct word_t, code);
+
+    return ((char *)word) + offset;
 }
 
 int main(void)
@@ -188,8 +202,8 @@ DEFCODE(&name_NROT, 0, "2DROP", TWODROP):
 DEFCODE(&name_TWODROP, 0, "2DUP", TWODUP):
     a = sp[0];
     b = sp[1];
-    push(a);
     push(b);
+    push(a);
     NEXT;
 DEFCODE(&name_TWODUP, 0, "2SWAP", TWOSWAP):
     a = pop();
@@ -449,7 +463,7 @@ DEFCODE(&name_NUMBER, 0, "FIND", FIND):
     NEXT;
 DEFCODE(&name_FIND, 0, ">CFA", TCFA):
     new = (struct word_t *)pop();
-    push((intptr_t)new->code);
+    push((intptr_t)code_field_address(new));
     NEXT;
 #if __SIZEOF_POINTER__ == 4
 DEFWORD(&name_TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR4.code, name_EXIT.code);
@@ -459,12 +473,11 @@ DEFWORD(&name_TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR8.code, name_EXIT.
 DEFCODE(&name_TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
-    r = memcpy(here, s, c);
-    new = (struct word_t *)(~(__SIZEOF_POINTER__ - 1) & (intptr_t)(here + c + __SIZEOF_POINTER__));
+    new = (struct word_t *)(~(__SIZEOF_POINTER__ - 1) & (intptr_t)(here + __SIZEOF_POINTER__));
     new->link = latest;
     new->flags = c;
-    new->name = r;
-    here = (char *)&(new->code);
+    memcpy(new->name, s, c);
+    here = (char *)code_field_address(new);
     latest = new;
     NEXT;
 DEFCODE(&name_CREATE, 0, ",", COMMA):
@@ -518,7 +531,7 @@ DEFCODE(&name_TELL, 0, "INTERPRET", INTERPRET):
     new = find(latest, word_buffer, c);
     if (new) {
         b = new->flags & F_IMMED;
-        target = (void **)new->code;
+        target = (void **)code_field_address(new);
     } else {
         ++is_literal;
         a = strtol(word_buffer, &r, base);

@@ -4,7 +4,7 @@
 \	This is PUBLIC DOMAIN (see public domain release statement below).
 \	$Id: jonesforth.f,v 1.18 2009-09-11 08:32:33 rich Exp $
 \	EDIT: modified for 64 bits (all 4 replaced by 8)
-\	FIXME: ID. needs additional indirection
+\	FIXME: SYSCALL0 confuses CFA>
 \
 \	The first part of this tutorial is in jonesforth.S.  Get if from http://annexia.org/forth
 \
