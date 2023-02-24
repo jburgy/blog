@@ -108,7 +108,7 @@ void *code_field_address(struct word_t *word)
 {
     size_t offset = offsetof(struct word_t, name) + (word->flags & F_LENMASK);
 
-    offset += __SIZEOF_POINTER__;
+    offset += __SIZEOF_POINTER__ - 1;
     offset &= ~(__SIZEOF_POINTER__ - 1);
 
     if (offset < offsetof(struct word_t, code))
@@ -473,7 +473,7 @@ DEFWORD(&name_TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR8.code, name_EXIT.
 DEFCODE(&name_TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
-    new = (struct word_t *)(~(__SIZEOF_POINTER__ - 1) & (intptr_t)(here + __SIZEOF_POINTER__));
+    new = (struct word_t *)(~(__SIZEOF_POINTER__ - 1) & (intptr_t)(here + __SIZEOF_POINTER__ - 1));
     new->link = latest;
     new->flags = c;
     memcpy(new->name, s, c);
