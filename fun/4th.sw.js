@@ -10,6 +10,9 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
         fetch(event.request).then(
             (response) => {
+                if (!response.url.endsWith("4th.html") && !response.url.endsWith("4th.worker.js"))
+                    return response;
+
                 const newHeaders = new Headers(response.headers);
                 newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
                 newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
