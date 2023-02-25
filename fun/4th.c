@@ -59,7 +59,7 @@ enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
 struct word_t {
     struct word_t *link;
     char flags;
-    char name[15];  /* big enough for builtins, forth words might overflow  */
+    char name[15] __attribute__((nonstring));  /* big enough for builtins, forth words might overflow  */
     void *code[];
 };
 
