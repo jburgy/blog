@@ -59,7 +59,11 @@ enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
 struct word_t {
     struct word_t *link;
     char flags;
-    char name[15] __attribute__((nonstring));  /* big enough for builtins, forth words might overflow  */
+    char name[15]
+#ifndef __clang__
+    __attribute__((nonstring))
+#endif
+    ;  /* big enough for builtins, forth words might overflow  */
     void *code[];
 };
 
@@ -122,6 +126,9 @@ void _start(void)
     /* https://briancallahan.net/blog/20200808.html */
     intptr_t stack[STACK_SIZE];  /* Parameter stack */
     void *return_stack[STACK_SIZE]; /* Return stack */
+#ifdef __clang__
+    __block
+#endif
     intptr_t *sp = stack + STACK_SIZE;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
     void **rsp = return_stack + STACK_SIZE;  /* Initialize the return stack. (%ebp) */
     register void ***ip, **target;
@@ -134,12 +141,10 @@ void _start(void)
     /* https://clang.llvm.org/docs/BlockLanguageSpec.html */
     intptr_t (^pop)(void) = ^(void)
     {
-        assert(sp < stack + STACK_SIZE);
         return *sp++;
     };
     void (^push)(intptr_t) = ^(intptr_t a)
     {
-        assert(sp > stack);
         *--sp = a;
     };
 #else

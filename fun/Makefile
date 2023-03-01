@@ -22,10 +22,13 @@ all: 4th.com
 	$(ES) $(EFLAGS) -o $@ $^
 
 % : %.c
-	$(CC) -Wall -Wextra -O3 -nostartfiles -o $@ $^
+	$(CC) -Wall -Wextra -O3 -nostartfiles -mpreferred-stack-boundary=3 -o $@ $^
 
 %.s : %.c
-	$(CC) -Wall -Wextra -O3 -nostartfiles -S -fverbose-asm -o $@ $^
+	$(CC) -Wall -Wextra -O3 -nostartfiles -mpreferred-stack-boundary=3 -S -fverbose-asm -o $@ $^
+
+%.ll : %.c
+	clang -Wall -Wextra -O3 -nostartfiles -fblocks -lBlocksRuntime 	-o $@ $^
 
 serve: 4th.js
 	open http://localhost:8000/4th.html
