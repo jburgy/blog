@@ -121,7 +121,11 @@ void *code_field_address(struct word_t *word)
     return ((char *)word) + offset;
 }
 
+#ifdef EMSCRIPTEN
+int main(void)
+#else
 void _start(void)
+#endif
 {
     /* https://briancallahan.net/blog/20200808.html */
     intptr_t stack[STACK_SIZE];  /* Parameter stack */
