@@ -1477,7 +1477,7 @@
 	as with C argc, this includes the name of the command).
 )
 : ARGC
-	S0 @ @
+	8 CELLS S0 @ + @
 ;
 
 (
@@ -1487,7 +1487,7 @@
 		0 ARGV TELL CR
 )
 : ARGV ( n -- str u )
-	1+ CELLS S0 @ +	( get the address of argv[n] entry )
+	9 + CELLS S0 @ +	( get the address of argv[n] entry )
 	@		( get the address of the string )
 	DUP STRLEN	( and get its length / turn it into a FORTH string )
 ;
@@ -1501,7 +1501,7 @@
 )
 : ENVIRON	( -- addr )
 	ARGC		( number of command line parameters on the stack to skip )
-	2 +		( skip command line count and NULL pointer after the command line args )
+	10 +		( skip command line count and NULL pointer after the command line args )
 	CELLS		( convert to an offset )
 	S0 @ +		( add to base stack address )
 ;

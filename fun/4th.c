@@ -117,12 +117,13 @@ void *code_field_address(struct word_t *word)
     return ((char *)word) + offset;
 }
 
-int main(void)
+void _start(void)
 {
-    static intptr_t stack[STACK_SIZE];  /* Parameter stack */
-    static void *return_stack[STACK_SIZE / 2]; /* Return stack */
-    static intptr_t *sp = stack + STACK_SIZE;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
-    static void **rsp = return_stack + STACK_SIZE / 2;  /* Initialize the return stack. (%ebp) */
+    /* https://briancallahan.net/blog/20200808.html */
+    intptr_t stack[STACK_SIZE];  /* Parameter stack */
+    void *return_stack[STACK_SIZE]; /* Return stack */
+    intptr_t *sp = stack + STACK_SIZE;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
+    void **rsp = return_stack + STACK_SIZE;  /* Initialize the return stack. (%ebp) */
     register void ***ip, **target;
     register intptr_t a, b, c, d __attribute__((unused)), *p, is_literal = 0;
     char *r;
@@ -373,23 +374,23 @@ DEFCODE(&name_CCOPY, 0, "CMOVE", CMOVE):
     s = (char *)pop();
     push((intptr_t)memmove(r, s, c));
     NEXT;
-    static intptr_t state = 0;
+    intptr_t state;
 DEFCODE(&name_CMOVE, 0, "STATE", STATE):
     push((intptr_t)&state);
     NEXT;
-    static char *here;
+    char *here;
 DEFCODE(&name_STATE, 0, "HERE", HERE):
     push((intptr_t)&here);
     NEXT;
-    static struct word_t *latest;
+    struct word_t *latest;
 DEFCODE(&name_HERE, 0, "LATEST", LATEST):
     push((intptr_t)&latest);
     NEXT;
-    static intptr_t *s0 __attribute__((used)) = stack + STACK_SIZE;
+    intptr_t *s0;
 DEFCODE(&name_LATEST, 0, "S0", SZ):
     push((intptr_t)&s0);
     NEXT;
-    static intptr_t base = 10;
+    intptr_t base;
 DEFCODE(&name_SZ, 0, "BASE", BASE):
     push((intptr_t)&base);
     NEXT;
@@ -589,8 +590,11 @@ DEFCODE(&name_SYSCALL1, 0, "SYSCALL0", SYSCALL0):
 
     static void *cold_start[] = {name_QUIT.code};
 _start:
-    latest = &name_SYSCALL0;
+    state = 0;
     here = sbrk(0x10000);
+    latest = &name_SYSCALL0;
+    s0 = stack + STACK_SIZE;
+    base = 10;
     ip = (void ***)cold_start;
     NEXT;  /* Run interpreter! */
 }

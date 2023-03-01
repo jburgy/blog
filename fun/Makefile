@@ -22,7 +22,10 @@ all: 4th.com
 	$(ES) $(EFLAGS) -o $@ $^
 
 % : %.c
-	$(CC) -Wall -Wextra -ggdb -O3 -o $@ $^
+	$(CC) -Wall -Wextra -O3 -nostartfiles -o $@ $^
+
+%.s : %.c
+	$(CC) -Wall -Wextra -O3 -nostartfiles -S -fverbose-asm -o $@ $^
 
 serve: 4th.js
 	open http://localhost:8000/4th.html
