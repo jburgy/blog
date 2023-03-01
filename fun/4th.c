@@ -404,7 +404,7 @@ DEFCODE(&name_SZ, 0, "BASE", BASE):
     push((intptr_t)&base);
     NEXT;
 DEFCONST(&name_BASE, 0, "VERSION", VERSION, 47);
-DEFCONST(&name_VERSION, 0, "R0", RZ, return_stack + STACK_SIZE / 2);
+DEFCONST(&name_VERSION, 0, "R0", RZ, return_stack + STACK_SIZE);
 DEFCONST(&name_RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
 DEFCONST(&name___DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED);
 DEFCONST(&name___F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN);
