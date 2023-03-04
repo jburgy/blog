@@ -1,0 +1,41 @@
+{
+  "name": "lisp",
+  "version": "1.0.0",
+  "description": "https://justine.lol/sectorlisp/ in https://www.assemblyscript.org/",
+  "main": "index.js",
+  "scripts": {
+    "test": "node tests",
+    "asbuild:debug": "asc assembly/index.ts --target debug",
+    "asbuild:release": "asc assembly/index.ts --target release",
+    "asbuild": "npm run asbuild:debug && npm run asbuild:release",
+    "start": "npx serve ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/jburgy/blog.git"
+  },
+  "keywords": [
+    "Lisp",
+    "AssemblyScript",
+    "WASM"
+  ],
+  "author": "Jan Burgy",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jburgy/blog/issues"
+  },
+  "homepage": "https://github.com/jburgy/blog#readme",
+  "devDependencies": {
+    "assemblyscript": "^0.27.0"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./build/release.js",
+      "types": "./build/release.d.ts"
+    }
+  },
+  "dependencies": {
+    "node": "^19.6.1"
+  }
+}

@@ -54,3 +54,6 @@ MANIFEST
 *.zip
 ape.lds
 cosmopolitan.h
+
+node_modules
+package-lock.json
