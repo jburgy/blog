@@ -10,10 +10,9 @@ self.addEventListener("message", (msg) => {
     class EOF extends Error {};
     let getString;
 
-    fetch(new URL("./build/release.wasm", location.origin))
+    fetch(new URL("./build/debug.wasm", location.origin))
         .then((response) => WebAssembly.instantiateStreaming(response, {
             index: {
-                memory: new WebAssembly.Memory({ initial: 0o100000 }),
                 getchar: () => {
                     if (buf.length == 0) {
                         if (firstByteRead)

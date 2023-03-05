@@ -10,7 +10,6 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
         fetch(event.request).then(
             (response) => {
-                console.log(response.url);
                 if (!response.url.endsWith("/") && !response.url.endsWith("worker.js"))
                     return response;
                 const newHeaders = new Headers(response.headers);

@@ -30,14 +30,7 @@
         xterm.loadAddon(master);
 
         const worker = new Worker("./worker.js");
-        const server = new TtyServer(slave);
-
-        fetch("https://raw.githubusercontent.com/jart/sectorlisp/main/lisp.lisp")
-            .then((response) => response.arrayBuffer())
-            .then((buffer) => {
-                server.toWorkerBuf.push(...new Uint8Array(buffer));
-                server.start(worker);
-            });
+        new TtyServer(slave).start(worker);
     </script>
 </body>
 

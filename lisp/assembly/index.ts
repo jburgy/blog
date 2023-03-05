@@ -32,7 +32,13 @@ const kCdr        = 37;
 const kCons       = 41;
 const kEq         = 46;
 
-const M = 4096;
+const tNewLine    = 10;
+const tSpace      = 32;
+const tLeftParen  = 40;
+const tRightParen = 41;
+
+const RAM = new Int32Array(0x8000);
+const M = 0x4000;
 const S = "NIL\0T\0QUOTE\0COND\0READ\0PRINT\0ATOM\0CAR\0CDR\0CONS\0EQ";
 
 let cx: i32; /* stores negative memory use */
@@ -43,20 +49,19 @@ declare function getchar(): i32;
 declare function putchar(i: i32): void;
 
 function Intern(): i32 {
-  let i: i32, j: i32, x: i32, y: i32;
-  for (i = 0; (x = load<i32>(M + 4 * i++));) {
+  let i: i32, j: i32, x: i32;
+  for (i = 0; (x = RAM[M + i++]);) {
     for (j = 0;; ++j) {
-      if (x != load<u8>(j) as i32) break;
+      if (x != RAM[j]) break;
       if (!x) return i - j - 1;
-      x = load<i32>(M + 4 * i++);
+      x = RAM[M + i++];
     }
     while (x)
-      x = load<i32>(M + 4 * i++);
+      x = RAM[M + i++];
   }
   j = 0;
   x = --i;
-  let c: u8;
-  while (c = load<u8>(j++)) store<i32>(M + 4 * i++, c);
+  while (RAM[M + i++] = RAM[j++]);
   return x;
 }
 
@@ -74,9 +79,9 @@ function PrintChar(c: i32): void {
 
 function GetToken(): i32 {
   let c: i32, i: i32 = 0;
-  do if ((c = GetChar()) > ' '.codePointAt(0)) store<u8>(i++, c as u8);
-  while (c <= ' '.codePointAt(0) || (c > ')'.codePointAt(0) && dx > ')'.codePointAt(0)));
-  store<u8>(i, 0 as u8);
+  do if ((c = GetChar()) > tSpace) RAM[i++] = c;
+  while (c <= tSpace || (c > tRightParen && dx > tRightParen));
+  RAM[i] = 0;
   return c;
 }
 
@@ -86,12 +91,12 @@ function AddList(x: i32): i32 {
 
 function GetList(): i32 {
   const c: i32 = GetToken();
-  if (c == ')'.codePointAt(0)) return 0;
+  if (c == tRightParen) return 0;
   return AddList(GetObject(c));
 }
 
 function GetObject(c: i32): i32 {
-  if (c == '('.codePointAt(0)) return GetList();
+  if (c == tLeftParen) return GetList();
   return Intern();
 }
 
@@ -102,25 +107,25 @@ function Read(): i32 {
 function PrintAtom(x: i32): void {
   let c: i32;
   for (;;) {
-    if (!(c = load<i32>(M + 4 * x++))) break;
+    if (!(c = RAM[M + x++])) break;
     PrintChar(c);
   }
 }
 
 function PrintList(x: i32): void {
-  PrintChar('('.codePointAt(0));
+  PrintChar(tRightParen);
   PrintObject(Car(x));
   while ((x = Cdr(x))) {
     if (x < 0) {
-      PrintChar(' '.codePointAt(0));
+      PrintChar(tSpace);
       PrintObject(Car(x));
     } else {
-      PrintChar('∙'.codePointAt(0));
+      PrintChar(0x2219);
       PrintObject(x);
       break;
     }
   }
-  PrintChar(')'.codePointAt(0));
+  PrintChar(tRightParen);
 }
 
 function PrintObject(x: i32): void {
@@ -136,7 +141,7 @@ function Print(e: i32): void {
 }
 
 function PrintNewLine(): void {
-  PrintChar('\n'.codePointAt(0));
+  PrintChar(tNewLine);
 }
 
 /*───────────────────────────────────────────────────────────────────────────│─╗
@@ -144,16 +149,16 @@ function PrintNewLine(): void {
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
 function Car(x: i32): i32 {
-  return load<i32>(4 * x);
+  return RAM[M + x];
 }
 
 function Cdr(x: i32): i32 {
-  return load<i32>(4 * x + 4);
+  return RAM[M + x + 1];
 }
 
 function Cons(car: i32, cdr: i32): i32 {
-  store<i32>(4 * --cx, cdr);
-  store<i32>(4 * --cx, car);
+  RAM[M + --cx] = cdr;
+  RAM[M + --cx] = car;
   return cx;
 }
 
@@ -219,7 +224,7 @@ function Eval(e: i32, a: i32): i32 {
   e = Gc(e, A, A - B);
   C = cx;
   while (C < B)
-    store<i32>(4 * --A, load<i32>(4 * --B));
+    RAM[M + --A] = RAM[M + --B];
   cx = A;
   return e;
 }
@@ -230,7 +235,7 @@ function Eval(e: i32, a: i32): i32 {
 
 export function main(): void {
   let i: i32;
-  for(i = 0; i < S.length; ++i) store<u8>(i, S.codePointAt(i) as u8);
+  for(i = 0; i < S.length; ++i) RAM[M + i] = S.codePointAt(i);
   for (;;) {
     cx = 0;
     Print(Eval(Read(), 0));
