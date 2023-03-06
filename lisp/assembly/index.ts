@@ -36,6 +36,7 @@ const tNewLine    = 10;
 const tSpace      = 32;
 const tLeftParen  = 40;
 const tRightParen = 41;
+const tStar       = 42;
 
 const RAM = new Int32Array(0x8000);
 const M = 0x4000;
@@ -238,6 +239,8 @@ export function main(): void {
   for(i = 0; i < S.length; ++i) RAM[M + i] = S.codePointAt(i);
   for (;;) {
     cx = 0;
+    putchar(tStar);
+    putchar(tSpace);
     Print(Eval(Read(), 0));
     PrintNewLine();
   }

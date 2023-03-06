@@ -14,11 +14,8 @@ self.addEventListener("message", (msg) => {
         .then((response) => WebAssembly.instantiateStreaming(response, {
             index: {
                 getchar: () => {
-                    if (buf.length == 0) {
-                        if (firstByteRead)
-                            return null;
+                    if (buf.length == 0)
                         buf.push(...client.onRead());
-                    }
                     const c = buf.shift();
                     if (c < 0)
                         throw new EOF();
@@ -40,8 +37,8 @@ self.addEventListener("message", (msg) => {
 
             getString = (ptr) => {
                 if (!ptr) return "null";
-                const U32 = new Uint32Array(exports.memory.buffer);
-                const U16 = new Uint16Array(exports.memory.buffer);
+                const U32 = new Uint32Array(memory.buffer);
+                const U16 = new Uint16Array(memory.buffer);
                 const len16 = U32[(ptr - 12) >>> 2] >>> 1; // TODO: old header
                 const ptr16 = ptr >>> 1;
                 return String.fromCharCode.apply(String, U16.subarray(ptr16, ptr16 + len16));
