@@ -38,9 +38,7 @@ const tLeftParen  = 40;
 const tRightParen = 41;
 const tStar       = 42;
 
-const RAM = new Int32Array(0x8000);
-const M = 0x4000;
-const S = "NIL\0T\0QUOTE\0COND\0READ\0PRINT\0ATOM\0CAR\0CDR\0CONS\0EQ";
+const M = 0x10000;
 
 let cx: i32; /* stores negative memory use */
 let dx: i32; /* stores lookahead character */
@@ -50,19 +48,19 @@ declare function getchar(): i32;
 declare function putchar(i: i32): void;
 
 function Intern(): i32 {
-  let i: i32, j: i32, x: i32;
-  for (i = 0; (x = RAM[M + i++]);) {
+  let i: i32, j: i32, x: i32, y: i32;
+  for (i = 0; (x = i32.load(i++ << 2, M));) {
     for (j = 0;; ++j) {
-      if (x != RAM[j]) break;
+      if (x != i32.load(j << 2)) break;
       if (!x) return i - j - 1;
-      x = RAM[M + i++];
+      x = i32.load(i++ << 2, M);
     }
     while (x)
-      x = RAM[M + i++];
+      x = i32.load(i++ << 2, M);
   }
   j = 0;
   x = --i;
-  while (RAM[M + i++] = RAM[j++]);
+  while (y = i32.load(j++ << 2)) i32.store(i++ << 2, y, M);
   return x;
 }
 
@@ -80,9 +78,9 @@ function PrintChar(c: i32): void {
 
 function GetToken(): i32 {
   let c: i32, i: i32 = 0;
-  do if ((c = GetChar()) > tSpace) RAM[i++] = c;
+  do if ((c = GetChar()) > tSpace) i32.store(i++ << 2, c);
   while (c <= tSpace || (c > tRightParen && dx > tRightParen));
-  RAM[i] = 0;
+  i32.store(i << 2, 0);
   return c;
 }
 
@@ -108,7 +106,7 @@ function Read(): i32 {
 function PrintAtom(x: i32): void {
   let c: i32;
   for (;;) {
-    if (!(c = RAM[M + x++])) break;
+    if (!(c = i32.load(x++ << 2, M))) break;
     PrintChar(c);
   }
 }
@@ -150,16 +148,16 @@ function PrintNewLine(): void {
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
 function Car(x: i32): i32 {
-  return RAM[M + x];
+  return i32.load(M + (x << 2));
 }
 
 function Cdr(x: i32): i32 {
-  return RAM[M + x + 1];
+  return i32.load(M + ((x + 1) << 2));
 }
 
 function Cons(car: i32, cdr: i32): i32 {
-  RAM[M + --cx] = cdr;
-  RAM[M + --cx] = car;
+  i32.store(M + (--cx << 2), cdr);
+  i32.store(M + (--cx << 2), car);
   return cx;
 }
 
@@ -225,7 +223,7 @@ function Eval(e: i32, a: i32): i32 {
   e = Gc(e, A, A - B);
   C = cx;
   while (C < B)
-    RAM[M + --A] = RAM[M + --B];
+    i32.store(M + (--A << 2), i32.load(M + (--B << 2)));
   cx = A;
   return e;
 }
@@ -235,8 +233,6 @@ function Eval(e: i32, a: i32): i32 {
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
 export function main(): void {
-  let i: i32;
-  for(i = 0; i < S.length; ++i) RAM[M + i] = S.codePointAt(i);
   for (;;) {
     cx = 0;
     putchar(tStar);

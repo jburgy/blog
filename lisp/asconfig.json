@@ -17,7 +17,9 @@
     }
   },
   "options": {
-    "bindings": "esm",
+    "optimizeLevel": 3,
+    "shrinkLevel": "s",
+    "bindings": "raw",
     "runtime": "stub"
   }
 }
