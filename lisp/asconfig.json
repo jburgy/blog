@@ -18,7 +18,6 @@
   },
   "options": {
     "optimizeLevel": 3,
-    "shrinkLevel": "s",
     "bindings": "raw",
     "runtime": "stub"
   }

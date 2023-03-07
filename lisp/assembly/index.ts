@@ -112,7 +112,7 @@ function PrintAtom(x: i32): void {
 }
 
 function PrintList(x: i32): void {
-  PrintChar(tRightParen);
+  PrintChar(tLeftParen);
   PrintObject(Car(x));
   while ((x = Cdr(x))) {
     if (x < 0) {
