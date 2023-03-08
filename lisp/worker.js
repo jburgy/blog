@@ -28,11 +28,11 @@ self.addEventListener("message", (msg) => {
         .then(({ instance }) => {
             const { exports: { main, memory } } = instance;
 
-            memory.grow(2);
+            memory.grow(1);
 
             const M = new DataView(memory.buffer);
             Array.from("NIL\0T\0QUOTE\0COND\0READ\0PRINT\0ATOM\0CAR\0CDR\0CONS\0EQ").forEach((s, i) => {
-                M.setInt32(0x10000 + (i << 2), s.codePointAt(0), true);
+                M.setInt16(0x8000 + (i << 1), s.codePointAt(0), true);
             });        
 
             try {

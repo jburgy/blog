@@ -21,6 +21,9 @@
 │ The LISP Challenge § LISP Machine                                        ─╬─│┼
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
+type T = i16;
+const align = alignof<T>() as T;
+
 const kT          = 4;
 const kQuote      = 6;
 const kCond       = 12;
@@ -32,86 +35,86 @@ const kCdr        = 37;
 const kCons       = 41;
 const kEq         = 46;
 
-const tNewLine    = 10;
-const tSpace      = 32;
-const tLeftParen  = 40;
-const tRightParen = 41;
-const tStar       = 42;
+const tNewLine    = 10 as T;
+const tSpace      = 32 as T;
+const tLeftParen  = 40 as T;
+const tRightParen = 41 as T;
+const tStar       = 42 as T;
 
-const M = 0x10000;
+const M = 0x8000;
 
-let cx: i32; /* stores negative memory use */
-let dx: i32; /* stores lookahead character */
+let cx: T; /* stores negative memory use */
+let dx: T; /* stores lookahead character */
 
 declare function getchar(): i32;
 
 declare function putchar(i: i32): void;
 
-function Intern(): i32 {
-  let i: i32, j: i32, x: i32, y: i32;
-  for (i = 0; (x = i32.load(i++ << 2, M));) {
+function Intern(): T {
+  let i: T, j: T, x: T, y: T;
+  for (i = 0; (x = load<T>(i++ << align, M));) {
     for (j = 0;; ++j) {
-      if (x != i32.load(j << 2)) break;
+      if (x != load<T>(j << align)) break;
       if (!x) return i - j - 1;
-      x = i32.load(i++ << 2, M);
+      x = load<T>(i++ << align, M);
     }
     while (x)
-      x = i32.load(i++ << 2, M);
+      x = load<T>(i++ << align, M);
   }
   j = 0;
   x = --i;
-  while (y = i32.load(j++ << 2)) i32.store(i++ << 2, y, M);
+  while (y = load<T>(j++ << align)) store<T>(i++ << align, y, M);
   return x;
 }
 
-function GetChar(): i32 {
-  let t: i32;
+function GetChar(): T {
+  let t: T;
 
   t = dx;
-  dx = getchar();
+  dx = getchar() as T;
   return t;
 }
 
-function PrintChar(c: i32): void {
+function PrintChar(c: T): void {
   putchar(c);
 }
 
-function GetToken(): i32 {
-  let c: i32, i: i32 = 0;
-  do if ((c = GetChar()) > tSpace) i32.store(i++ << 2, c);
+function GetToken(): T {
+  let c: T, i: T = 0;
+  do if ((c = GetChar()) > tSpace) store<T>(i++ << align, c);
   while (c <= tSpace || (c > tRightParen && dx > tRightParen));
-  i32.store(i << 2, 0);
+  store<T>(i << align, 0);
   return c;
 }
 
-function AddList(x: i32): i32 {
+function AddList(x: T): T {
   return Cons(x, GetList());
 }
 
-function GetList(): i32 {
-  const c: i32 = GetToken();
+function GetList(): T {
+  const c: T = GetToken();
   if (c == tRightParen) return 0;
   return AddList(GetObject(c));
 }
 
-function GetObject(c: i32): i32 {
+function GetObject(c: T): T {
   if (c == tLeftParen) return GetList();
   return Intern();
 }
 
-function Read(): i32 {
+function Read(): T {
   return GetObject(GetToken());
 }
 
-function PrintAtom(x: i32): void {
-  let c: i32;
+function PrintAtom(x: T): void {
+  let c: T;
   for (;;) {
-    if (!(c = i32.load(x++ << 2, M))) break;
+    if (!(c = load<T>(x++ << align, M))) break;
     PrintChar(c);
   }
 }
 
-function PrintList(x: i32): void {
+function PrintList(x: T): void {
   PrintChar(tLeftParen);
   PrintObject(Car(x));
   while ((x = Cdr(x))) {
@@ -127,7 +130,7 @@ function PrintList(x: i32): void {
   PrintChar(tRightParen);
 }
 
-function PrintObject(x: i32): void {
+function PrintObject(x: T): void {
   if (x < 0) {
     PrintList(x);
   } else {
@@ -135,7 +138,7 @@ function PrintObject(x: i32): void {
   }
 }
 
-function Print(e: i32): void {
+function Print(e: T): void {
   PrintObject(e);
 }
 
@@ -147,46 +150,46 @@ function PrintNewLine(): void {
 │ The LISP Challenge § Bootstrap John McCarthy's Metacircular Evaluator    ─╬─│┼
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
-function Car(x: i32): i32 {
-  return i32.load(M + (x << 2));
+function Car(x: T): T {
+  return load<T>(M + (x << align));
 }
 
-function Cdr(x: i32): i32 {
-  return i32.load(M + ((x + 1) << 2));
+function Cdr(x: T): T {
+  return load<T>(M + ((x + 1) << align));
 }
 
-function Cons(car: i32, cdr: i32): i32 {
-  i32.store(M + (--cx << 2), cdr);
-  i32.store(M + (--cx << 2), car);
+function Cons(car: T, cdr: T): T {
+  store<T>(M + (--cx << align), cdr);
+  store<T>(M + (--cx << align), car);
   return cx;
 }
 
-function Gc(x: i32, m: i32, k: i32): i32 {
+function Gc(x: T, m: T, k: T): T {
   return x < m ? Cons(Gc(Car(x), m, k), 
                       Gc(Cdr(x), m, k)) + k : x;
 }
 
-function Evlis(m: i32, a: i32): i32 {
+function Evlis(m: T, a: T): T {
   if (m) {
-    const x: i32 = Eval(Car(m), a);
+    const x: T = Eval(Car(m), a);
     return Cons(x, Evlis(Cdr(m), a));
   } else {
     return 0;
   }
 }
 
-function Pairlis(x: i32, y: i32, a: i32): i32 {
+function Pairlis(x: T, y: T, a: T): T {
   return x ? Cons(Cons(Car(x), Car(y)),
                   Pairlis(Cdr(x), Cdr(y), a)) : a;
 }
 
-function Assoc(x: i32, y: i32): i32 {
+function Assoc(x: T, y: T): T {
   if (!y) return 0;
   if (x == Car(Car(y))) return Cdr(Car(y));
   return Assoc(x, Cdr(y));
 }
 
-function Evcon(c: i32, a: i32): i32 {
+function Evcon(c: T, a: T): T {
   if (Eval(Car(Car(c)), a)) {
     return Eval(Car(Cdr(Car(c))), a);
   } else {
@@ -194,12 +197,12 @@ function Evcon(c: i32, a: i32): i32 {
   }
 }
 
-function Apply(f: i32, x: i32, a: i32): i32 {
+function Apply(f: T, x: T, a: T): T {
   if (f < 0)       return Eval(Car(Cdr(Cdr(f))), Pairlis(Car(Cdr(f)), x, a));
   if (f > kEq)     return Apply(Eval(f, a), x, a);
-  if (f == kEq)    return Car(x) == Car(Cdr(x)) ? kT : 0;
+  if (f == kEq)    return Car(x) == Car(Cdr(x)) ? kT as T : 0;
   if (f == kCons)  return Cons(Car(x), Car(Cdr(x)));
-  if (f == kAtom)  return Car(x) < 0 ? 0 : kT;
+  if (f == kAtom)  return Car(x) < 0 ? 0 : kT as T;
   if (f == kCar)   return Car(Car(x));
   if (f == kCdr)   return Cdr(Car(x));
   if (f == kRead)  return Read();
@@ -207,8 +210,8 @@ function Apply(f: i32, x: i32, a: i32): i32 {
   return 0;
 }
 
-function Eval(e: i32, a: i32): i32 {
-  let A: i32, B: i32, C: i32;
+function Eval(e: T, a: T): T {
+  let A: T, B: T, C: T;
   if (e >= 0)
     return Assoc(e, a);
   if (Car(e) == kQuote)
@@ -223,7 +226,7 @@ function Eval(e: i32, a: i32): i32 {
   e = Gc(e, A, A - B);
   C = cx;
   while (C < B)
-    i32.store(M + (--A << 2), i32.load(M + (--B << 2)));
+    store<T>(M + (--A << align), load<T>(M + (--B << align)));
   cx = A;
   return e;
 }
@@ -235,8 +238,8 @@ function Eval(e: i32, a: i32): i32 {
 export function main(): void {
   for (;;) {
     cx = 0;
-    putchar(tStar);
-    putchar(tSpace);
+    PrintChar(tStar);
+    PrintChar(tSpace);
     Print(Eval(Read(), 0));
     PrintNewLine();
   }
