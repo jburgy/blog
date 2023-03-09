@@ -35,55 +35,53 @@ const kCdr        = 37;
 const kCons       = 41;
 const kEq         = 46;
 
-const tNewLine    = 10 as T;
-const tSpace      = 32 as T;
-const tLeftParen  = 40 as T;
-const tRightParen = 41 as T;
-const tStar       = 42 as T;
+const tNewLine    = 10 as u8;
+const tSpace      = 32 as u8;
+const tLeftParen  = 40 as u8;
+const tRightParen = 41 as u8;
+const tStar       = 42 as u8;
 
 const M = 0x8000;
 
 let cx: T; /* stores negative memory use */
-let dx: T; /* stores lookahead character */
+let dx: u8; /* stores lookahead character */
 
 declare function getchar(): i32;
 
 declare function putchar(i: i32): void;
 
 function Intern(): T {
-  let i: T, j: T, x: T, y: T;
-  for (i = 0; (x = load<T>(i++ << align, M));) {
-    for (j = 0;; ++j) {
-      if (x != load<T>(j << align)) break;
+  let i: T, j: T, k: T, x: u8;
+  for (i = 0; x = load<u8>(i++, M);) {
+    for (j = 0; x == load<u8>(j); ++j) {
       if (!x) return i - j - 1;
-      x = load<T>(i++ << align, M);
+      x = load<u8>(i++, M);
     }
     while (x)
-      x = load<T>(i++ << align, M);
+      x = load<u8>(i++, M);
   }
   j = 0;
-  x = --i;
-  while (y = load<T>(j++ << align)) store<T>(i++ << align, y, M);
-  return x;
+  k = --i;
+  while (x = load<u8>(j++)) store<u8>(i++, x, M);
+  return k;
 }
 
-function GetChar(): T {
-  let t: T;
+function GetChar(): u8 {
+  let t = dx;
 
-  t = dx;
-  dx = getchar() as T;
+  dx = getchar() as u8;
   return t;
 }
 
-function PrintChar(c: T): void {
+function PrintChar(c: i32): void {
   putchar(c);
 }
 
-function GetToken(): T {
-  let c: T, i: T = 0;
-  do if ((c = GetChar()) > tSpace) store<T>(i++ << align, c);
+function GetToken(): u8 {
+  let c: u8, i: T = 0;
+  do if ((c = GetChar()) > tSpace) store<u8>(i++, c);
   while (c <= tSpace || (c > tRightParen && dx > tRightParen));
-  store<T>(i << align, 0);
+  store<u8>(i, 0);
   return c;
 }
 
@@ -92,12 +90,12 @@ function AddList(x: T): T {
 }
 
 function GetList(): T {
-  const c: T = GetToken();
+  const c = GetToken();
   if (c == tRightParen) return 0;
   return AddList(GetObject(c));
 }
 
-function GetObject(c: T): T {
+function GetObject(c: u8): T {
   if (c == tLeftParen) return GetList();
   return Intern();
 }
@@ -107,9 +105,8 @@ function Read(): T {
 }
 
 function PrintAtom(x: T): void {
-  let c: T;
-  for (;;) {
-    if (!(c = load<T>(x++ << align, M))) break;
+  let c: u8;
+  while (c = load<u8>(x++, M)) {
     PrintChar(c);
   }
 }
@@ -155,7 +152,7 @@ function Car(x: T): T {
 }
 
 function Cdr(x: T): T {
-  return load<T>(M + ((x + 1) << align));
+  return load<T>(M + (x + 1 << align));
 }
 
 function Cons(car: T, cdr: T): T {

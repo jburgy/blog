@@ -31,9 +31,8 @@ self.addEventListener("message", (msg) => {
             memory.grow(1);
 
             const M = new DataView(memory.buffer);
-            Array.from("NIL\0T\0QUOTE\0COND\0READ\0PRINT\0ATOM\0CAR\0CDR\0CONS\0EQ").forEach((s, i) => {
-                M.setInt16(0x8000 + (i << 1), s.codePointAt(0), true);
-            });        
+            Array.from("NIL\0T\0QUOTE\0COND\0READ\0PRINT\0ATOM\0CAR\0CDR\0CONS\0EQ")
+                .forEach((s, i) => M.setUint8(0x8000 | i, s.codePointAt(0)));
 
             try {
                 main(); 
