@@ -114,7 +114,7 @@ function PrintAtom(x: T): void {
 function PrintList(x: T): void {
   PrintChar(tLeftParen);
   PrintObject(Car(x));
-  while ((x = Cdr(x))) {
+  while (x = Cdr(x)) {
     if (x < 0) {
       PrintChar(tSpace);
       PrintObject(Car(x));
