@@ -23,8 +23,7 @@ self.addEventListener("message", (msg) => {
         /* 15 */ "[** Watch ",
     ];
     const encoder = new TextEncoder();
-    const interpreter = [];
-    [
+    const interpreter = [
         "0000 ;       1 .  ORIGINAL TINY BASIC INTERMEDIATE INTERPRETER",
         "0000 ;       2 .",
         "0000 ;       3 .  EXECUTIVE INITIALIZATION",
@@ -282,12 +281,8 @@ self.addEventListener("message", (msg) => {
         "0154 0904; 231       RT",
         "0156 2F;   232 .",
         "0157 ;    0000",
-    ].map((line) => line.slice(5, ";") > 5)
-    .filter((bytes) => bytes.length)
-    .forEach((bytes) => {
-        for (const match of bytes.matchAll(/([0-9A-F]{2})/g))
-            interpreter.push(parseInt(match[0], 0x10));
-    });
+    ];
+    let buf = [];
 
     class EOF extends Error {};
 
@@ -306,23 +301,31 @@ self.addEventListener("message", (msg) => {
                 ScreenChar: (val) => {
                     client.onWrite([(val + 0x100) & 0xFF]);
                 },
-                PutStr: (index) => {
+                OutStr: (index) => {
                     client.onWrite(encoder.encode(strings[index]));
                 }
             },
         }))
         .then(({ instance }) => {
-            const { exports: { ColdGo, ColdStart, ILfront, ILend, Interp, memory } } = instance;
+            const { exports: { BadOp, ColdGo, ColdStart, ILfront, Interp, memory } } = instance;
 
-            memory.grow(1);
+            memory.grow(2);
 
             const view = new DataView(memory.buffer);
-            view.setUint16(ILfront, ILend);
-            view.setUint16(ColdGo + 1, ILend);
-            interpreter.forEach((valu) => view.setUint8(ILend++, valu));
+            let ILend = ILfront + 2;
+            view.setUint16(ILfront, ILend, true);
+            view.setUint16(ColdGo + 1, ILend, true);
+            view.setUint8(ILend, BadOp);
+
+            interpreter.map((line) => line.slice(5, line.indexOf(";")))
+            .filter((bytes) => bytes.length)
+            .forEach((bytes) => {
+                for (const match of bytes.matchAll(/([0-9A-F]{2})/g))
+                    view.setUint8(ILend++, parseInt(match[0], 0x10));
+            });
             view.setUint8(ILend, 0)
 
-            ColdStart();
+            ColdStart(ILend);
             try {
                 Interp();
             } catch (error) {

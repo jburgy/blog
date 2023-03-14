@@ -1,4 +1,4 @@
-type T = i16;
+type T = u16;
 
 const CoreTop = 0x10000;      /* Core size */
 const UserProg: T = 0x20;   /* Core address of front of Basic program */
@@ -13,7 +13,7 @@ const InLine: T = 0x30;     /* Core address of input line */
 const ExpnStk: T = 0x80;    /* Core address of expression stack (empty) */
 const TabHere: T = 0xBF;    /* Core address of output line size, for tabs */
 const WachPoint: T = 0xFF;  /* Core address of debug watchpoint USR */
-const ColdGo: T = 0x100;    /* Core address of nominal restart USR */
+export const ColdGo: T = 0x100;    /* Core address of nominal restart USR */
 const WarmGo: T = 0x103;    /* Core address of nominal warm start USR */
 const InchSub: T = 0x106;   /* Core address of nominal char input USR */
 const OutchSub: T = 0x109;  /* Core address of nominal char output USR */
@@ -26,10 +26,10 @@ const TrLogSub: T = 0x11B;  /* Core address of debug trace log USR */
 const BScode: T = 0x10F;    /* Core address of backspace code */
 const CanCode: T = 0x110;   /* Core address of line cancel code */
 export const ILfront: T = 0x11E;   /* Core address of IL code address */
-const BadOp: u8 = 0x0F;      /* illegal op, default IL code */
+export const BadOp: u8 = 0x0F;      /* illegal op, default IL code */
 
 const DEBUGON = 1;
-const LOGSIZE = 0x1000;
+const LOGSIZE: T = 0x1000;
 
 declare function ScreenChar(ch: T): void;
 declare function KeyInChar(): T;
@@ -45,7 +45,7 @@ let BP: T, SvPt: T;            /* current, saved TB parse pointer */
 let SubStk: T, ExpnTop: T;                      /* stack pointers */
 let InLend: T, SrcEnd: T;   /* current input line & TB source end */
 let UserEnd: T;            /* end of IL code, start of execute loop */
-let ILend: T = ILfront + 2, XQhere: T = 0;
+let ILend: T, XQhere: T = 0;
 let Broken = false;             /* =true to stop execution or listing */
 
 /************************* Memory Utilities.. *************************/
@@ -108,7 +108,7 @@ function OutHex(num: i32, nd: T): void { /* output hex num to console */
 }
 
 function ShowSubs(): void { /* display subroutine stack for debugging */
-    let ix: i32;
+    let ix: T;
     OutLn(); OutStr(0); OutHex(SubStk, 5);
     for (ix = SubStk; ix < UserEnd; ix++) {
         Ouch(0x20);
@@ -118,7 +118,7 @@ function ShowSubs(): void { /* display subroutine stack for debugging */
 }
 
 function ShowExSt(): void {   /* display expression stack for debugging */
-    let ix: i32;
+    let ix: T;
     OutLn(); OutStr(1); OutHex(ExpnTop,3);
     if ((ExpnTop & 1) == 0)
         for (ix = ExpnTop; ix<ExpnStk; ix++) {
@@ -215,7 +215,7 @@ function ShoLogVal(item: i32): void { /* format & output one activity log item *
 }
 
 function ShowLog(): void {        /* display activity log for debugging */
-    let ix: i32;
+    let ix: T;
     OutLn();
     OutStr(5);
     OutInt(LogHere);
@@ -250,7 +250,9 @@ function WarmStart(): void {           /* initialize existing program */
     InLend = InLine;
 }
 
-export function ColdStart(): void {    /* initialize program to empty */
+export function ColdStart(ILend_: T): void {    /* initialize program to empty */
+    if (ILend_)
+        ILend = ILend_;
     if (Peek2(ILfront) != ILfront + 2)
         ILend = Peek2(ILfront) + 0x800;
     Poke2(UserProg, (ILend + 0xFF) & 0xF0);   /* start Basic after IL */
@@ -289,7 +291,7 @@ function TBerror(): void {                /* report interpreter error */
         OutStr(10);
         OutHex(Peek2(ILfront), 4);
         Ouch(0x5D);
-        ShoMemDump((BP-30)&-16,64);
+        ShoMemDump((BP - 30) & 0xFF00, 0x100);
     }
     Lino = 0;                         /* restart interpreter at front */
     ExpnTop = ExpnStk;                 /* with empty expression stack */
@@ -312,7 +314,7 @@ function PushSub(valu: i32): void {    /* push value onto Gosub stack */
 function PopSub(): T {                   /* pop value off Gosub stack */
     if (SubStk >= Peek2(EndUser) - 1) {    /* underflow (empty stack) */
         TBerror();
-        return -1;
+        return 0xFFFF;
     }
     else {
         if (Debugging > 0)
@@ -353,7 +355,7 @@ function PopExInt(): T {            /* pop integer off expression stack */
     if (++ExpnTop < ExpnStk)
         return Peek2((ExpnTop++) - 1);
     TBerror();
-    return -1;
+    return 0xFFFF;
 }
 
 function SkipTo(here: T, fch: u8): T { /* search for'd past next marker */
@@ -908,7 +910,7 @@ export function Interp(): void {
                 /* program space, and the line number of the first line is set to 0,  */
                 /* which is the indication of the end of the program.                 */
                 case 0x2B:
-                    ColdStart();
+                    ColdStart(0);
                     if (Debugging > 0) { ShowSubs(); ShowExSt(); ShowVars(0); }
                     break;
 
@@ -977,7 +979,7 @@ export function Interp(): void {
                             PushExInt(load<u8>(here));
                             break;
                         case ColdGo:
-                            ColdStart();
+                            ColdStart(0);
                             break;
                         case WarmGo:
                             WarmStart();
