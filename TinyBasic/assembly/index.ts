@@ -58,6 +58,11 @@ function Peek2(loc: i32): T {
     return load<T>(loc);
 }
 
+@inline
+function Upper(ch: u8): u8 {
+    return ch & (u8(0x60) < ch && ch < u8(0x7B) ? u8(0x5F) : u8(0x7F));
+}
+
 /************************** I/O Utilities... **************************/
 
 function Ouch(ch: T): void {                 /* output char to stdout */
@@ -470,7 +475,7 @@ export function Interp(): void {
             OutLn(); OutStr(14); OutHex(ILPC - Peek2(ILfront) - 1, 3);
             Ouch(0x3D); OutHex(op, 2); Ouch(0x5D);
         }
-        switch (op >> 5) {
+        switch (op >>> 5) {
             default: switch (op) {
                 case 0x0F:
                     TBerror();
@@ -1075,7 +1080,7 @@ export function Interp(): void {
                 /* offset of zero (i.e. opcode 60) results in an error stop. The      */
                 /* branch operation is unconditional.                                 */
             case 0x02: case 0x03:
-                ILPC = ILPC + op - 96;
+                ILPC = ILPC + op - 0x60;
                 if (DEBUGON) LogIt(-ILPC);
                 break;
 
@@ -1095,13 +1100,13 @@ export function Interp(): void {
                 /* is zero an error stop occurs.                                      */
             case 0x04:
                 if (op == 0x80) here = 0;                     /* to error if no match */
-                else here = ILPC + op - 0x80;
+                else here = ILPC + (op & 0x7F);
                 chpt = BP;
                 ix = 0;
                 while ((ix & 0x80) == 0) {
                     while (load<u8>(BP) == 0x20) BP++;            /* skip over spaces */
                     ix = load<u8>(ILPC++);
-                    if ((ix & 0x7F) != ((load<u8>(BP++) & 0x7F) ^ 0x20)) {
+                    if ((ix & 0x7F) != Upper(load<u8>(BP++))) {
                         BP = chpt;             /* back up to front of string in Basic */
                         if (here == 0) TBerror();
                         else ILPC = here;                       /* jump forward in IL */
@@ -1151,7 +1156,7 @@ export function Interp(): void {
                             continue;
                         if (here < 0x30 || here > 0x39)        /* not a decimal digit */
                             break;
-                        op = op * 10 + here - 0x30;
+                        op = op * 10 + (here & 0x0F);
                     }                                            /* insert into value */
                     BP--;                                   /* back up over non-digit */
                     PushExInt(op);
