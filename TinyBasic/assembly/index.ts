@@ -126,12 +126,12 @@ function ShowExSt(): void {   /* display expression stack for debugging */
     let ix: T;
     OutLn(); OutStr(1); OutHex(ExpnTop, 3);
     if ((ExpnTop & 1) == 0)
-        for (ix = ExpnTop; ix<ExpnStk; ix++) {
+        for (ix = ExpnTop; ix < ExpnStk; ix++) {
             Ouch(0x20);
             OutInt(Peek2(ix++));
         }
     else
-        for (ix=ExpnTop; ix<ExpnStk; ix++) {
+        for (ix = ExpnTop; ix < ExpnStk; ix++) {
             Ouch(0x2E);
             OutInt(load<u8>(ix) as T);
         }
@@ -149,7 +149,7 @@ function ShowVars(whom: T): void {      /* display vars for debugging */
     OutLn();
     OutStr(2);
     for (ix = valu; ix <= whom; ix++) {   /* all non-0 vars else whom */
-        valu = Peek2(ix*2 + ExpnStk);
+        valu = Peek2(ix * 2 + ExpnStk);
         if (valu == 0 && prior == 0)              /* omit multiple 0s */
             continue
         prior = valu;
@@ -168,13 +168,13 @@ function ShoMemDump(here: T, nlocs: T): void {/* display hex mem dump */
         OutLn();
         OutHex(here, 4);
         Ouch(0x3A); Ouch(0x20);
-        while (thar<here) {
+        while (thar < here) {
             Ouch(0x20); Ouch(0x20); Ouch(0x20);
             thar++;
         }
         do {
             Ouch(0x20);
-            if (nlocs-- >0)
+            if (nlocs-- > 0)
                 OutHex(load<u8>(here), 2);
             else {
                 Ouch(0x20); Ouch(0x20);
@@ -182,7 +182,7 @@ function ShoMemDump(here: T, nlocs: T): void {/* display hex mem dump */
         }
         while (++here % 0x10);
         Ouch(0x20); Ouch(0x20);
-        while (temp < thar) {Ouch(0x20); temp++;}
+        while (temp < thar) { Ouch(0x20); temp++; }
         while (thar < here && nlocs < 0 && ((thar & 0x0F) >= nlocs + 0x10)) {
             temp = load<u8>(thar++);
             Ouch(temp == 0x0D ? 0x5C : temp < 0x20 ? 0x60 : temp > 0x7E ? 0x7E : (temp as u8));
@@ -333,7 +333,7 @@ function PopSub(): T {                   /* pop value off Gosub stack */
 function PushExBy(valu: i32): void {   /* push byte onto expression stack */
     if (ExpnTop <= InLend)
         TBerror();
-    else 
+    else
         store<u8>(--ExpnTop, valu & 255 as u8);
     if (Debugging > 0)
         ShowExSt();
@@ -458,7 +458,7 @@ export function Interp(): void {
         }
         if (DEBUGON) if (Watcher > 0) {             /* check watchpoint.. */
             if (((Watchee < 0) && (Watchee + 256 + load<u8>(Watcher)) != 0)
-          || ((Watchee >= 0) && (Watchee == load<u8>(Watcher)))) {
+                || ((Watchee >= 0) && (Watchee == load<u8>(Watcher)))) {
                 OutLn();
                 OutStr(13);
                 OutHex(Watcher, 4);
@@ -721,7 +721,7 @@ export function Interp(): void {
                     }
                     if (DEBUGON) LogIt(Lino);
                     if (Debugging > 0) {
-                        Ouch(0x20); Ouch(0x5B); Ouch(0x23); OutInt(Lino); Ouch(0x5D); 
+                        Ouch(0x20); Ouch(0x5B); Ouch(0x23); OutInt(Lino); Ouch(0x5D);
                     }
                     break;
 
@@ -932,8 +932,8 @@ export function Interp(): void {
                     Lino = Peek2(BP++);
                     BP++;
                     if (Lino == 0) TBerror();
-                    else if (Debugging > 0) { 
-                        Ouch(0x20); Ouch(0x5B); Ouch(0x23); OutInt(Lino); Ouch(0x5D); 
+                    else if (Debugging > 0) {
+                        Ouch(0x20); Ouch(0x5B); Ouch(0x23); OutInt(Lino); Ouch(0x5D);
                     }
                     break;
 
@@ -1071,33 +1071,33 @@ export function Interp(): void {
             } /* last of inner switch cases */
                 break; /* end of outer switch cases 0,1 */
 
-                /* BR a    40-7F   Relative Branch.                                   */
-                /*                 The low six bits of this instruction opcode are    */
-                /* added algebraically to the current value of the IL program counter */
-                /* to give the address of the next IL instruction. Bit 5 of opcode is */
-                /* the sign, with + signified by 1, - by 0. The range of this branch  */
-                /* is +/-31 bytes from address of the byte following the opcode. An   */
-                /* offset of zero (i.e. opcode 60) results in an error stop. The      */
-                /* branch operation is unconditional.                                 */
+            /* BR a    40-7F   Relative Branch.                                   */
+            /*                 The low six bits of this instruction opcode are    */
+            /* added algebraically to the current value of the IL program counter */
+            /* to give the address of the next IL instruction. Bit 5 of opcode is */
+            /* the sign, with + signified by 1, - by 0. The range of this branch  */
+            /* is +/-31 bytes from address of the byte following the opcode. An   */
+            /* offset of zero (i.e. opcode 60) results in an error stop. The      */
+            /* branch operation is unconditional.                                 */
             case 0x02: case 0x03:
                 ILPC = ILPC + op - 0x60;
                 if (DEBUGON) LogIt(-ILPC);
                 break;
 
-                /* BC a "xxx"   80xxxxXx-9FxxxxXx  String Match Branch.               */
-                /*                                 The ASCII character string in IL   */
-                /* following this opcode is compared to the string beginning with the */
-                /* current position of the BASIC pointer, ignoring blanks in BASIC    */
-                /* program. The comparison continues until either a mismatch, or an   */
-                /* IL byte is reached with the most significant bit set to one. This  */
-                /* is the last byte of the string in the IL, compared as a 7-bit      */
-                /* character; if equal, the BASIC pointer is positioned after the     */
-                /* last matching character in the BASIC program and the IL continues  */
-                /* with the next instruction in sequence. Otherwise the BASIC pointer */
-                /* is not altered and the low five bits of the Branch opcode are      */
-                /* added to the IL program counter to form the address of the next    */
-                /* IL instruction. If the strings do not match and the branch offset  */
-                /* is zero an error stop occurs.                                      */
+            /* BC a "xxx"   80xxxxXx-9FxxxxXx  String Match Branch.               */
+            /*                                 The ASCII character string in IL   */
+            /* following this opcode is compared to the string beginning with the */
+            /* current position of the BASIC pointer, ignoring blanks in BASIC    */
+            /* program. The comparison continues until either a mismatch, or an   */
+            /* IL byte is reached with the most significant bit set to one. This  */
+            /* is the last byte of the string in the IL, compared as a 7-bit      */
+            /* character; if equal, the BASIC pointer is positioned after the     */
+            /* last matching character in the BASIC program and the IL continues  */
+            /* with the next instruction in sequence. Otherwise the BASIC pointer */
+            /* is not altered and the low five bits of the Branch opcode are      */
+            /* added to the IL program counter to form the address of the next    */
+            /* IL instruction. If the strings do not match and the branch offset  */
+            /* is zero an error stop occurs.                                      */
             case 0x04:
                 if (op == 0x80) here = 0;                     /* to error if no match */
                 else here = ILPC + (op & 0x7F);
@@ -1116,15 +1116,15 @@ export function Interp(): void {
                 if (DEBUGON) if (ILPC > 0) LogIt(-ILPC);
                 break;
 
-                /* BV a    A0-BF   Branch if Not Variable.                            */
-                /*                 If the next non-blank character pointed to by the  */
-                /* BASIC pointer is a capital letter, its ASCII code is [doubled and] */
-                /* pushed onto the expression stack and the IL program advances to    */
-                /* next instruction in sequence, leaving the BASIC pointer positioned */
-                /* after the letter; if not a letter the branch is taken and BASIC    */
-                /* pointer is left pointing to that character. An error stop occurs   */
-                /* if the next character is not a letter and the offset of the branch */
-                /* is zero, or on stack overflow.                                     */
+            /* BV a    A0-BF   Branch if Not Variable.                            */
+            /*                 If the next non-blank character pointed to by the  */
+            /* BASIC pointer is a capital letter, its ASCII code is [doubled and] */
+            /* pushed onto the expression stack and the IL program advances to    */
+            /* next instruction in sequence, leaving the BASIC pointer positioned */
+            /* after the letter; if not a letter the branch is taken and BASIC    */
+            /* pointer is left pointing to that character. An error stop occurs   */
+            /* if the next character is not a letter and the offset of the branch */
+            /* is zero, or on stack overflow.                                     */
             case 0x05:
                 while (load<u8>(BP) == 0x20) BP++;                /* skip over spaces */
                 ch = load<u8>(BP);
@@ -1135,16 +1135,16 @@ export function Interp(): void {
                 if (DEBUGON) if (ILPC > 0) LogIt(-ILPC);
                 break;
 
-                /* BN a    C0-DF   Branch if Not a Number.                            */
-                /*                 If the next non-blank character pointed to by the  */
-                /* BASIC pointer is not a decimal digit, the low five bits of the     */
-                /* opcode are added to the IL program counter, or if zero an error    */
-                /* stop occurs. If the next character is a digit, then it and all     */
-                /* decimal digits following it (ignoring blanks) are converted to a   */
-                /* 16-bit binary number which is pushed onto the expression stack. In */
-                /* either case the BASIC pointer is positioned at the next character  */
-                /* which is neither blank nor digit. Stack overflow will result in an */
-                /* error stop.                                                        */
+            /* BN a    C0-DF   Branch if Not a Number.                            */
+            /*                 If the next non-blank character pointed to by the  */
+            /* BASIC pointer is not a decimal digit, the low five bits of the     */
+            /* opcode are added to the IL program counter, or if zero an error    */
+            /* stop occurs. If the next character is a digit, then it and all     */
+            /* decimal digits following it (ignoring blanks) are converted to a   */
+            /* 16-bit binary number which is pushed onto the expression stack. In */
+            /* either case the BASIC pointer is positioned at the next character  */
+            /* which is neither blank nor digit. Stack overflow will result in an */
+            /* error stop.                                                        */
             case 0x06:
                 while (load<u8>(BP) == 0x20) BP++;                /* skip over spaces */
                 ch = load<u8>(BP);
@@ -1168,18 +1168,18 @@ export function Interp(): void {
                 if (DEBUGON) if (ILPC > 0) LogIt(-ILPC);
                 break;
 
-                /* BE a    E0-FF   Branch if Not Endline.                             */
-                /*                 If the next non-blank character pointed to by the  */
-                /* BASIC pointer is a carriage return, the IL program advances to the */
-                /* next instruction in sequence; otherwise the low five bits of the   */
-                /* opcode (if not 0) are added to the IL program counter to form the  */
-                /* address of next IL instruction. In either case the BASIC pointer   */
-                /* is left pointing to the first non-blank character; this            */
-                /* instruction will not pass over the carriage return, which must     */
-                /* remain for testing by the NX instruction. As with the other        */
-                /* conditional branches, the branch may only advance the IL program   */
-                /* counter from 1 to 31 bytes; an offset of zero results in an error  */
-                /* stop.                                                              */
+            /* BE a    E0-FF   Branch if Not Endline.                             */
+            /*                 If the next non-blank character pointed to by the  */
+            /* BASIC pointer is a carriage return, the IL program advances to the */
+            /* next instruction in sequence; otherwise the low five bits of the   */
+            /* opcode (if not 0) are added to the IL program counter to form the  */
+            /* address of next IL instruction. In either case the BASIC pointer   */
+            /* is left pointing to the first non-blank character; this            */
+            /* instruction will not pass over the carriage return, which must     */
+            /* remain for testing by the NX instruction. As with the other        */
+            /* conditional branches, the branch may only advance the IL program   */
+            /* counter from 1 to 31 bytes; an offset of zero results in an error  */
+            /* stop.                                                              */
             case 0x07:
                 while (load<u8>(BP) == 0x20) BP++;                /* skip over spaces */
                 if (load<u8>(BP) == 0x0D)
