@@ -185,7 +185,7 @@ function ShoMemDump(here: T, nlocs: T): void {/* display hex mem dump */
         while (temp < thar) { Ouch(0x20); temp++; }
         while (thar < here && nlocs < 0 && ((thar & 0x0F) >= nlocs + 0x10)) {
             temp = load<u8>(thar++);
-            Ouch(temp == 0x0D ? 0x5C : temp < 0x20 ? 0x60 : temp > 0x7E ? 0x7E : (temp as u8));
+            Ouch(temp == 0x0D ? 0x5C : temp < 0x20 ? 0x60 : temp > 0x7E ? 0x7E : u8(temp));
         }
     }
     OutLn();
@@ -334,7 +334,7 @@ function PushExBy(valu: i32): void {   /* push byte onto expression stack */
     if (ExpnTop <= InLend)
         TBerror();
     else
-        store<u8>(--ExpnTop, valu & 255 as u8);
+        store<u8>(--ExpnTop, valu & u8(0xFF));
     if (Debugging > 0)
         ShowExSt();
 }
@@ -457,7 +457,7 @@ export function Interp(): void {
             }
         }
         if (DEBUGON) if (Watcher > 0) {             /* check watchpoint.. */
-            if (((Watchee < 0) && (Watchee + 256 + load<u8>(Watcher)) != 0)
+            if (((Watchee < 0) && (Watchee + 0x100 + load<u8>(Watcher)) != 0)
                 || ((Watchee >= 0) && (Watchee == load<u8>(Watcher)))) {
                 OutLn();
                 OutStr(13);
@@ -781,7 +781,7 @@ export function Interp(): void {
                 /*                 Print one or more spaces on the console, ending at */
                 /* the next multiple of eight character positions (from the left      */
                 /* margin).                                                           */
-                case 34:
+                case 0x22:
                     do { Ouch(0x20); } while (load<u8>(TabHere) % 8 > 0);
                     break;
 
@@ -976,7 +976,7 @@ export function Interp(): void {
                     switch (op) {
                         case WachPoint:    /* we only do a few predefined functions.. */
                             Watcher = here;
-                            if (ix > 0x7FFF) ix = -load<u8>(here) - 256;
+                            if (ix > 0x7FFF) ix = -load<u8>(here) - 0x100;
                             Watchee = ix;
                             if (Debugging > 0) {
                                 OutLn(); OutStr(15); OutHex(here, 4); Ouch(0x5D);
@@ -993,7 +993,7 @@ export function Interp(): void {
                             PushExInt(Inch());
                             break;
                         case OutchSub:
-                            Ouch((ix & 0x7F) as u8);
+                            Ouch(u8(ix & 0x7F));
                             PushExInt(0);
                             break;
                         case BreakSub:
@@ -1007,9 +1007,9 @@ export function Interp(): void {
                             break;
                         case PokeSub:
                             ix = ix & 0xFF;
-                            store<u8>(here, ix as u8);
+                            store<u8>(here, u8(ix));
                             PushExInt(ix);
-                            if (DEBUGON) LogIt(((ix + 256) << 16) + here);
+                            if (DEBUGON) LogIt(((ix + 0x100) << 16) + here);
                             Lino = Peek2(LinoCore);       /* restore these pointers.. */
                             ILPC = Peek2(ILPCcore);  /* ..in case user changed them.. */
                             BP = Peek2(BPcore);
@@ -1131,7 +1131,7 @@ export function Interp(): void {
                 if (ch > 0x30 && ch <= 0x5A || ch > 0x60 && ch <= 0x7A)
                     PushExBy((load<u8>(BP++) & 0x5F) * 2);
                 else if (op == 0xA0) TBerror();           /* error if not letter */
-                else ILPC = ILPC + op - 160;
+                else ILPC = ILPC + op - 0xA0;
                 if (DEBUGON) if (ILPC > 0) LogIt(-ILPC);
                 break;
 
@@ -1184,10 +1184,10 @@ export function Interp(): void {
                 while (load<u8>(BP) == 0x20) BP++;                /* skip over spaces */
                 if (load<u8>(BP) == 0x0D)
                     BP = BP;
-                else if (op == 224)                         /* error if no offset */
+                else if (op == 0xE0)                         /* error if no offset */
                     TBerror();
                 else
-                    ILPC = ILPC + op - 224;
+                    ILPC = ILPC + op - 0xE0;
                 if (DEBUGON) if (ILPC > 0) LogIt(-ILPC);
                 break;
         }
