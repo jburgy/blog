@@ -307,14 +307,14 @@ self.addEventListener("message", (msg) => {
             },
         }))
         .then(({ instance }) => {
-            const { exports: { BadOp, ColdGo, ColdStart, ILfront, Interp, memory } } = instance;
+            const { exports: { BadOp, ColdGo, ColdStart, ILfront, Interp, Poke2, memory } } = instance;
 
             memory.grow(2);
 
             const view = new DataView(memory.buffer);
             let ILend = ILfront + 2;
-            view.setUint16(ILfront, ILend, true);
-            view.setUint16(ColdGo + 1, ILend, true);
+            Poke2(ILfront, ILend);
+            Poke2(ColdGo + 1, ILend);
             view.setUint8(ILend, BadOp);
 
             interpreter.map((line) => line.slice(5, line.indexOf(";")))

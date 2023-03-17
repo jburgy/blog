@@ -50,12 +50,12 @@ let Broken = false;             /* =true to stop execution or listing */
 
 /************************* Memory Utilities.. *************************/
 
-function Poke2(loc: i32, valu: i32): void {
-    store<T>(loc, valu as T);
+export function Poke2(loc: i32, valu: i32): void {
+    store<T>(loc, bswap<T>(valu as T));
 }
 
 function Peek2(loc: i32): T {
-    return load<T>(loc);
+    return bswap<T>(load<T>(loc));
 }
 
 @inline
@@ -124,7 +124,7 @@ function ShowSubs(): void { /* display subroutine stack for debugging */
 
 function ShowExSt(): void {   /* display expression stack for debugging */
     let ix: T;
-    OutLn(); OutStr(1); OutHex(ExpnTop,3);
+    OutLn(); OutStr(1); OutHex(ExpnTop, 3);
     if ((ExpnTop & 1) == 0)
         for (ix = ExpnTop; ix<ExpnStk; ix++) {
             Ouch(0x20);
@@ -244,7 +244,7 @@ function LogIt(valu: i32): void {          /* insert this valu into activity log
 function WarmStart(): void {           /* initialize existing program */
     UserEnd = Peek2(EndUser);
     SubStk = UserEnd;          /* empty subroutine, expression stacks */
-    Poke2(GoStkTop,SubStk);
+    Poke2(GoStkTop, SubStk);
     ExpnTop = ExpnStk;
     Lino = 0;                                      /* not in any line */
     ILPC = 0;                                    /* start IL at front */
