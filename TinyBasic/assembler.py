@@ -10,21 +10,11 @@ REPLACEMENTS = {
 }
 
 
-class HasArg(IntEnum):
+class OpCode(IntEnum):
     SX = 0x00
-    JS = 0x30
-    J  = 0x38  # noqa E2221
-    BR = 0x40
-    BV = 0xA0
-    BN = 0xC0
-    BE = 0xE0
-    BC = 0x80
+    NO = 0x08
     LB = 0x09
     LN = 0x0A
-    NO = 0x08
-
-
-class NoArg(IntEnum):
     DS = 0x0B
     SP = 0x0C
     SB = 0x10
@@ -54,6 +44,13 @@ class NoArg(IntEnum):
     WS = 0x2D
     US = 0x2E
     RT = 0x2F
+    JS = 0x30
+    J  = 0x38  # noqa E2221
+    BR = 0x40
+    BV = 0xA0
+    BN = 0xC0
+    BE = 0xE0
+    BC = 0x80
 
 
 interpreter = """
@@ -332,36 +329,32 @@ for _ in range(2):  # first pass to compute offsets
         if label:
             offsets[label] = here
 
-        op = line[6:8].rstrip()
-        try:
-            op = NoArg[op]
-        except KeyError:
-            op = HasArg[op]
+        op = OpCode[line[6:8].rstrip()]
 
         arg, _, rest = (
             line[8:].lstrip().partition(" ")
-            if isinstance(op, HasArg)
+            if op <= OpCode.LN or op >= OpCode.JS
             else (None, None, line[9:])
         )
         word = rest[1:rest.index('"', 1)] if rest.startswith('"') else ""
         for old, new in REPLACEMENTS.items():
             word = word.replace(old, new)
 
-        if op is HasArg.SX:
+        if op is OpCode.SX:
             out.append(int(op) + int(arg))
-        elif op is HasArg.LB:
+        elif op is OpCode.LB:
             out.append(int(op))
             out.append(int(arg))
-        elif op is HasArg.LN:
+        elif op is OpCode.LN:
             out.append(int(op))
             out.extend(struct.pack(">H", eval(arg)))
-        elif op in {HasArg.JS, HasArg.J}:
+        elif op in {OpCode.JS, OpCode.J}:
             target = struct.pack(">H", offsets.get(arg, 0))
             out.append(int(op) + target[0])
             out.extend(target[1:])
-        elif op in {HasArg.BR, HasArg.BC, HasArg.BV, HasArg.BN, HasArg.BE}:
+        elif op in {OpCode.BR, OpCode.BC, OpCode.BV, OpCode.BN, OpCode.BE}:
             offset = offsets.get(arg, here + 1) - (here + 1)
-            if op is HasArg.BR:
+            if op is OpCode.BR:
                 offset += 0x20
             out.append(int(op) + offset)
         else:
