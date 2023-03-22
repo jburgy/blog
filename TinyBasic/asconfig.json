@@ -7,7 +7,7 @@
       "debug": true
     },
     "release": {
-      "outFile": "build/release.wasm",
+      "outFile": "build/TinyBasic.wasm",
       "textFile": "build/release.wat",
       "sourceMap": true,
       "optimizeLevel": 3,
