@@ -6,7 +6,7 @@ REPLACEMENTS = {
     "J^": "\n",
     "Q^": "\x11",
     "S^": "\x13",
-    "b^": "\"",
+    "b^": '"',
 }
 
 
@@ -45,7 +45,7 @@ class OpCode(IntEnum):
     US = 0x2E
     RT = 0x2F
     JS = 0x30
-    J  = 0x38  # noqa E2221
+    J = 0x38  # noqa E2221
     BR = 0x40
     BV = 0xA0
     BN = 0xC0
@@ -332,9 +332,9 @@ for _ in range(2):  # first pass to compute offsets
         op = OpCode[line[6:8].rstrip()]
 
         arg, _, rest = (
-            line[8:].lstrip().partition(" ")
-            if op <= OpCode.LN or op >= OpCode.JS
-            else (None, None, line[9:])
+            (None, None, line[8:].lstrip())
+            if op is OpCode.PC
+            else line[8:].lstrip().partition(" ")
         )
         word = rest[1:rest.index('"', 1)] if rest.startswith('"') else ""
         for old, new in REPLACEMENTS.items():
@@ -348,15 +348,15 @@ for _ in range(2):  # first pass to compute offsets
         elif op is OpCode.LN:
             out.append(int(op))
             out.extend(struct.pack(">H", eval(arg)))
-        elif op in {OpCode.JS, OpCode.J}:
-            target = struct.pack(">H", offsets.get(arg, 0))
-            out.append(int(op) + target[0])
-            out.extend(target[1:])
-        elif op in {OpCode.BR, OpCode.BC, OpCode.BV, OpCode.BN, OpCode.BE}:
+        elif op >= OpCode.BR:
             offset = offsets.get(arg, here + 1) - (here + 1)
             if op is OpCode.BR:
                 offset += 0x20
             out.append(int(op) + offset)
+        elif op >= OpCode.JS:
+            target = struct.pack(">H", offsets.get(arg, 0))
+            out.append(int(op) + target[0])
+            out.extend(target[1:])
         else:
             out.append(int(op))
 
@@ -366,10 +366,7 @@ for _ in range(2):  # first pass to compute offsets
             out.append(word[-1] | 0x80)
 
 
-test = list(map("{:02X}".format, out))
-assert test == [
-    a + b
-    for line in interpreter.splitlines()
-    if len(line) > 5
-    for a, b in zip(line[5:line.index(";", 5):2], line[6::2])
-]
+test = "".join(map("{:02X}".format, out))
+assert test == "".join(
+    line[5:line.index(";", 5)] for line in interpreter.splitlines() if len(line) > 5
+)
