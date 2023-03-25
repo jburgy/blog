@@ -10,6 +10,9 @@ LDLIBS = cosmopolitan.a
 .PHONY: all
 all: 4th.com 4th 4th.ll serve
 
+run: 4th
+	cat 4th.fs - | ./4th
+
 %.com : %.com.dbg
 	objcopy -S -O binary $< $@
 
@@ -42,7 +45,7 @@ cosmopolitan-amalgamation-2.2.zip :
 	wget https://justine.lol/cosmopolitan/cosmopolitan-amalgamation-2.2.zip
 
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th 4th.ll 4th.wasm 4th.wasm.map 4th.js
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th 4th.ll 4th.wasm 4th.wasm.map 4th.js
 
 define allbutlast
 $(wordlist 2, $(words $(1)), x $(1))
