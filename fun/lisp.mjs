@@ -28,7 +28,7 @@ const syntax = new RegExp(Object.entries(
     }
 ).map(([name, { source }]) => `(?<${name}>${source})`).join('|'), 'g');
 
-const trace = env.DEBUG ? console.trace : () => { };
+const trace = env.DEBUG ? console.log : () => { };
 
 function* tokenize(line) {
     for (const { groups } of line.matchAll(syntax)) {
@@ -39,7 +39,7 @@ function* tokenize(line) {
 }
 
 function AddList(token, tokens) {
-    return new Cons(token, GetList(tokens));
+    return Cons(token, GetList(tokens));
 }
 
 function GetList(tokens) {
@@ -66,61 +66,46 @@ function Read(tokens) {
 }
 
 
-function PrintList(x) {
-    const parts = [PrintObject(Car(x))];
-    while (x = Cdr(x)) {
-        parts.push(x instanceof Cons ? ` ${PrintObject(Car(x))}` : ` ∙ ${PrintObject(x)}`)
-    }
-    return `(${parts.join('')})`
-}
-
 function PrintObject(x) {
-    return x instanceof Cons ? PrintList(x) : typeof x === 'symbol' ? Symbol.keyFor(x) : String(null);
+    return Array.isArray(x)
+        ? `(${x.map(PrintObject).join(' ')})`
+        : typeof x === 'symbol'
+            ? Symbol.keyFor(x)
+            : String(null);
 }
 
 /*───────────────────────────────────────────────────────────────────────────│─╗
 │ The LISP Challenge § Bootstrap John McCarthy's Metacircular Evaluator    ─╬─│┼
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
-function Car({ car }) {
-    return car;
+function Car(x) {
+    return x[0];
 }
 
-function Cdr({ cdr }) {
-    return cdr;
+function Cdr(x) {
+    return x.slice(1);
 }
 
-class Cons {
-    constructor(car, cdr) {
-        this.car = car;
-        this.cdr = cdr;
-    }
-}
-
-function Evlis(m, a) {
-    trace('Evlis', m, a);
-    return m === null ? m : new Cons(Eval(Car(m), a), Evlis(Cdr(m), a));
+function Cons(x, y) {
+    return Array.isArray(y) ? [x, ...y] : [x];
 }
 
 function Pairlis(x, y, a) {
     trace('Pairlis', x, y, a);
-    return x === null ? a : new Cons(new Cons(Car(x), Car(y)), Pairlis(Cdr(x), Cdr(y), a));
+    const m = new Map(a.entries());
+    console.log(x, y);
+    x.forEach((key, i) => m.set(key, y[i]))
+    return m;
 }
 
 function Assoc(x, y) {
-    trace('Assoc', x, y)
-    return y === null
-        ? null
-        : x == Car(Car(y))
-            ? Cdr(Car(y))
-            : Assoc(x, Cdr(y));
+    trace('Assoc', x, y);
+    return y.has(x) ? y.get(x) : [];
 }
 
 function Evcon(c, a) {
-    trace('Evcon', c, a)
-    return Eval(Car(Car(c)), a)
-        ? Eval(Car(Cdr(Car(c))), a)
-        : Evcon(Cdr(c), a);
+    trace('Evcon', c, a);
+    return Eval(Cdr(c.find(x => Eval(Car(x), a))), a);
 }
 
 function Apply(f, x, a) {
@@ -128,35 +113,35 @@ function Apply(f, x, a) {
     switch (f) {
         case null: return null;
         case kEq: return Car(x) === Car(Cdr(x)) ? kT : null;
-        case kCons: return new Cons(Car(x), Car(Cdr(x)));
-        case kAtom: return x instanceof Cons ? null : kT;
+        case kCons: return Cons(Car(x), Car(Cdr(x)));
+        case kAtom: return Array.isArray(x) ? null : kT;
         case kCar: return Car(Car(x));
         case kCdr: return Cdr(Car(x));
-        case kRead: return Read();
+        case kRead: return Read();  /* FIXME: needs token generator */
         case kPrint:
-            console.log(x === null ? '\n' : Car(x).toString())
+            console.log(PrintObject(x))
             return null;
     }
-    return f instanceof Cons
+    return Array.isArray(f)
         ? Eval(Car(Cdr(Cdr(f))), Pairlis(Car(Cdr(f)), x, a))
         : Apply(Eval(f, a), x, a);
 }
 
 function Eval(e, a) {
     trace('Eval', e, a)
-    return !(e instanceof Cons)
+    return !Array.isArray(e)
         ? Assoc(e, a)
         : Car(e) === kQuote
             ? Car(Cdr(e))
             : Car(e) === kCond
-                ? Evcon(Cdr(e))
-                : Apply(Car(e), Evlis(Cdr(e), a), a);
+                ? Evcon(Cdr(e), a)
+                : Apply(Car(e), Cdr(e).map(x => Eval(x, a)), a);
 }
 
 const rl = createInterface({ input, output });
 rl.setPrompt('> ');
 rl.on('line', (line) => {
-    const result = Eval(Read(tokenize(line)), null);
+    const result = Eval(Read(tokenize(line)), new Map());
     console.log(PrintObject(result));
     rl.prompt();
 });
