@@ -122,26 +122,36 @@ function Apply(f, x, a) {
             console.log(PrintObject(x))
             return null;
     }
-    return Array.isArray(f)
-        ? Eval(Car(Cdr(Cdr(f))), Pairlis(Car(Cdr(f)), x, a))
-        : Apply(Eval(f, a), x, a);
+    return f instanceof Function
+        ? f(x)
+        : Array.isArray(f)
+            ? Eval(Car(Cdr(Cdr(f))), Pairlis(Car(Cdr(f)), x, a))
+            : Apply(Eval(f, a), x, a);
 }
 
 function Eval(e, a) {
     trace('Eval', e, a)
-    return !Array.isArray(e)
-        ? Assoc(e, a)
-        : Car(e) === kQuote
-            ? Car(Cdr(e))
-            : Car(e) === kCond
-                ? Evcon(Cdr(e), a)
-                : Apply(Car(e), Cdr(e).map(x => Eval(x, a)), a);
+    return Number.isFinite(e)
+        ? e
+        : !Array.isArray(e)
+            ? Assoc(e, a)
+            : Car(e) === kQuote
+                ? Car(Cdr(e))
+                : Car(e) === kCond
+                    ? Evcon(Cdr(e), a)
+                    : Apply(Car(e), Cdr(e).map(x => Eval(x, a)), a);
 }
 
 const rl = createInterface({ input, output });
 rl.setPrompt('> ');
 rl.on('line', (line) => {
-    const result = Eval(Read(tokenize(line)), new Map());
+    const a = new Map(
+        [
+            [Symbol.for("SUM"), x => x.reduce((a, b) => a + b, 0.0)],
+            [Symbol.for("PROD"), x => x.reduce((a, b) => a * b, 1.0)],
+        ]
+    )
+    const result = Eval(Read(tokenize(line)), a);
     console.log(PrintObject(result));
     rl.prompt();
 });
