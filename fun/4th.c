@@ -28,6 +28,8 @@ code_##_label
 #define DEFWORD(_link, _flags, _name, _label, ...) \
     static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&DOCOL, __VA_ARGS__}}
 
+#define CODE(word) name_##word.code
+
 #define STACK_SIZE (0x2000 / __SIZEOF_POINTER__) /* Number of elements in each stack */
 
 #ifdef EMSCRIPTEN
@@ -477,9 +479,9 @@ DEFCODE(FIND, 0, ">CFA", TCFA):
     push((intptr_t)code_field_address(new));
     NEXT;
 #if __SIZEOF_POINTER__ == 4
-DEFWORD(TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR4.code, name_EXIT.code);
+DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCR4), CODE(EXIT));
 #elif __SIZEOF_POINTER__ == 8
-DEFWORD(TCFA, 0, ">DFA", TDFA, name_TCFA.code, name_INCR8.code, name_EXIT.code);
+DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCR8), CODE(EXIT));
 #endif
 DEFCODE(TDFA, 0, "CREATE", CREATE):
     c = pop();
@@ -509,9 +511,9 @@ DEFCODE(IMMEDIATE, 0, "HIDDEN", HIDDEN):
     new = (struct word_t *)pop();
     new->flags ^= F_HIDDEN;
     NEXT;
-DEFWORD(HIDDEN, 0, "HIDE", HIDE, name_WORD.code, name_FIND.code, name_HIDDEN.code, name_EXIT.code);
-DEFWORD(HIDE, 0, ":", COLON, name_WORD.code, name_CREATE.code, name_LIT.code, &&DOCOL, name_COMMA.code, name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_RBRAC.code, name_EXIT.code);
-DEFWORD(COLON, F_IMMED, ";", SEMICOLON, name_LIT.code, name_EXIT.code, name_COMMA.code, name_LATEST.code, name_FETCH.code, name_HIDDEN.code, name_LBRAC.code, name_EXIT.code);
+DEFWORD(HIDDEN, 0, "HIDE", HIDE, CODE(WORD), CODE(FIND), CODE(HIDDEN), CODE(EXIT));
+DEFWORD(HIDE, 0, ":", COLON, CODE(WORD), CODE(CREATE), CODE(LIT), &&DOCOL, CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(RBRAC), CODE(EXIT));
+DEFWORD(COLON, F_IMMED, ";", SEMICOLON, CODE(LIT), CODE(EXIT), CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(LBRAC), CODE(EXIT));
 DEFCODE(SEMICOLON, 0, "'", TICK):
     push((intptr_t)*ip++);
     NEXT;
@@ -557,7 +559,7 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
     if (state && !b) {
         p = (intptr_t *)here;
         if (is_literal) {
-            *p++ = (intptr_t)name_LIT.code;
+            *p++ = (intptr_t)CODE(LIT);
             *p++ = a;
         } else
             *p++ = (intptr_t)target;
@@ -568,7 +570,7 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
         goto **target;
     }
     NEXT;
-DEFWORD(INTERPRET, 0, "QUIT", QUIT, name_RZ.code, name_RSPSTORE.code, name_INTERPRET.code, name_BRANCH.code, (void **)(-2 * __SIZEOF_POINTER__));
+DEFWORD(INTERPRET, 0, "QUIT", QUIT, CODE(RZ), CODE(RSPSTORE), CODE(INTERPRET), CODE(BRANCH), (void **)(-2 * __SIZEOF_POINTER__));
 DEFCODE(QUIT, 0, "CHAR", CHAR):
     word();
     push((intptr_t)*word_buffer);
@@ -598,7 +600,7 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0):
     push(syscall(a));
     NEXT;
 
-    static void *cold_start[] = {name_QUIT.code};
+    static void *cold_start[] = {CODE(QUIT)};
 _start:
     state = 0;
     here = sbrk(0x10000);
