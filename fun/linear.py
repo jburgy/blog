@@ -1,7 +1,6 @@
-from collections.abc import Callable
 from dataclasses import dataclass
 from operator import le
-from typing import Union
+from typing import Callable, Union
 
 import numpy as np
 from scipy import optimize, sparse
