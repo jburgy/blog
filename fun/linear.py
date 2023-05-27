@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
-from operator import eq, le
+from operator import le
 from typing import Union
 
 import numpy as np
@@ -66,7 +66,7 @@ class Expression:
 
     def __add__(self, other: Union[float, "Expression"]) -> "Expression":
         if isinstance(other, float):
-            other *= Expression("1.0")
+            other = Expression("1.0") * other
 
         lhs = vars(self)
         rhs = vars(other)
@@ -75,9 +75,6 @@ class Expression:
 
     def __mul__(self, other: float) -> "Expression":
         return Expression(**{k: v * other for k, v in vars(self).items()})
-
-    def __eq__(self, other: float) -> "Constraint":
-        return Constraint(eq, self, other)
 
     def __le__(self, other: float) -> "Constraint":
         return Constraint(le, self, other)
