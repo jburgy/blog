@@ -6,6 +6,13 @@ import pytest
 SYSCALL0 = int.from_bytes("SYSCALL0".encode(), byteorder="little")
 
 
+@pytest.fixture(scope="module")
+def cmd():
+    run(["make", "4th"], capture_output=True, cwd="fun", check=True)
+    yield "fun/4th"
+    run(["make", "clean"], capture_output=True, cwd="fun", check=True)
+
+
 @pytest.fixture(scope="function")
 def test_input(request) -> str:
     return request.param.replace("#", Path("fun/4th.fs").read_text())
@@ -33,6 +40,6 @@ def expected(request) -> str:
     ],
     indirect=["test_input", "expected"],
 )
-def test_basics(test_input: str, expected: str):
-    cp = run("fun/4th", input=test_input, capture_output=True, text=True)
+def test_basics(cmd: str, test_input: str, expected: str):
+    cp = run(cmd, input=test_input, capture_output=True, text=True)
     assert cp.returncode == 0 and cp.stdout == expected
