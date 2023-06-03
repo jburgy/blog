@@ -41,5 +41,5 @@ def expected(request) -> str:
     indirect=["test_input", "expected"],
 )
 def test_basics(cmd: str, test_input: str, expected: str):
-    cp = run(cmd, input=test_input, capture_output=True, text=True)
-    assert cp.returncode == 0 and cp.stdout == expected
+    cp = run(cmd, input=test_input, capture_output=True, check=True, text=True)
+    assert cp.stdout == expected
