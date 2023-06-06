@@ -47,7 +47,7 @@ def _set(m, x, mx):
     m[int(x.real)][int(x.imag)] = mx
 
 
-def solution(m):
+def solution(m):  # noqa: max-complexity: 20
     if not m or not m[0]:
         return 0
 

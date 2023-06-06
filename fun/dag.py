@@ -74,7 +74,9 @@ class DelegateEntry(_BaseEntry):
         self.children.update(other)
 
 
-def _dagify(user_function, maxsize: int = 128, typed: bool = False, Entry: type = WeakSetEntry):
+def _dagify(
+    user_function, maxsize: int = 128, typed: bool = False, Entry: type = WeakSetEntry
+):
     """https://martinfowler.com/bliki/TwoHardThings.html"""
 
     @lru_cache(maxsize=maxsize, typed=typed)
@@ -95,17 +97,17 @@ def dagify(maxsize: int = 128, typed: bool = False, Entry: type = WeakSetEntry):
 
 @dagify(Entry=WeakSetEntry)
 def fibw(n):
-    return n if n < 2 else fibw(n-1) + fibw(n-2)
+    return n if n < 2 else fibw(n - 1) + fibw(n - 2)
 
 
 @dagify(Entry=PartialEntry)
 def fibp(n):
-    return n if n < 2 else fibp(n-1) + fibp(n-2)
+    return n if n < 2 else fibp(n - 1) + fibp(n - 2)
 
 
 @dagify(Entry=DelegateEntry)
 def fibd(n):
-    return n if n < 2 else fibd(n-1) + fibd(n-2)
+    return n if n < 2 else fibd(n - 1) + fibd(n - 2)
 
 
 def fib(n):

@@ -32,12 +32,12 @@ making the answer 3 total.
 def solution(a):
     c = [0] * (len(a) - 1)
     for i, li in enumerate(a[:-2]):
-        for j, lj in enumerate(a[i + 1 : -1], i + 1):
+        for j, lj in enumerate(a[i + 1: -1], i + 1):
             c[j] += not lj % li
 
     n = 0
     for i, (li, ci) in enumerate(zip(a, c)):
-        for lj in a[i + 1 :]:
+        for lj in a[i + 1:]:
             if not lj % li:
                 n += ci
 

@@ -69,7 +69,7 @@ def numpify(func):
 
 if __name__ == "__main__":
     def f(x):
-        s = [t*2 for t in x]
+        s = [t * 2 for t in x]
         return s
 
     print(f([1, 2, 3]))

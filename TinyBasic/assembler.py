@@ -315,7 +315,7 @@ interpreter = """
 
 offsets = {}
 
-for _ in range(2):  # first pass to compute offsets
+for _ in range(2):  # noqa: max-complexity: 15 first pass to compute offsets
     out = bytearray()
     for j, line in enumerate(interpreter[1:].splitlines()):
         if line.index(";") > 10:
