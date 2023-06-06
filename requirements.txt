@@ -1,8 +1,6 @@
 .
-bokeh
 fastapi
-jupyter
+pandas
 scipy
-seaborn
 sqlalchemy
 sympy
