@@ -30,6 +30,10 @@ code_##_label
 
 #define CODE(word) name_##word.code
 
+/* https://gcc.gnu.org/onlinedocs/cpp/Stringizing.html */
+#define XSTR(x) STR(x)
+#define STR(x) #x
+
 #define STACK_SIZE (0x2000 / __SIZEOF_POINTER__) /* Number of elements in each stack */
 
 #ifdef EMSCRIPTEN
@@ -239,25 +243,13 @@ DEFCODE(QDUP, 0, "1+", INCR):
 DEFCODE(INCR, 0, "1-", DECR):
     --sp[0];
     NEXT;
-#if __SIZEOF_POINTER__ == 4
-DEFCODE(DECR, 0, "4+", INCR4):
-#elif __SIZEOF_POINTER__ == 8
-DEFCODE(DECR, 0, "8+", INCR8):
-#endif
+DEFCODE(DECR, 0, XSTR(__SIZEOF_POINTER__) "+", INCRP):
     sp[0] += __SIZEOF_POINTER__;
     NEXT;
-#if __SIZEOF_POINTER__ == 4
-DEFCODE(INCR4, 0, "4-", DECR4):
-#elif __SIZEOF_POINTER__ == 8
-DEFCODE(INCR8, 0, "8-", DECR8):
-#endif
+DEFCODE(INCRP, 0, XSTR(__SIZEOF_POINTER__) "-", DECRP):
     sp[0] -= __SIZEOF_POINTER__;
     NEXT;
-#if __SIZEOF_POINTER__ == 4
-DEFCODE(DECR4, 0, "+", ADD):
-#elif __SIZEOF_POINTER__ == 8
-DEFCODE(DECR8, 0, "+", ADD):
-#endif
+DEFCODE(DECRP, 0, "+", ADD):
     a = pop();
     sp[0] += a;
     NEXT;
@@ -478,11 +470,7 @@ DEFCODE(FIND, 0, ">CFA", TCFA):
     new = (struct word_t *)pop();
     push((intptr_t)code_field_address(new));
     NEXT;
-#if __SIZEOF_POINTER__ == 4
-DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCR4), CODE(EXIT), CODE(EXIT));
-#elif __SIZEOF_POINTER__ == 8
-DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCR8), CODE(EXIT), CODE(EXIT));
-#endif
+DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCRP), CODE(EXIT), CODE(EXIT));
 DEFCODE(TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
