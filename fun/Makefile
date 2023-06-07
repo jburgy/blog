@@ -26,7 +26,7 @@ run: 4th
 	$(EC) $(EFLAGS) -o $@ $^
 
 % : %.c
-	$(CC) $(CFLAGS) -mpreferred-stack-boundary=3 -o $@ $^
+	$(CC) $(CFLAGS) -mstackrealign -o $@ $^
 
 %.s : %.c
 	$(CC) $(CFLAGS) $(ARFLAGS) -o $@ $^
