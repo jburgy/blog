@@ -36,7 +36,9 @@ def expected(request) -> str:
         (f"{SYSCALL0:d} DSP@ 8 TELL\n", "SYSCALL0"),
         ("#VERSION .\n", "#47 "),
         ("#CR\n", "#\n"),
+        ("#SEE >DFA\n", "#: >DFA >CFA 8+ EXIT ;\n"),
         ("#SEE HIDE\n", "#: HIDE WORD FIND HIDDEN ;\n"),
+        ("#SEE QUIT\n", "#: QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
     ],
     indirect=["test_input", "expected"],
 )
