@@ -143,7 +143,7 @@ void _start(void)
     intptr_t *sp = stack + STACK_SIZE;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
     void **rsp = return_stack + STACK_SIZE;  /* Initialize the return stack. (%ebp) */
     register void ***ip, **target;
-    register intptr_t a, b, c, d __attribute__((unused)), *p, is_literal = 0;
+    register intptr_t a, b, c, d __attribute__((unused)), *p;
     char *r;
     register char *s, **t;
     register struct word_t *new;
@@ -188,14 +188,8 @@ DEFCODE(DROP, 0, "SWAP", SWAP):
     push(a);
     push(b);
     NEXT;
-DEFCODE(SWAP, 0, "DUP", DUP):
-    a = sp[0];
-    push(a);
-    NEXT;
-DEFCODE(DUP, 0, "OVER", OVER):
-    a = sp[1];
-    push(a);
-    NEXT;
+DEFCONST(SWAP, 0, "DUP", DUP, sp[0]);
+DEFCONST(DUP, 0, "OVER", OVER, sp[1]);
 DEFCODE(OVER, 0, "ROT", ROT):
     a = pop();
     b = pop();
@@ -339,9 +333,7 @@ DEFCODE(XOR, 0, "INVERT", INVERT):
 DEFCODE(INVERT, 0, "EXIT", EXIT):
     ip = *rsp++;
     NEXT;
-DEFCODE(EXIT, 0, "LIT", LIT):
-    push((intptr_t)*ip++);
-    NEXT;
+DEFCONST(EXIT, 0, "LIT", LIT, *ip++);
 DEFCODE(LIT, 0, "!", STORE):
     p = (intptr_t *)pop();
     *p = pop();
@@ -379,25 +371,15 @@ DEFCODE(CCOPY, 0, "CMOVE", CMOVE):
     push((intptr_t)memmove(r, s, c));
     NEXT;
     intptr_t state;
-DEFCODE(CMOVE, 0, "STATE", STATE):
-    push((intptr_t)&state);
-    NEXT;
+DEFCONST(CMOVE, 0, "STATE", STATE, &state);
     char *here;
-DEFCODE(STATE, 0, "HERE", HERE):
-    push((intptr_t)&here);
-    NEXT;
+DEFCONST(STATE, 0, "HERE", HERE, &here);
     struct word_t *latest;
-DEFCODE(HERE, 0, "LATEST", LATEST):
-    push((intptr_t)&latest);
-    NEXT;
+DEFCONST(HERE, 0, "LATEST", LATEST, &latest);
     intptr_t *s0;
-DEFCODE(LATEST, 0, "S0", SZ):
-    push((intptr_t)&s0);
-    NEXT;
+DEFCONST(LATEST, 0, "S0", SZ, &s0);
     intptr_t base;
-DEFCODE(SZ, 0, "BASE", BASE):
-    push((intptr_t)&base);
-    NEXT;
+DEFCONST(SZ, 0, "BASE", BASE, &base);
 DEFCONST(BASE, 0, "VERSION", VERSION, 47);
 DEFCONST(VERSION, 0, "R0", RZ, return_stack + STACK_SIZE);
 DEFCONST(RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
@@ -422,29 +404,20 @@ DEFCONST(__O_APPEND, 0, "O_NONBLOCK", __O_NONBLOCK, O_NONBLOCK);
 DEFCODE(__O_NONBLOCK, 0, ">R", TOR):
     *--rsp = (void *)pop();
     NEXT;
-DEFCODE(TOR, 0, "R>", FROMR):
-    push((intptr_t)*rsp++);
-    NEXT;
-DEFCODE(FROMR, 0, "RSP@", RSPFETCH):
-    push((intptr_t)rsp);
-    NEXT;
+DEFCONST(TOR, 0, "R>", FROMR, *rsp++);
+DEFCONST(FROMR, 0, "RSP@", RSPFETCH, rsp);
 DEFCODE(RSPFETCH, 0, "RSP!", RSPSTORE):
     rsp = (void **)pop();
     NEXT;
 DEFCODE(RSPSTORE, 0, "RDROP", RDROP):
     ++rsp;
     NEXT;
-DEFCODE(RDROP, 0, "DSP@", DSPFETCH):
-    a = (intptr_t)sp;
-    push(a);
-    NEXT;
+DEFCONST(RDROP, 0, "DSP@", DSPFETCH, sp);
 DEFCODE(DSPFETCH, 0, "DSP!", DSPSTORE):
     a = pop();
     sp = (intptr_t *)a;
     NEXT;
-DEFCODE(DSPSTORE, 0, "KEY", KEY):
-    push(key());
-    NEXT;
+DEFCONST(DSPSTORE, 0, "KEY", KEY, key());
 DEFCODE(KEY, 0, "EMIT", EMIT):
     putchar_unlocked(pop());
     fflush_unlocked(stdout);
@@ -502,9 +475,7 @@ DEFCODE(IMMEDIATE, 0, "HIDDEN", HIDDEN):
 DEFWORD(HIDDEN, 0, "HIDE", HIDE, CODE(WORD), CODE(FIND), CODE(HIDDEN), CODE(EXIT));
 DEFWORD(HIDE, 0, ":", COLON, CODE(WORD), CODE(CREATE), CODE(LIT), &&DOCOL, CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(RBRAC), CODE(EXIT));
 DEFWORD(COLON, F_IMMED, ";", SEMICOLON, CODE(LIT), CODE(EXIT), CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(LBRAC), CODE(EXIT));
-DEFCODE(SEMICOLON, 0, "'", TICK):
-    push((intptr_t)*ip++);
-    NEXT;
+DEFCONST(SEMICOLON, 0, "'", TICK, *ip++);
 DEFCODE(TICK, 0, "BRANCH", BRANCH):
     ip += ((intptr_t)*ip) / __SIZEOF_POINTER__;
     NEXT;
@@ -527,36 +498,27 @@ DEFCODE(LITSTRING, 0, "TELL", TELL):
     NEXT;
     static char errmsg[] = "PARSE ERROR: ";
 DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
+    p = (intptr_t *)here;
     c = word();
-    is_literal = 0;
     new = find(latest, word_buffer, c);
     if (new) {
-        b = new->flags & F_IMMED;
         target = (void **)code_field_address(new);
+        if ((new->flags & F_IMMED) || !state)
+            goto **target;
+        *p++ = (intptr_t)target;
     } else {
-        ++is_literal;
         a = strtol(word_buffer, &r, base);
         if (r == word_buffer) {
             write(STDERR_FILENO, errmsg, sizeof errmsg);
             write(STDERR_FILENO, word_buffer, c);
             write(STDERR_FILENO, "\n", sizeof "\n");
-            NEXT;
-        }
-        b = 0;
-    }
-    if (state && !b) {
-        p = (intptr_t *)here;
-        if (is_literal) {
+        } else if (state) {
             *p++ = (intptr_t)CODE(LIT);
             *p++ = a;
         } else
-            *p++ = (intptr_t)target;
-        here = (char *)p;
-    } else if (is_literal) {
-        push(a);
-    } else {
-        goto **target;
+            push(a);
     }
+    here = (char *)p;
     NEXT;
 DEFWORD(INTERPRET, 0, "QUIT", QUIT, CODE(RZ), CODE(RSPSTORE), CODE(INTERPRET), CODE(BRANCH), (void **)(-2 * __SIZEOF_POINTER__), CODE(EXIT));
 DEFCODE(QUIT, 0, "CHAR", CHAR):
