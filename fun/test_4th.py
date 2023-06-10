@@ -29,6 +29,7 @@ def expected(request) -> str:
 @pytest.mark.parametrize(
     "test_input,expected",
     [
+        ("BORK\n", "PARSE ERROR: BORK\n"),
         ("65 EMIT\n", "A"),
         ("32 DUP + 1+ EMIT\n", "A"),
         ("16 DUP 2DUP + + + 1+ EMIT\n", "A"),
@@ -44,4 +45,4 @@ def expected(request) -> str:
 )
 def test_basics(cmd: str, test_input: str, expected: str):
     cp = run(cmd, input=test_input, capture_output=True, check=True, text=True)
-    assert cp.stdout == expected
+    assert (cp.stdout or cp.stderr) == expected

@@ -509,9 +509,9 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
     } else {
         a = strtol(word_buffer, &r, base);
         if (r == word_buffer) {
-            write(STDERR_FILENO, errmsg, sizeof errmsg);
+            write(STDERR_FILENO, errmsg, sizeof errmsg - 1);
             write(STDERR_FILENO, word_buffer, c);
-            write(STDERR_FILENO, "\n", sizeof "\n");
+            write(STDERR_FILENO, "\n", sizeof "\n" - 1);
         } else if (state) {
             *p++ = (intptr_t)CODE(LIT);
             *p++ = a;
