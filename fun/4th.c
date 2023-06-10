@@ -67,7 +67,7 @@ struct word_t {
     struct word_t *link;
     char flags;
     char name[15]
-#ifndef __clang__
+#if __has_attribute(nonstring)
     __attribute__((nonstring))
 #endif
     ;  /* big enough for builtins, forth words might overflow  */
