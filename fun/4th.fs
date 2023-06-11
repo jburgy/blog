@@ -1476,10 +1476,10 @@
 	The first word that we define, ARGC, pushes the number of command line arguments (note that
 	as with C argc, this includes the name of the command).
 
-	EDIT: skip 7 callee saved registers
+	EDIT: skip 7 callee saved registers + 1 cell for padding
 )
 : ARGC
-	7 CELLS S0 @ + @
+	8 CELLS S0 @ + 15 + -16 AND @
 ;
 
 (
