@@ -430,7 +430,7 @@
 	ALIGNED takes an address and rounds it up (aligns qit) to the next 8 byte boundary.
 )
 : ALIGNED	( addr -- addr )
-	7 + 7 INVERT AND	( (addr+3) & ~3 )
+	7 + -8 AND	( (addr+3) & ~3 )
 ;
 
 (
@@ -1054,33 +1054,33 @@
 
 		CASE
 		' LIT OF		( is it LIT ? )
-			8 + DUP @		( get next word which is the integer constant )
+			8+ DUP @		( get next word which is the integer constant )
 			.			( and print it )
 		ENDOF
 		' LITSTRING OF		( is it LITSTRING ? )
 			[ CHAR S ] LITERAL EMIT '"' EMIT SPACE ( print S"<space> )
-			8 + DUP @		( get the length word )
-			SWAP 8 + SWAP		( end start+8 length )
+			8+ DUP @		( get the length word )
+			SWAP 8+ SWAP		( end start+8 length )
 			2DUP TELL		( print the string )
 			'"' EMIT SPACE		( finish the string with a final quote )
 			+ ALIGNED		( end start+8+len, aligned )
-			8 -			( because we're about to add 8 below )
+			8-			( because we're about to add 8 below )
 		ENDOF
 		' 0BRANCH OF		( is it 0BRANCH ? )
 			." 0BRANCH ( "
-			8 + DUP @		( print the offset )
+			8+ DUP @		( print the offset )
 			.
 			." ) "
 		ENDOF
 		' BRANCH OF		( is it BRANCH ? )
 			." BRANCH ( "
-			8 + DUP @		( print the offset )
+			8+ DUP @		( print the offset )
 			.
 			." ) "
 		ENDOF
 		' ' OF			( is it ' (TICK) ? )
 			[ CHAR ' ] LITERAL EMIT SPACE
-			8 + DUP @		( get the next codeword )
+			8+ DUP @		( get the next codeword )
 			CFA>			( and force it to be printed as a dictionary entry )
 			ID. SPACE
 		ENDOF
@@ -1089,7 +1089,7 @@
 			  because EXIT is normally implied by ;.  EXIT can also appear in the middle
 			  of words, and then it needs to be printed. )
 			2DUP			( end start end start )
-			8 +			( end start end start+8 )
+			8+			( end start end start+8 )
 			<> IF			( end start | we're not at the end )
 				." EXIT "
 			THEN
@@ -1100,7 +1100,7 @@
 			ID. SPACE		( and print it )
 		ENDCASE
 
-		8 +		( end start+8 )
+		8+		( end start+8 )
 	REPEAT
 
 	';' EMIT CR
@@ -1478,8 +1478,11 @@
 
 	EDIT: skip 7 callee saved registers + 1 cell for padding
 )
+: &ARGC ( -- n )
+	8 CELLS S0 @ + 15 + -16 AND 
+;
 : ARGC
-	8 CELLS S0 @ + 15 + -16 AND @
+	&ARGC @
 ;
 
 (
@@ -1489,7 +1492,7 @@
 		0 ARGV TELL CR
 )
 : ARGV ( n -- str u )
-	8 + CELLS S0 @ +	( get the address of argv[n] entry )
+	&ARGC SWAP CELLS + 8+	( get the address of argv[n] entry )
 	@		( get the address of the string )
 	DUP STRLEN	( and get its length / turn it into a FORTH string )
 ;
