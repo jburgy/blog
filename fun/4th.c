@@ -120,7 +120,7 @@ void *code_field_address(struct word_t *word)
     size_t offset = offsetof(struct word_t, name) + (word->flags & F_LENMASK);
 
     offset += __SIZEOF_POINTER__ - 1;
-    offset &= ~(__SIZEOF_POINTER__ - 1);
+    offset &= -__SIZEOF_POINTER__;
 
     if (offset < offsetof(struct word_t, code))
         offset = offsetof(struct word_t, code);
@@ -429,9 +429,11 @@ DEFCODE(EMIT, 0, "WORD", WORD):
 DEFCODE(WORD, 0, "NUMBER", NUMBER):
     c = pop(); /* length of string */
     s = (char *)pop(); /* start address of string */
-    r = s + c;
+    a = s[c];
+    s[c] = '\0';
     push(strtol(s, &r, base));
     push(r - s - c);
+    s[c] = a;
     NEXT;
 DEFCODE(NUMBER, 0, "FIND", FIND):
     c = pop();
@@ -447,7 +449,7 @@ DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCRP), CODE(EXIT), CODE(EXIT));
 DEFCODE(TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
-    new = (struct word_t *)(~(__SIZEOF_POINTER__ - 1) & (intptr_t)(here + __SIZEOF_POINTER__ - 1));
+    new = (struct word_t *)((intptr_t)(here + __SIZEOF_POINTER__ - 1) & -__SIZEOF_POINTER__);
     new->link = latest;
     new->flags = c;
     memcpy(new->name, s, c);
@@ -507,7 +509,10 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
             goto **target;
         *p++ = (intptr_t)target;
     } else {
+        b = word_buffer[c];
+        word_buffer[c] = '\0';
         a = strtol(word_buffer, &r, base);
+        word_buffer[c] = b;
         if (r == word_buffer) {
             write(STDERR_FILENO, errmsg, sizeof errmsg - 1);
             write(STDERR_FILENO, word_buffer, c);
@@ -526,7 +531,8 @@ DEFCODE(QUIT, 0, "CHAR", CHAR):
     push((intptr_t)*word_buffer);
     NEXT;
 DEFCODE(CHAR, 0, "EXECUTE", EXECUTE):
-    goto *(void *)pop();
+    target = (void **)pop();
+    goto **target;
 DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3):
     a = pop();
     b = pop();
