@@ -44,8 +44,11 @@ crt.o ape-no-modify-self.o ape.lds &: cosmopolitan-amalgamation-2.2.zip
 cosmopolitan-amalgamation-2.2.zip :
 	wget https://justine.lol/cosmopolitan/cosmopolitan-amalgamation-2.2.zip
 
+c4th : 4th.c
+	$(CC) -Wall -Wextra --coverage -mstackrealign -o $@ $^
+
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th 4th.ll 4th.wasm 4th.wasm.map 4th.js
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th 4th.ll 4th.wasm 4th.wasm.map 4th.js c4th *.gcda *.gcno
 
 define allbutlast
 $(wordlist 2, $(words $(1)), x $(1))

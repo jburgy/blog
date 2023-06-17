@@ -128,7 +128,7 @@ void *code_field_address(struct word_t *word)
     return ((char *)word) + offset;
 }
 
-#ifdef EMSCRIPTEN
+#if defined(EMSCRIPTEN) || !defined(__OPTIMIZED__)
 int main(void)
 #else
 void _start(void)
@@ -484,8 +484,7 @@ DEFCODE(TICK, 0, "BRANCH", BRANCH):
 DEFCODE(BRANCH, 0, "0BRANCH", ZBRANCH):
     if (!pop())
         goto code_BRANCH;
-    else
-        ip++;
+    ip++;
     NEXT;
 DEFCODE(ZBRANCH, 0, "LITSTRING", LITSTRING):
     c = (intptr_t)*ip++;

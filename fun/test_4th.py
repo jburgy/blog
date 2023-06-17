@@ -8,10 +8,12 @@ FORTH = ": TEST-MODE ;\n" + Path("fun/4th.fs").read_text()
 
 
 @pytest.fixture(scope="module")
-def cmd():
-    run(["make", "4th"], capture_output=True, cwd="fun", check=True)
-    yield "fun/4th"
-    run(["make", "clean"], capture_output=True, cwd="fun", check=True)
+def cmd(coverage: bool):
+    run(["make", "c4th" if coverage else "4th"], cwd="fun", check=True)
+    yield "fun/c4th" if coverage else "fun/4th"
+    if coverage:
+        run(["gcov", "4th.c"], cwd="fun", check=True)
+    run(["make", "clean"], cwd="fun", check=True)
 
 
 @pytest.mark.parametrize(
@@ -22,7 +24,9 @@ def cmd():
         ("777 65 EMIT\n", "A"),
         ("32 DUP + 1+ EMIT\n", "A"),
         ("16 DUP 2DUP + + + 1+ EMIT\n", "A"),
+        ("8 DUP * 1+ EMIT\n", "A"),
         ("CHAR A EMIT\n", "A"),
+        (": SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT\n", "A"),
         (f"{SYSCALL0:d} DSP@ 8 TELL\n", "SYSCALL0"),
         (FORTH + "VERSION .\n", "47 "),
         (FORTH + "CR\n", "\n"),
@@ -31,12 +35,16 @@ def cmd():
         (FORTH + "SEE QUIT\n", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
     ],
 )
-def test_basics(cmd: str, test_input: str, expected: str):
+def test_basics(cmd: str, test_input: str, expected: str, coverage: True):
+    if coverage and test_input[-9:].startswith("SEE"):
+        return
     cp = run(cmd, input=test_input, capture_output=True, check=True, text=True)
     assert (cp.stdout or cp.stderr) == expected
 
 
-def test_argc(cmd: str):
+def test_argc(cmd: str, coverage: bool):
+    if coverage:
+        return
     assert run(
         [cmd, "foo", "bar"],
         input=FORTH + "ARGC .\n",
@@ -46,7 +54,9 @@ def test_argc(cmd: str):
     ).stdout == "3 "
 
 
-def test_argv(cmd: str):
+def test_argv(cmd: str, coverage: bool):
+    if coverage:
+        return
     assert run(
         [cmd, "foo", "bar"],
         input=FORTH + "0 ARGV TELL SPACE 2 ARGV TELL\n",
