@@ -51,6 +51,9 @@ def cmd(coverage: bool):
         (FORTH + ": CFA@ WORD FIND >CFA @ ; CFA@ >DFA DOCOL = .\n", "-1 "),
         (FORTH + "3 4 5 WITHIN .\n", "0 "),
         (FORTH + ": GETPPID 110 SYSCALL0 ; GETPPID .\n", f"{os.getpid():d} "),
+        (FORTH + "18 95 SYSCALL1 .\n", "18 "),  # umask(2)
+        (FORTH + 'O_RDONLY Z" fun/4th.c" 21 SYSCALL2 .\n', "0 "),  # access(2)
+        (FORTH + 'S" test" SWAP 1 SYS_WRITE SYSCALL3\n', "test"),
         (
             FORTH + ": FOO ( n -- ) THROW ;\n"
             ": TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF "
