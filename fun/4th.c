@@ -128,7 +128,7 @@ void *code_field_address(struct word_t *word)
     return ((char *)word) + offset;
 }
 
-#if defined(EMSCRIPTEN) || !defined(__OPTIMIZED__)
+#if defined(EMSCRIPTEN) || !defined(__OPTIMIZE__)
 int main(void)
 #else
 void _start(void)
