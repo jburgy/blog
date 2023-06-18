@@ -28,11 +28,19 @@ def cmd(coverage: bool):
         ("CHAR A EMIT\n", "A"),
         (": SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT\n", "A"),
         (f"{SYSCALL0:d} DSP@ 8 TELL\n", "SYSCALL0"),
+        (f"{int.from_bytes('65'.encode(), 'little'):d} DSP@ 2 NUMBER DROP EMIT\n", "A"),
         (FORTH + "VERSION .\n", "47 "),
         (FORTH + "CR\n", "\n"),
         (FORTH + "LATEST @ ID.\n", "WELCOME"),
         (FORTH + "3 4 5 .S\n", "5 4 3 "),
-        (FORTH + "3 4 5 WITHIN .\n", "0 ")
+        (FORTH + "3 4 5 WITHIN .\n", "0 "),
+        (
+            FORTH + ": FOO ( n -- ) THROW ;\n"
+            ": TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF "
+            '." FOO threw exception: " . CR DROP THEN ;\n'
+            "TEST-EXCEPTIONS\n",
+            "FOO threw exception: 25 \n"
+        )
     ],
 )
 def test_basics(cmd: str, test_input: str, expected: str):
