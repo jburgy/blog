@@ -427,7 +427,7 @@
 ;
 
 (
-	ALIGNED takes an address and rounds it up (aligns qit) to the next 8 byte boundary.
+	ALIGNED takes an address and rounds it up (aligns it) to the next 8 byte boundary.
 )
 : ALIGNED	( addr -- addr )
 	7 + -8 AND	( (addr+3) & ~3 )

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from subprocess import run
 
@@ -34,6 +35,7 @@ def cmd(coverage: bool):
         (FORTH + "LATEST @ ID.\n", "WELCOME"),
         (FORTH + "3 4 5 .S\n", "5 4 3 "),
         (FORTH + "3 4 5 WITHIN .\n", "0 "),
+        (FORTH + ": GETPPID 110 SYSCALL0 ; GETPPID .\n", f"{os.getpid():d} "),
         (
             FORTH + ": FOO ( n -- ) THROW ;\n"
             ": TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF "
@@ -46,6 +48,56 @@ def cmd(coverage: bool):
 def test_basics(cmd: str, test_input: str, expected: str):
     cp = run(cmd, input=test_input, capture_output=True, check=True, text=True)
     assert (cp.stdout or cp.stderr) == expected
+
+
+def test_syscalls(cmd: str):
+    names = {
+        "SYS_EXIT": "__NR_exit",
+        "SYS_OPEN": "__NR_open",
+        "SYS_CLOSE": "__NR_close",
+        "SYS_READ": "__NR_read",
+        "SYS_WRITE": "__NR_write",
+        "SYS_CREAT": "__NR_creat",
+        "SYS_BRK": "__NR_brk",
+    }
+    # https://unix.stackexchange.com/a/254700
+    values = run(
+        ["gcc", "-include", "sys/syscall.h", "-E", "-"],
+        input=" ".join(names.values()),
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    values = values.stdout.rstrip().rpartition("\n")[2]
+
+    assert run(
+        cmd,
+        input=f"{FORTH} {' '.join(names)} .S\n",
+        capture_output=True,
+        check=True,
+        text=True
+    ).stdout == " ".join(reversed(values.split())) + " "
+
+
+def test_fnctl(cmd: str):
+    names = "O_RDONLY O_WRONLY O_RDWR O_CREAT O_EXCL O_TRUNC O_APPEND O_NONBLOCK"
+    # https://unix.stackexchange.com/a/254700
+    values = run(
+        ["gcc", "-include", "fcntl.h", "-E", "-"],
+        input=names,
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    values = values.stdout.rstrip().rpartition("\n")[2]
+
+    assert run(
+        cmd,
+        input=f"{FORTH} {names} .S\n",
+        capture_output=True,
+        check=True,
+        text=True
+    ).stdout == " ".join(str(int(val, 8)) for val in reversed(values.split())) + " "
 
 
 @pytest.mark.parametrize(
