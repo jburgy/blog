@@ -30,21 +30,39 @@ def cmd(coverage: bool):
         (f"{SYSCALL0:d} DSP@ 8 TELL\n", "SYSCALL0"),
         (FORTH + "VERSION .\n", "47 "),
         (FORTH + "CR\n", "\n"),
+        (FORTH + "LATEST @ ID.\n", "WELCOME"),
+        (FORTH + "3 4 5 .S\n", "5 4 3 "),
+        (FORTH + "3 4 5 WITHIN .\n", "0 ")
+    ],
+)
+def test_basics(cmd: str, test_input: str, expected: str):
+    cp = run(cmd, input=test_input, capture_output=True, check=True, text=True)
+    assert (cp.stdout or cp.stderr) == expected
+
+
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
         (FORTH + "SEE >DFA\n", ": >DFA >CFA 8+ EXIT ;\n"),
         (FORTH + "SEE HIDE\n", ": HIDE WORD FIND HIDDEN ;\n"),
         (FORTH + "SEE QUIT\n", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
     ],
 )
-def test_basics(cmd: str, test_input: str, expected: str, coverage: True):
-    if coverage and test_input[-9:].startswith("SEE"):
-        return
-    cp = run(cmd, input=test_input, capture_output=True, check=True, text=True)
-    assert (cp.stdout or cp.stderr) == expected
+def test_decompile(cmd: str, test_input: str, expected: str, coverage: bool):
+    if coverage:
+        pytest.skip("Understand why SEE does not work with coverage")
+    assert run(
+        cmd,
+        input=test_input,
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout == expected
 
 
 def test_argc(cmd: str, coverage: bool):
     if coverage:
-        return
+        pytest.skip("ARGC requires _start, gcov requires main")
     assert run(
         [cmd, "foo", "bar"],
         input=FORTH + "ARGC .\n",
@@ -56,7 +74,7 @@ def test_argc(cmd: str, coverage: bool):
 
 def test_argv(cmd: str, coverage: bool):
     if coverage:
-        return
+        pytest.skip("ARGC requires _start, gcov requires main")
     assert run(
         [cmd, "foo", "bar"],
         input=FORTH + "0 ARGV TELL SPACE 2 ARGV TELL\n",
