@@ -264,56 +264,56 @@ DEFCODE(MUL, 0, "/MOD", DIVMOD):
 DEFCODE(DIVMOD, 0, "=", EQU):
     a = pop();
     b = pop();
-    push(a == b ? ~0 : 0);
+    push(a == b ? -1 : 0);
     NEXT;
 DEFCODE(EQU, 0, "<>", NEQU):
     b = pop();
     a = pop();
-    push(a == b ? 0 : ~0);
+    push(a == b ? 0 : -1);
     NEXT;
 DEFCODE(NEQU, 0, "<", LT):
     b = pop();
     a = pop();
-    push(a < b ? ~0 : 0);
+    push(a < b ? -1 : 0);
     NEXT;
 DEFCODE(LT, 0, ">", GT):
     b = pop();
     a = pop();
-    push(a > b ? ~0 : 0);
+    push(a > b ? -1 : 0);
     NEXT;
 DEFCODE(GT, 0, "<=", LE):
     b = pop();
     a = pop();
-    push(a <= b ? ~0 : 0);
+    push(a <= b ? -1 : 0);
     NEXT;
 DEFCODE(LE, 0, ">=", GE):
     b = pop();
     a = pop();
-    push(a >= b ? ~0 : 0);
+    push(a >= b ? -1 : 0);
     NEXT;
 DEFCODE(GE, 0, "0=", ZEQU):
     a = pop();
-    push(a ? 0 : ~0);
+    push(a ? 0 : -1);
     NEXT;
 DEFCODE(ZEQU, 0, "0<>", ZNEQU):
     a = pop();
-    push(a ? ~0 : 0);
+    push(a ? -1 : 0);
     NEXT;
 DEFCODE(ZNEQU, 0, "0<", ZLT):
     a = pop();
-    push(a < 0 ? ~0 : 0);
+    push(a < 0 ? -1 : 0);
     NEXT;
 DEFCODE(ZLT, 0, "0>", ZGT):
     a = pop();
-    push(a > 0 ? ~0 : 0);
+    push(a > 0 ? -1 : 0);
     NEXT;
 DEFCODE(ZGT, 0, "0<=", ZLE):
     a = pop();
-    push(a <= 0 ? ~0 : 0);
+    push(a <= 0 ? -1 : 0);
     NEXT;
 DEFCODE(ZLE, 0, "0>=", ZGE):
     a = pop();
-    push(a >= 0 ? ~0 : 0);
+    push(a >= 0 ? -1 : 0);
     NEXT;
 DEFCODE(ZGE, 0, "AND", AND):
     a = pop();
@@ -475,8 +475,10 @@ DEFCODE(IMMEDIATE, 0, "HIDDEN", HIDDEN):
     new->flags ^= F_HIDDEN;
     NEXT;
 DEFWORD(HIDDEN, 0, "HIDE", HIDE, CODE(WORD), CODE(FIND), CODE(HIDDEN), CODE(EXIT));
-DEFWORD(HIDE, 0, ":", COLON, CODE(WORD), CODE(CREATE), CODE(LIT), &&DOCOL, CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(RBRAC), CODE(EXIT));
-DEFWORD(COLON, F_IMMED, ";", SEMICOLON, CODE(LIT), CODE(EXIT), CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(LBRAC), CODE(EXIT));
+DEFWORD(HIDE, 0, ":", COLON, CODE(WORD), CODE(CREATE), CODE(LIT), &&DOCOL,
+    CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(RBRAC), CODE(EXIT));
+DEFWORD(COLON, F_IMMED, ";", SEMICOLON, CODE(LIT), CODE(EXIT), CODE(COMMA),
+    CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(LBRAC), CODE(EXIT));
 DEFCONST(SEMICOLON, 0, "'", TICK, *ip++);
 DEFCODE(TICK, 0, "BRANCH", BRANCH):
     ip += ((intptr_t)*ip) / __SIZEOF_POINTER__;
@@ -524,7 +526,8 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
     }
     here = (char *)p;
     NEXT;
-DEFWORD(INTERPRET, 0, "QUIT", QUIT, CODE(RZ), CODE(RSPSTORE), CODE(INTERPRET), CODE(BRANCH), (void **)(-2 * __SIZEOF_POINTER__), CODE(EXIT));
+DEFWORD(INTERPRET, 0, "QUIT", QUIT, CODE(RZ), CODE(RSPSTORE), CODE(INTERPRET),
+    CODE(BRANCH), (void **)(-2 * __SIZEOF_POINTER__), CODE(EXIT));
 DEFCODE(QUIT, 0, "CHAR", CHAR):
     word();
     push((intptr_t)*word_buffer);
