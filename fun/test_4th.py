@@ -1,4 +1,5 @@
 import os
+from functools import partial
 from pathlib import Path
 from subprocess import run
 
@@ -14,18 +15,21 @@ def forth(target: str):
 
 
 @pytest.fixture(scope="module")
-def cmd(target: str):
+def cmd(target: str) -> partial:
     run(["make", target], cwd="fun", check=True)
-    yield "fun/" + target
+    yield partial(run, "fun/" + target, capture_output=True, check=True, text=True)
     if target.startswith("c"):
         run(["gcov", "4th.c"], cwd="fun", check=True)
     run(["make", "clean"], cwd="fun", check=True)
 
 
+def test_error(cmd: partial):
+    assert cmd(input="BORK\n").stderr == "PARSE ERROR: BORK\n"
+
+
 @pytest.mark.parametrize(
     "test_input,expected",
     [
-        ("BORK\n", "PARSE ERROR: BORK\n"),
         ("65 EMIT\n", "A"),
         ("777 65 EMIT\n", "A"),
         ("32 DUP + 1+ EMIT\n", "A"),
@@ -39,13 +43,12 @@ def cmd(target: str):
         ("65 >R RSP@ 1 TELL RDROP\n", "A"),
         ("65 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL\n", "A"),
         ("65 >R 1 RSP@ -! RSP@ 1 TELL\n", "@"),
-    ]
+    ],
 )
-def test_basics(cmd: str, test_input: str, expected: str):
-    if cmd.endswith(".32") and expected == "SYSCALL0":
+def test_basics(target: str, cmd: partial, test_input: str, expected: str):
+    if target == "4th.32" and expected == "SYSCALL0":
         pytest.skip("SYSCALL0 requires 8 bytes")
-    cp = run(cmd, input=test_input, capture_output=True, check=True, text=True)
-    assert (cp.stdout or cp.stderr) == expected
+    assert cmd(input=test_input).stdout == expected
 
 
 @pytest.mark.parametrize(
@@ -76,22 +79,23 @@ def test_basics(cmd: str, test_input: str, expected: str):
             ": TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF "
             '." FOO threw exception: " . CR DROP THEN ;\n'
             "TEST-EXCEPTIONS\n",
-            "FOO threw exception: 25 \n"
-        )
+            "FOO threw exception: 25 \n",
+        ),
     ],
 )
-def test_advanced(cmd: str, forth: str, test_input: str, expected: str):
-    if cmd.endswith(".32"):
+def test_advanced(
+    target: str, cmd: partial, forth: str, test_input: str, expected: str
+):
+    if target == "4th.32":
         test_input = (
             test_input.replace("110 SYSCALL0", "64 SYSCALL0")
             .replace("95 SYSCALL1", "60 SYSCALL1")
             .replace("21 SYSCALL2", "33 SYSCALL2")
         )
-    cp = run(cmd, input=forth + test_input, capture_output=True, check=True, text=True)
-    assert (cp.stdout or cp.stderr) == expected
+    assert cmd(input=forth + test_input).stdout == expected
 
 
-def test_syscalls(cmd: str, forth: str):
+def test_syscalls(cmd: partial, forth: str):
     names = {
         "SYS_EXIT": "__NR_exit",
         "SYS_OPEN": "__NR_open",
@@ -102,7 +106,7 @@ def test_syscalls(cmd: str, forth: str):
         "SYS_BRK": "__NR_brk",
     }
     # https://unix.stackexchange.com/a/254700
-    arch = "-m32" if cmd.endswith(".32") else "-m64"
+    arch = "-m32" if cmd.args[0].endswith(".32") else "-m64"
     values = run(
         ["gcc", arch, "-include", "sys/syscall.h", "-E", "-"],
         input=" ".join(names.values()),
@@ -112,16 +116,15 @@ def test_syscalls(cmd: str, forth: str):
     )
     values = values.stdout.rstrip().rpartition("\n")[2]
 
-    assert run(
-        cmd,
-        input=f"{forth} {' '.join(names)} .S\n",
-        capture_output=True,
-        check=True,
-        text=True
-    ).stdout == " ".join(reversed(values.split())) + " "
+    assert (
+        cmd(
+            input=f"{forth} {' '.join(names)} .S\n",
+        ).stdout
+        == " ".join(reversed(values.split())) + " "
+    )
 
 
-def test_fnctl(cmd: str, forth: str):
+def test_fnctl(cmd: partial, forth: str):
     names = "O_RDONLY O_WRONLY O_RDWR O_CREAT O_EXCL O_TRUNC O_APPEND O_NONBLOCK"
     # https://unix.stackexchange.com/a/254700
     values = run(
@@ -133,13 +136,12 @@ def test_fnctl(cmd: str, forth: str):
     )
     values = values.stdout.rstrip().rpartition("\n")[2]
 
-    assert run(
-        cmd,
-        input=f"{forth} {names} .S\n",
-        capture_output=True,
-        check=True,
-        text=True
-    ).stdout == " ".join(str(int(val, 8)) for val in reversed(values.split())) + " "
+    assert (
+        cmd(
+            input=f"{forth} {names} .S\n",
+        ).stdout
+        == " ".join(str(int(val, 8)) for val in reversed(values.split())) + " "
+    )
 
 
 @pytest.mark.parametrize(
@@ -150,43 +152,41 @@ def test_fnctl(cmd: str, forth: str):
         ("SEE QUIT\n", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
     ],
 )
-def test_decompile(cmd: str, forth: str, test_input: str, expected: str):
-    if cmd.startswith("fun/c"):
+def test_decompile(
+    target: str, cmd: partial, forth: str, test_input: str, expected: str
+):
+    if target == "c4th":
         pytest.skip("Understand why SEE does not work with coverage")
-    if cmd.endswith(".32"):
+    if target == "4th.32":
         expected = expected.replace("8+", "4+").replace("-16", "-8")
-    assert run(
-        cmd,
-        input=forth + test_input,
-        capture_output=True,
-        check=True,
-        text=True,
-    ).stdout == expected
+    assert cmd(input=forth + test_input).stdout == expected
 
 
-def test_argc(cmd: str, forth: str):
-    if cmd.startswith("fun/c"):
+def test_argc(target: str, cmd: partial, forth: str):
+    if target == "c4th":
         pytest.skip("ARGC requires _start, gcov requires main")
-    if cmd.endswith(".32"):
+    if target == "4th.32":
         pytest.skip("Understand why ARGC doesn't work with -m32")
-    assert run(
-        [cmd, "foo", "bar"],
-        input=forth + "ARGC .\n",
-        capture_output=True,
-        check=True,
-        text=True,
-    ).stdout == "3 "
+    assert (
+        cmd.func(
+            [cmd.args[0], "foo", "bar"],
+            input=forth + "ARGC .\n",
+            **cmd.keywords,
+        ).stdout
+        == "3 "
+    )
 
 
-def test_argv(cmd: str, forth: str):
-    if cmd.startswith("fun/c"):
+def test_argv(target: str, cmd: partial, forth: str):
+    if target == "c4th":
         pytest.skip("ARGV requires _start, gcov requires main")
-    if cmd.endswith(".32"):
+    if target == "4th.32":
         pytest.skip("Understand why ARGV doesn't work with -m32")
-    assert run(
-        [cmd, "foo", "bar"],
-        input=forth + "0 ARGV TELL SPACE 2 ARGV TELL\n",
-        capture_output=True,
-        check=True,
-        text=True,
-    ).stdout == cmd + " bar"
+    assert (
+        cmd.func(
+            [cmd.args[0], "foo", "bar"],
+            input=forth + "0 ARGV TELL SPACE 2 ARGV TELL\n",
+            **cmd.keywords,
+        ).stdout
+        == cmd.args[0] + " bar"
+    )
