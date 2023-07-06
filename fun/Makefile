@@ -29,7 +29,7 @@ run: 4th
 	$(CC) $(CFLAGS) -mstackrealign -o $@ $^
 
 %.32 : %.c
-	$(CC) $(CFLAGS) -ggdb -m32 -o $@ $^
+	$(CC) $(CFLAGS) -m32 -o $@ $^
 
 %.s : %.c
 	$(CC) $(CFLAGS) $(ARFLAGS) -o $@ $^

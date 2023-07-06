@@ -10,7 +10,7 @@ SYSCALL0 = int.from_bytes("SYSCALL0".encode(), byteorder="little")
 
 @pytest.fixture(scope="module")
 def forth(target: str):
-    filename = "fun/jonesforth.f" if target == "4th.32" else "fun/4th.fs"
+    filename = "fun/4th.32.fs" if target == "4th.32" else "fun/4th.fs"
     return ": TEST-MODE ;\n" + Path(filename).read_text()
 
 
@@ -165,8 +165,6 @@ def test_decompile(
 def test_argc(target: str, cmd: partial, forth: str):
     if target == "c4th":
         pytest.skip("ARGC requires _start, gcov requires main")
-    if target == "4th.32":
-        pytest.skip("Understand why ARGC doesn't work with -m32")
     assert (
         cmd.func(
             [cmd.args[0], "foo", "bar"],
@@ -180,8 +178,6 @@ def test_argc(target: str, cmd: partial, forth: str):
 def test_argv(target: str, cmd: partial, forth: str):
     if target == "c4th":
         pytest.skip("ARGV requires _start, gcov requires main")
-    if target == "4th.32":
-        pytest.skip("Understand why ARGV doesn't work with -m32")
     assert (
         cmd.func(
             [cmd.args[0], "foo", "bar"],
