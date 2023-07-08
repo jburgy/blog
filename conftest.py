@@ -1,3 +1,5 @@
+from typing import Collection
+
 import pytest
 
 
@@ -13,3 +15,18 @@ def pytest_addoption(parser: pytest.Parser):
 @pytest.fixture(scope="module")
 def target(request: pytest.FixtureRequest):
     return request.config.getoption("--target")
+
+
+def pytest_configure(config: pytest.Config):
+    config.addinivalue_line("markers", "start: requires _start instead of main")
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: Collection[pytest.Item]
+):
+    if config.getoption("--target") != "c4th":
+        return
+    skip_start = pytest.mark.skip(reason="gcov requires main instead of _start")
+    for item in items:
+        if "start" in item.keywords:
+            item.add_marker(skip_start)
