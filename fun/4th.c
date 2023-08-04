@@ -140,6 +140,7 @@ void _start(void)
 #ifdef __clang__
     __block
 #endif
+    intptr_t *argc = (intptr_t *)__builtin_frame_address(0) + 1;
     intptr_t *sp = stack + STACK_SIZE;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
     void **rsp = return_stack + STACK_SIZE;  /* Initialize the return stack. (%ebp) */
     register void ***ip, **target;
@@ -160,12 +161,12 @@ void _start(void)
     };
 #else
     /* https://gcc.gnu.org/onlinedocs/gcc/Inline.html */
-    inline intptr_t pop(void)
+    __always_inline intptr_t pop(void)
     {
         assert(sp < stack + STACK_SIZE);
         return *sp++;
     }
-    inline void push(intptr_t a)
+    __always_inline void push(intptr_t a)
     {
         assert(sp > stack);
         *--sp = a;
@@ -380,7 +381,8 @@ DEFCONST(HERE, 0, "LATEST", LATEST, &latest);
 DEFCONST(LATEST, 0, "S0", SZ, &s0);
     intptr_t base;
 DEFCONST(SZ, 0, "BASE", BASE, &base);
-DEFCONST(BASE, 0, "VERSION", VERSION, 47);
+DEFCONST(BASE, 0, "(ARGC)", ARGC, argc);
+DEFCONST(ARGC, 0, "VERSION", VERSION, 47);
 DEFCONST(VERSION, 0, "R0", RZ, return_stack + STACK_SIZE);
 DEFCONST(RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
 DEFCONST(__DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED);

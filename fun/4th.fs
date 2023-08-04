@@ -1478,11 +1478,8 @@
 
 	EDIT: skip 7 callee saved registers + 1 cell for padding
 )
-: &ARGC ( -- n )
-	8 CELLS S0 @ + 15 + -16 AND 
-;
 : ARGC
-	&ARGC @
+	(ARGC) @
 ;
 
 (
@@ -1492,7 +1489,7 @@
 		0 ARGV TELL CR
 )
 : ARGV ( n -- str u )
-	1+ CELLS &ARGC +	( get the address of argv[n] entry )
+	1+ CELLS (ARGC) +	( get the address of argv[n] entry )
 	@		( get the address of the string )
 	DUP STRLEN	( and get its length / turn it into a FORTH string )
 ;
@@ -1506,9 +1503,9 @@
 )
 : ENVIRON	( -- addr )
 	ARGC		( number of command line parameters on the stack to skip )
-	9 +		( skip command line count and NULL pointer after the command line args )
+	2 +		( skip command line count and NULL pointer after the command line args )
 	CELLS		( convert to an offset )
-	S0 @ +		( add to base stack address )
+	(ARGC) +		( add to base stack address )
 ;
 
 (
