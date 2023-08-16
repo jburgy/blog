@@ -59,8 +59,11 @@ def mapping(target: str) -> Mapping[str, str]:
 @pytest.fixture(scope="module")
 def cmd(target: str) -> partial:
     run(["make", target], cwd="fun", check=True)
-    yield partial(run, "fun/" + target, capture_output=True, check=True, text=True)
-    if target.startswith("c"):
+    env = {"SHELL": "/bin/bash"}
+    yield partial(
+        run, "fun/" + target, capture_output=True, check=True, env=env, text=True
+    )
+    if target == "4th.gcov":
         run(["gcov", "4th.c"], cwd="fun", check=True)
     run(["make", "clean"], cwd="fun", check=True)
 
@@ -101,6 +104,17 @@ def expected(request: fixtures.SubRequest, target: str):
         ("65 >R RSP@ 1 TELL RDROP\n", "A"),
         ("65 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL\n", "A"),
         ("65 >R 1 RSP@ -! RSP@ 1 TELL\n", "@"),
+        (
+            """
+: <BUILDS WORD CREATE DODOES , 0 , ;
+: DOES> R> LATEST @ >DFA ! ;
+: CONST <BUILDS , DOES> @ ;
+
+65 CONST FOO
+FOO EMIT
+""",
+            "A",
+        ),
         ("{forth}VERSION .\n", "47 "),
         ("{forth}CR\n", "\n"),
         ("{forth}LATEST @ ID.\n", "WELCOME"),
@@ -156,6 +170,7 @@ def test_fnctl(mapping: Mapping[str, str], cmd: partial):
         ("{forth}SEE >DFA\n", ": >DFA >CFA 8+ EXIT ;\n"),
         ("{forth}SEE HIDE\n", ": HIDE WORD FIND HIDDEN ;\n"),
         ("{forth}SEE QUIT\n", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
+        ("{forth}ENVIRON @ DUP STRLEN TELL\n", "SHELL=/bin/bash"),
     ],
     indirect=["test_input", "expected"],
 )

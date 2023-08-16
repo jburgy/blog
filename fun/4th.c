@@ -137,12 +137,12 @@ void _start(void)
     /* https://briancallahan.net/blog/20200808.html */
     intptr_t stack[STACK_SIZE];  /* Parameter stack */
     void *return_stack[STACK_SIZE]; /* Return stack */
+    intptr_t *argc = (intptr_t *)__builtin_frame_address(0) + 1;
 #ifdef __clang__
     __block
 #endif
-    intptr_t *argc = (intptr_t *)__builtin_frame_address(0) + 1;
-    intptr_t *sp = stack + STACK_SIZE;  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
-    void **rsp = return_stack + STACK_SIZE;  /* Initialize the return stack. (%ebp) */
+    intptr_t *sp = &stack[STACK_SIZE];  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
+    void **rsp = &return_stack[STACK_SIZE];  /* Initialize the return stack. (%ebp) */
     register void ***ip, **target;
     register intptr_t a, b, c, d __attribute__((unused)), *p;
     char *r;
@@ -178,6 +178,12 @@ goto _start;
 DOCOL:
     *--rsp = ip;
     ip = (void ***)target + 1;
+    NEXT;
+
+DODOES:  /* http://www.lisphacker.com/temp/fixes.f */
+    *--rsp = ip;
+    ip = (void ***)target[1];
+    push((intptr_t)&target[2]);
     NEXT;
 
 DEFCODE_(NULL, 0, "DROP", DROP):
@@ -385,7 +391,8 @@ DEFCONST(BASE, 0, "(ARGC)", ARGC, argc);
 DEFCONST(ARGC, 0, "VERSION", VERSION, 47);
 DEFCONST(VERSION, 0, "R0", RZ, return_stack + STACK_SIZE);
 DEFCONST(RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
-DEFCONST(__DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED);
+DEFCONST(__DOCOL, 0, "DODOES", __DODOES, &&DODOES);
+DEFCONST(__DODOES, 0, "F_IMMED", __F_IMMED, F_IMMED);
 DEFCONST(__F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN);
 DEFCONST(__F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK);
 DEFCONST(__F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, __NR_exit);

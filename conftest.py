@@ -6,7 +6,7 @@ import pytest
 def pytest_addoption(parser: pytest.Parser):
     parser.addoption(
         "--target",
-        choices=["4th", "c4th", "4th.32"],
+        choices=["4th", "4th.gcov", "4th.32", "4th.ll"],
         default="4th",
         help="Pick a target to test",
     )
@@ -24,7 +24,7 @@ def pytest_configure(config: pytest.Config):
 def pytest_collection_modifyitems(
     config: pytest.Config, items: Collection[pytest.Item]
 ):
-    if config.getoption("--target") != "c4th":
+    if config.getoption("--target") != "4th.gcov":
         return
     skip_start = pytest.mark.skip(reason="gcov requires main instead of _start")
     for item in items:

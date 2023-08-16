@@ -1,7 +1,7 @@
 CC = gcc
 EC ?= emcc
-CFLAGS ?= -Wall -Wextra -O3 -nostartfiles
-ARFLAGS ?= -S -fverbose-asm
+CFLAGS ?= -Wall -Wextra -O3 -nostartfiles -DNDEBUG
+ARFLAGS = -m32 -S -fverbose-asm
 EFLAGS = -g -gsource-map --source-map-base http://localhost:8000/ -O -Wall -Wextra -fblocks -sEXIT_RUNTIME=0 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1
 CPPFLAGS = -include cosmopolitan.h -I.
 LDFLAGS = -Wl,--oformat=binary -Wl,--gc-sections -Wl,-z,max-page-size=0x1000 -fuse-ld=bfd -gdwarf-4 -Wl,-T,ape.lds
@@ -47,11 +47,11 @@ crt.o ape-no-modify-self.o ape.lds &: cosmopolitan-amalgamation-2.2.zip
 cosmopolitan-amalgamation-2.2.zip :
 	wget https://justine.lol/cosmopolitan/cosmopolitan-amalgamation-2.2.zip
 
-c4th : 4th.c
+%.gcov : %.c
 	$(CC) -Wall -Wextra --coverage -mstackrealign -o $@ $^
 
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th 4th.ll 4th.wasm 4th.wasm.map 4th.js 4th.32 c4th *.gcda *.gcno
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th 4th.ll 4th.wasm 4th.wasm.map 4th.js 4th.32 4th.gcov *.gcda *.gcno
 
 define allbutlast
 $(wordlist 2, $(words $(1)), x $(1))
