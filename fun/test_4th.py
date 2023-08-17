@@ -141,6 +141,9 @@ FOO EMIT
         ('{forth}S" test" SWAP 1 SYS_WRITE SYSCALL3\n', "test"),
         ("{forth}ARGC .\n", "3 "),
         ("{forth}ENVIRON @ DUP STRLEN TELL\n", "SHELL=/bin/bash"),
+        ("{forth}SEE >DFA\n", ": >DFA >CFA 8+ EXIT ;\n"),
+        ("{forth}SEE HIDE\n", ": HIDE WORD FIND HIDDEN ;\n"),
+        ("{forth}SEE QUIT\n", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
         (
             "{forth}: FOO ( n -- ) THROW ;\n"
             ": TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF "
@@ -149,7 +152,7 @@ FOO EMIT
             "FOO threw exception: 25 \n",
         ),
     ],
-    indirect=["test_input"],
+    indirect=["test_input", "expected"],
 )
 def test_advanced(cmd: partial, test_input: str, expected: str):
     assert cmd(input=test_input).stdout == expected
@@ -166,20 +169,6 @@ def test_fnctl(mapping: Mapping[str, str], cmd: partial):
     values = {key: value for key, value in mapping.items() if key.startswith("O_")}
     test_input = f"{mapping['forth']} {' '.join(values)} .S\n"
     expected = " ".join(reversed(values.values())) + " "
-    assert cmd(input=test_input).stdout == expected
-
-
-@pytest.mark.start
-@pytest.mark.parametrize(
-    "test_input,expected",
-    [
-        ("{forth}SEE >DFA\n", ": >DFA >CFA 8+ EXIT ;\n"),
-        ("{forth}SEE HIDE\n", ": HIDE WORD FIND HIDDEN ;\n"),
-        ("{forth}SEE QUIT\n", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
-    ],
-    indirect=["test_input", "expected"],
-)
-def test_decompile(cmd: partial, test_input: str, expected: str):
     assert cmd(input=test_input).stdout == expected
 
 
