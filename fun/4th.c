@@ -128,16 +128,11 @@ void *code_field_address(struct word_t *word)
     return ((char *)word) + offset;
 }
 
-#if defined(EMSCRIPTEN) || !defined(__OPTIMIZE__)
-int main(void)
-#else
-void _start(void)
-#endif
+int main(int argc, char *argv[])
 {
     /* https://briancallahan.net/blog/20200808.html */
     intptr_t stack[STACK_SIZE];  /* Parameter stack */
     void *return_stack[STACK_SIZE]; /* Return stack */
-    intptr_t *argc = (intptr_t *)__builtin_frame_address(0) + 1;
 #ifdef __clang__
     __block
 #endif
@@ -387,7 +382,7 @@ DEFCONST(HERE, 0, "LATEST", LATEST, &latest);
 DEFCONST(LATEST, 0, "S0", SZ, &s0);
     intptr_t base;
 DEFCONST(SZ, 0, "BASE", BASE, &base);
-DEFCONST(BASE, 0, "(ARGC)", ARGC, argc);
+DEFCONST(BASE, 0, "(ARGC)", ARGC, &argv[-1]);
 DEFCONST(ARGC, 0, "VERSION", VERSION, 47);
 DEFCONST(VERSION, 0, "R0", RZ, return_stack + STACK_SIZE);
 DEFCONST(RZ, 0, "DOCOL", __DOCOL, &&DOCOL);

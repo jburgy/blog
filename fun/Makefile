@@ -1,6 +1,6 @@
 CC = gcc
 EC ?= emcc
-CFLAGS ?= -Wall -Wextra -O3 -nostartfiles -DNDEBUG
+CFLAGS ?= -Wall -Wextra -O3 -DNDEBUG
 ARFLAGS = -m32 -S -fverbose-asm
 EFLAGS = -g -gsource-map --source-map-base http://localhost:8000/ -O -Wall -Wextra -fblocks -sEXIT_RUNTIME=0 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1
 CPPFLAGS = -include cosmopolitan.h -I.

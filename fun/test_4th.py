@@ -59,9 +59,13 @@ def mapping(target: str) -> Mapping[str, str]:
 @pytest.fixture(scope="module")
 def cmd(target: str) -> partial:
     run(["make", target], cwd="fun", check=True)
-    env = {"SHELL": "/bin/bash"}
     yield partial(
-        run, "fun/" + target, capture_output=True, check=True, env=env, text=True
+        run,
+        args=["fun/" + target, "foo", "bar"],
+        capture_output=True,
+        check=True,
+        env={"SHELL": "/bin/bash"},
+        text=True,
     )
     if target == "4th.gcov":
         run(["gcov", "4th.c"], cwd="fun", check=True)
@@ -135,6 +139,8 @@ FOO EMIT
         ("{forth}18 {umask} SYSCALL1 .\n", "18 "),
         ('{forth}O_RDONLY Z" fun/4th.c" {access} SYSCALL2 .\n', "0 "),
         ('{forth}S" test" SWAP 1 SYS_WRITE SYSCALL3\n', "test"),
+        ("{forth}ARGC .\n", "3 "),
+        ("{forth}ENVIRON @ DUP STRLEN TELL\n", "SHELL=/bin/bash"),
         (
             "{forth}: FOO ( n -- ) THROW ;\n"
             ": TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF "
@@ -170,7 +176,6 @@ def test_fnctl(mapping: Mapping[str, str], cmd: partial):
         ("{forth}SEE >DFA\n", ": >DFA >CFA 8+ EXIT ;\n"),
         ("{forth}SEE HIDE\n", ": HIDE WORD FIND HIDDEN ;\n"),
         ("{forth}SEE QUIT\n", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
-        ("{forth}ENVIRON @ DUP STRLEN TELL\n", "SHELL=/bin/bash"),
     ],
     indirect=["test_input", "expected"],
 )
@@ -178,25 +183,10 @@ def test_decompile(cmd: partial, test_input: str, expected: str):
     assert cmd(input=test_input).stdout == expected
 
 
-@pytest.mark.start
-def test_argc(mapping: dict, cmd: partial):
-    assert (
-        cmd.func(
-            [cmd.args[0], "foo", "bar"],
-            input="{forth}ARGC .\n".format_map(mapping),
-            **cmd.keywords,
-        ).stdout
-        == "3 "
-    )
-
-
-@pytest.mark.start
 def test_argv(mapping: dict, cmd: partial):
     assert (
-        cmd.func(
-            [cmd.args[0], "foo", "bar"],
+        cmd(
             input="{forth}0 ARGV TELL SPACE 2 ARGV TELL\n".format_map(mapping),
-            **cmd.keywords,
         ).stdout
-        == cmd.args[0] + " bar"
+        == " ".join(cmd.keywords["args"][i] for i in (0, 2))
     )
