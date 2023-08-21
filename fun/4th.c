@@ -128,7 +128,7 @@ void *code_field_address(struct word_t *word)
     return ((char *)word) + offset;
 }
 
-int main(int argc, char *argv[])
+int main(int argc __attribute__((unused)), char *argv[])
 {
     /* https://briancallahan.net/blog/20200808.html */
     intptr_t stack[STACK_SIZE];  /* Parameter stack */
