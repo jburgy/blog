@@ -11,7 +11,7 @@ to understand PCRE's internals
 
 using Base: HasEltype, IteratorEltype, IteratorSize, SizeUnknown
 using Base.PCRE: INFO_NAMECOUNT, INFO_NAMEENTRYSIZE, INFO_NAMETABLE, compile, info
-import Base: Fix1, eltype, iterate, length
+import Base: Fix1, eltype, is_expr, iterate, length
 using Test: @test, @testset
 
 # https://docs.julialang.org/en/v1/manual/types/#%22Value-types%22
@@ -24,48 +24,51 @@ const OpBra = Val{0x86}
 const OpCBra = Val{0x88}
 const OpBraZero = Val{0x96}
 
-exprs = Dict{Symbol,Tuple{Expr,Vararg{Expr}}}(
-    :char! => (quote
-            op ≡ char && push!(next, ((i & ~2) | 1) + (2 << 2))
-            false
-        end, :(op::Char)),
-    :posstar! => (quote
-            local j = i | 1
-            push!(curr, j + (2 << 2))
-            op ≡ char && push!(next, j)
-            false
-        end, :(op::Char)),
-    :alt! => (quote
-            push!(curr, i + (3 << 2), i + link)
-            false
-        end, :(link::UInt16)),
-    :ket! => (:((i & 3) ≠ 0 && char ≡ '\0'), :(link::UInt16)),
-    :ketrmax! => (quote
-            (i & 3) ≠ 0 && push!(curr, (i | 1) + (3 << 2))
-            (i & 3) ≡ 1 && push!(curr, (i | 2) - link)
-            false
-        end, :(link::UInt16)),
-    :bra! => (quote
-            push!(curr, i + (3 << 2))
-            (i & 2) ≠ 0 && push!(curr, i + link)
-            false
-        end, :(link::UInt16)),
-    :cbra! => (quote
-            push!(curr, i + (5 << 2))
-            (i & 2) ≠ 0 && push!(curr, i + link)
-            false
-        end, :(link::UInt16)),
-    :brazero! => (quote
+matchers = quote
+    function char!(op::Char, ::Vector{Int64}, next::Vector{Int64}, char::Char, i::Int64)
+        op ≡ char && push!(next, ((i & ~2) | 1) + (2 << 2))
+        false
+    end
+    function posstar!(op::Char, curr::Vector{Int64}, next::Vector{Int64}, char::Char, i::Int64)
+        local j = i | 1
+        push!(curr, j + (2 << 2))
+        op ≡ char && push!(next, j)
+        false
+    end
+    function alt!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int64)
+        push!(curr, i + (3 << 2), i + link)
+        false
+    end
+    function ket!(link::UInt16, ::Vector{Int64}, ::Vector{Int64}, char::Char, i::Int64)
+        (i & 3) ≠ 0 && char ≡ '\0'
+    end
+    function ketrmax!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int64)
+        (i & 3) ≠ 0 && push!(curr, (i | 1) + (3 << 2))
+        (i & 3) ≡ 1 && push!(curr, (i | 2) - link)
+        false
+    end
+    function bra!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int64)
+        push!(curr, i + (3 << 2))
+        (i & 2) ≠ 0 && push!(curr, i + link)
+        false
+    end
+    function cbra!(link::UInt16, curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int64)
+        push!(curr, i + (5 << 2))
+        (i & 2) ≠ 0 && push!(curr, i + link)
+        false
+    end
+    function brazero!(curr::Vector{Int64}, ::Vector{Int64}, ::Char, i::Int64)
         push!(curr, (i | 2) + 4)
         false
-    end,),
-)
-
-for (name, (expr, args...)) ∈ exprs
-    @eval function $name($(args...), curr::Vector{Int64}, next::Vector{Int64}, char::Char, i::Int64)
-        $expr
     end
 end
+
+exprs = Dict{Symbol,Tuple{Expr,Vararg{Expr}}}(
+    expr.args[1].args[1] => (expr.args[2], expr.args[1].args[2:end-4]...)
+    for expr in matchers.args if is_expr(expr, :function)
+)
+
+eval(matchers)
 
 """
 Helper struct to convert a compiled https://www.pcre.org/ (which is just a `Ptr{Uint8}`) into
