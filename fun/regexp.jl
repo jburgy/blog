@@ -2,16 +2,17 @@
 https://en.wikipedia.org/wiki/Kleene%27s_algorithm in julia
 
 Julia's seamless interoperability with C lets us skip the boring steps of
-tokenizing and lexing the regular expression and let `PCRE.compile` take
-handle it.  Only the bare minimum is interpreter.
+tokenizing and lexing the regular expression and let `PCRE.compile` handle
+it.  Only the bare minimum is interpreted.
 
 https://github.com/PhilipHazel/pcre2/blob/master/HACKING is a great resource
 to understand PCRE's internals
 """
 
 using Base: HasEltype, IteratorEltype, IteratorSize, SizeUnknown
+using Base.Meta: isexpr
 using Base.PCRE: INFO_NAMECOUNT, INFO_NAMEENTRYSIZE, INFO_NAMETABLE, compile, info
-import Base: Fix1, eltype, is_expr, iterate, length
+import Base: Fix1, eltype, iterate, length
 using Test: @test, @testset
 
 # https://docs.julialang.org/en/v1/manual/types/#%22Value-types%22
@@ -65,7 +66,7 @@ end
 
 exprs = Dict{Symbol,Tuple{Expr,Vararg{Expr}}}(
     expr.args[1].args[1] => (expr.args[2], expr.args[1].args[2:end-4]...)
-    for expr in matchers.args if is_expr(expr, :function)
+    for expr in matchers.args if isexpr(expr, :function, 2)
 )
 
 eval(matchers)
