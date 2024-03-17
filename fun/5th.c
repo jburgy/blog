@@ -46,7 +46,7 @@ enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
 struct word_t {
     struct word_t *link;
     char flag;
-    char *name;
+    char name[15];
     union instr_t code[];
 };
 
@@ -528,8 +528,14 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET,
         target = code_field_address(new);
         if ((new->flag & F_IMMED) || !env->state)
         {
-            /* FIXME: interpreting ":" segfaults */
-            __attribute__((musttail)) return target->code(env, sp, rsp, target + 1);
+            if (target->code == DOCOL)
+            {
+                *--rsp = ip;
+                ip = (target + 1)->word;
+                NEXT;
+            }
+            else
+                __attribute__((musttail)) return target->code(env, sp, rsp, ip);
         }
         *p++ = *target;
     } else {
@@ -559,10 +565,8 @@ DEFCODE(QUIT, 0, "CHAR", CHAR,
 })
 DEFCODE(CHAR, 0, "EXECUTE", EXECUTE,
 {
-    intptr_t *(*target)(struct interp_t *, intptr_t *, union instr_t **, union instr_t *);
-
-    target = (typeof(target))*sp++;
-    __attribute__((musttail)) return target(env, sp, rsp, ip);
+    register union instr_t *target = (union instr_t *)*sp++;
+    __attribute__((musttail)) return target->code(env, sp, rsp, ip);
 })
 DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3,
 {
@@ -588,23 +592,19 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0,
     NEXT;
 })
 
-intptr_t run(struct interp_t env, union instr_t *ip)
-{
-    return (intptr_t)ip->code(&env, env.s0, env.r0, ip + 1);
-}
-
 int main(int argc __attribute__((unused)), char *argv[]) {
     intptr_t N = 0x2000;
     intptr_t stack[N];
     union instr_t *return_stack[N];
+    char *memory = sbrk(0x10000);
     struct interp_t env = {
         .state = 0,
-        .here = sbrk(0x10000),
         .latest = &name_SYSCALL0,
         .argc = (intptr_t *)&argv[-1],
         .s0 = stack + N,
         .base = 10,
         .r0 = return_stack + N,
+        .here = memory,
     };
     union instr_t *ip = name_QUIT.code;
 
