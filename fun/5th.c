@@ -7,7 +7,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#define NEXT printf("%-9s: %p\n", __func__, ip->code); __attribute__((musttail)) return ip->code(env, sp, rsp, ip + 1)
+#define NEXT __attribute__((musttail)) return ip->code(env, sp, rsp, ip + 1)
 #define DEFCODE_(_link, _flag, _name, _label, _code)\
 intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip)\
 _code \
@@ -15,8 +15,7 @@ static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag
 #define DEFCODE(_link, ...) DEFCODE_(&name_##_link, __VA_ARGS__)
 #define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label, { *--sp = (intptr_t)({ _value; }); NEXT; })
 #define DEFWORD(_link, _flag, _name, _label, ...)\
-static union instr_t word_##_label[] = {__VA_ARGS__};\
-static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {{.code = DOCOL}, {.word = word_##_label}}};
+static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {{.code = DOCOL}, __VA_ARGS__}};
 
 #define CODE(_label) {.code = _label}
 
@@ -39,7 +38,6 @@ struct interp_t {
 union instr_t {
     intptr_t *(*code)(struct interp_t *, intptr_t *, union instr_t **, union instr_t *);
     intptr_t literal;
-    union instr_t *word;
 };
 
 enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
@@ -355,7 +353,6 @@ DEFCONST(VERSION, 0, "R0", RZ, env->r0)
 DEFCODE(RZ, 0, "DOCOL", DOCOL,
 {
     *--rsp = ip;
-    ip = ip->word;
     NEXT;
 })
 DEFCONST(DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED)
@@ -439,7 +436,7 @@ DEFCODE(FIND, 0, ">CFA", TCFA,
     *--sp = (intptr_t)code_field_address(env->latest);
     NEXT;
 })
-DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCRP), CODE(FETCH), CODE(EXIT))
+DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCRP), CODE(EXIT))
 DEFCODE(TDFA, 0, "CREATE", CREATE,
 {
     register intptr_t c = *sp++;
@@ -477,12 +474,12 @@ DEFCODE(RBRAC, F_IMMED, "IMMEDIATE", IMMEDIATE,
 DEFCODE(IMMEDIATE, 0, "HIDDEN", HIDDEN,
 {
     register struct word_t *new = (typeof(new))*sp++;
-    new->flag ^= F_IMMED;
+    new->flag ^= F_HIDDEN;
     NEXT;
 })
 DEFWORD(HIDDEN, 0, "HIDE", HIDE, CODE(WORD), CODE(FIND), CODE(HIDDEN), CODE(EXIT))
 DEFWORD(HIDE, 0, ":", COLON, CODE(WORD), CODE(CREATE), CODE(LIT), CODE(DOCOL), CODE(COMMA),
-    CODE(HERE), CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(RBRAC), CODE(EXIT))
+    CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(RBRAC), CODE(EXIT))
 DEFWORD(COLON, F_IMMED, ";", SEMICOLON, CODE(LIT), CODE(EXIT), CODE(COMMA),
     CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(LBRAC), CODE(EXIT))
 DEFCONST(SEMICOLON, 0, "'", TICK, (ip++)->literal)
@@ -531,11 +528,10 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET,
             if (target->code == DOCOL)
             {
                 *--rsp = ip;
-                ip = (target + 1)->word;
+                ip = target + 1;
                 NEXT;
             }
-            else
-                __attribute__((musttail)) return target->code(env, sp, rsp, ip);
+            __attribute__((musttail)) return target->code(env, sp, rsp, ip);
         }
         *p++ = *target;
     } else {
