@@ -310,7 +310,11 @@ DEFCODE(LIT, 0, "!", STORE,
     *p = *sp++;
     NEXT;
 })
-DEFCONST(STORE, 0, "@", FETCH, *(intptr_t *)sp[0])
+DEFCODE(STORE, 0, "@", FETCH, 
+{
+    sp[0] = *(intptr_t *)sp[0];
+    NEXT;
+})
 DEFCODE(FETCH, 0, "+!", ADDSTORE,
 {
     register char **t = (char **)*sp++;
@@ -432,11 +436,11 @@ DEFCODE(NUMBER, 0, "FIND", FIND,
 })
 DEFCODE(FIND, 0, ">CFA", TCFA,
 {
-    env->latest = (struct word_t *)*sp++;
-    *--sp = (intptr_t)code_field_address(env->latest);
+    register struct word_t *new = (struct word_t *)*sp++;
+    *--sp = (intptr_t)code_field_address(new);
     NEXT;
 })
-DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCRP), CODE(EXIT))
+DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCRP), CODE(EXIT), CODE(EXIT))
 DEFCODE(TDFA, 0, "CREATE", CREATE,
 {
     register intptr_t c = *sp++;
