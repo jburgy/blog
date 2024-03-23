@@ -7,7 +7,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#define NEXT __attribute__((musttail)) return ip->code(env, sp, rsp, ip + 1)
+#define NEXT __attribute__((musttail)) return ip->word->code(env, sp, rsp, ip + 1)
 #define DEFCODE_(_link, _flag, _name, _label, _code)\
 intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip)\
 _code \
@@ -17,7 +17,7 @@ static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag
 #define DEFWORD(_link, _flag, _name, _label, ...)\
 static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {{.code = DOCOL}, __VA_ARGS__}};
 
-#define CODE(_label) {.code = _label}
+#define CODE(_label) {.word = name_##_label.code}
 
 /* https://gcc.gnu.org/onlinedocs/cpp/Stringizing.html */
 #define XSTR(x) STR(x)
@@ -38,12 +38,13 @@ struct interp_t {
 union instr_t {
     intptr_t *(*code)(struct interp_t *, intptr_t *, union instr_t **, union instr_t *);
     intptr_t literal;
+    union instr_t *word;
 };
 
 enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
 struct word_t {
     struct word_t *link;
-    char flag;
+    unsigned char flag;
     char name[15];
     union instr_t code[];
 };
@@ -100,7 +101,13 @@ union instr_t *code_field_address(struct word_t *word)
     return (union instr_t *)((char *)word + offset);
 }
 
-DEFCODE_(NULL, 0, "DROP", DROP,
+DEFCODE_(NULL, F_HIDDEN, "(DOCOL)", DOCOL,
+{
+    *--rsp = ip;
+    ip = ip->word + 1;
+    NEXT;
+})
+DEFCODE(DOCOL, 0, "DROP", DROP,
 {
     ++sp;
     NEXT;
@@ -310,7 +317,7 @@ DEFCODE(LIT, 0, "!", STORE,
     *p = *sp++;
     NEXT;
 })
-DEFCODE(STORE, 0, "@", FETCH, 
+DEFCODE(STORE, 0, "@", FETCH,
 {
     sp[0] = *(intptr_t *)sp[0];
     NEXT;
@@ -354,12 +361,8 @@ DEFCONST(SZ, 0, "BASE", BASE, &env->base)
 DEFCONST(BASE, 0, "(ARGC)", ARGC, &env->argc)
 DEFCONST(ARGC, 0, "VERSION", VERSION, 47)
 DEFCONST(VERSION, 0, "R0", RZ, env->r0)
-DEFCODE(RZ, 0, "DOCOL", DOCOL,
-{
-    *--rsp = ip;
-    NEXT;
-})
-DEFCONST(DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED)
+DEFCONST(RZ, 0, "DOCOL", _DOCOL, DOCOL)
+DEFCONST(_DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED)
 DEFCONST(__F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN)
 DEFCONST(__F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK)
 DEFCONST(__F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, __NR_exit)
@@ -379,10 +382,10 @@ DEFCONST(__O_TRUNC, 0, "O_APPEND", __O_APPEND, O_APPEND)
 DEFCONST(__O_APPEND, 0, "O_NONBLOCK", __O_NONBLOCK, O_NONBLOCK)
 DEFCODE(__O_NONBLOCK, 0, ">R", TOR,
 {
-    (*--rsp)->literal = *sp++;
+    *--rsp = (union instr_t *)*sp++;
     NEXT;
 })
-DEFCONST(TOR, 0, "R>", FROMR, (*rsp++)->literal)
+DEFCONST(TOR, 0, "R>", FROMR, *rsp++)
 DEFCONST(FROMR, 0, "RSP@", RSPFETCH, (intptr_t)rsp)
 DEFCODE(RSPFETCH, 0, "RSP!", RSPSTORE,
 {
@@ -455,8 +458,8 @@ DEFCODE(TDFA, 0, "CREATE", CREATE,
 })
 DEFCODE(CREATE, 0, ",", COMMA,
 {
-    register intptr_t *p = (intptr_t *)env->here;
-    *p++ = *sp++;
+    register union instr_t *p = (union instr_t *)env->here;
+    (p++)->word = (union instr_t *)*sp++;
     env->here = (char *)p;
     NEXT;
 })
@@ -482,8 +485,8 @@ DEFCODE(IMMEDIATE, 0, "HIDDEN", HIDDEN,
     NEXT;
 })
 DEFWORD(HIDDEN, 0, "HIDE", HIDE, CODE(WORD), CODE(FIND), CODE(HIDDEN), CODE(EXIT))
-DEFWORD(HIDE, 0, ":", COLON, CODE(WORD), CODE(CREATE), CODE(LIT), CODE(DOCOL), CODE(COMMA),
-    CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(RBRAC), CODE(EXIT))
+DEFWORD(HIDE, 0, ":", COLON, CODE(WORD), CODE(CREATE), CODE(LIT), {.code = DOCOL},
+    CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(RBRAC), CODE(EXIT))
 DEFWORD(COLON, F_IMMED, ";", SEMICOLON, CODE(LIT), CODE(EXIT), CODE(COMMA),
     CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(LBRAC), CODE(EXIT))
 DEFCONST(SEMICOLON, 0, "'", TICK, (ip++)->literal)
@@ -514,7 +517,7 @@ DEFCODE(LITSTRING, 0, "TELL", TELL,
     write(STDOUT_FILENO, s, c);
     NEXT;
 })
-DEFCODE(TELL, 0, "INTERPRET", INTERPRET,
+intptr_t *INTERPRET(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip)
 {
     static char errmsg[] = "PARSE ERROR: ";
     register union instr_t *p = (union instr_t *)env->here;
@@ -537,7 +540,7 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET,
             }
             __attribute__((musttail)) return target->code(env, sp, rsp, ip);
         }
-        *p++ = *target;
+        (p++)->word = target;
     } else {
         b = env->buffer[c];
         env->buffer[c] = '\0';
@@ -548,13 +551,19 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET,
             write(STDERR_FILENO, env->buffer, c);
             write(STDERR_FILENO, "\n", sizeof "\n" - 1);
         } else if (env->state) {
-            (p++)->code = LIT;
+            (p++)->word = name_LIT.code;
         }
         (p++)->literal = a;
     }
     env->here = (char *)p;
     NEXT;
-})
+}
+static struct word_t name_INTERPRET __attribute__((used)) = {
+    .link = &name_TELL,
+    .flag = (sizeof "INTERPRET") - 1,
+    .name = "INTERPRET",
+    .code = {{.code = INTERPRET}}
+};
 DEFWORD(INTERPRET, 0, "QUIT", QUIT, CODE(RZ), CODE(RSPSTORE), CODE(INTERPRET),
     CODE(BRANCH), {.literal = -2 * __SIZEOF_POINTER__}, CODE(EXIT))
 DEFCODE(QUIT, 0, "CHAR", CHAR,
@@ -606,7 +615,8 @@ int main(int argc __attribute__((unused)), char *argv[]) {
         .r0 = return_stack + N,
         .here = memory,
     };
-    union instr_t *ip = name_QUIT.code;
+    static union instr_t cold_start[] = {CODE(QUIT)};
+    union instr_t *ip = cold_start;
 
-    return (intptr_t)ip->code(&env, env.s0, env.r0, ip + 1);
+    return (intptr_t)ip->word->code(&env, env.s0, env.r0, ip);
 }
