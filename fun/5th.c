@@ -210,8 +210,8 @@ DEFCODE(SUB, 0, "*", MUL,
 })
 DEFCODE(MUL, 0, "/MOD", DIVMOD, 
 {
-    register intptr_t a = sp[0];
-    register intptr_t b = sp[1];
+    register intptr_t a = sp[1];
+    register intptr_t b = sp[0];
     sp[1] = a % b;
     sp[0] = a / b;
     NEXT;
@@ -224,31 +224,31 @@ DEFCODE(DIVMOD, 0, "=", EQU,
 })
 DEFCODE(EQU, 0, "<>", NEQU, 
 {
-    sp[1] = sp[0] == sp[1] ? 0 : -1;
+    sp[1] = sp[1] == sp[0] ? 0 : -1;
     ++sp;
     NEXT;
 })
 DEFCODE(NEQU, 0, "<", LT, 
 {
-    sp[1] = sp[0] < sp[1] ? -1 : 0;
+    sp[1] = sp[1] < sp[0] ? -1 : 0;
     ++sp;
     NEXT;
 })
 DEFCODE(LT, 0, ">", GT, 
 {
-    sp[1] = sp[0] > sp[1] ? -1 : 0;
+    sp[1] = sp[1] > sp[0] ? -1 : 0;
     ++sp;
     NEXT;
 })
 DEFCODE(GT, 0, "<=", LE, 
 {
-    sp[1] = sp[0] <= sp[1] ? -1 : 0;
+    sp[1] = sp[1] <= sp[0] ? -1 : 0;
     ++sp;
     NEXT;
 })
 DEFCODE(LE, 0, ">=", GE, 
 {
-    sp[1] = sp[0] >= sp[0] ? -1 : 0;
+    sp[1] = sp[1] >= sp[0] ? -1 : 0;
     ++sp;
     NEXT;
 })
@@ -259,7 +259,7 @@ DEFCODE(GE, 0, "0=", ZEQU,
 })
 DEFCODE(ZEQU, 0, "0<>", ZNEQU, 
 {
-    sp[0] = sp[1] ? -1 : 0;
+    sp[0] = sp[0] ? -1 : 0;
     NEXT;
 })
 DEFCODE(ZNEQU, 0, "0<", ZLT, 
@@ -543,7 +543,8 @@ intptr_t *INTERPRET(struct interp_t *env, intptr_t *sp, union instr_t **rsp, uni
             write(STDERR_FILENO, "\n", sizeof "\n" - 1);
         } else if (env->state) {
             (p++)->word = name_LIT.code;
-        }
+        } else
+            *--sp = a;
         (p++)->literal = a;
     }
     env->here = (char *)p;
