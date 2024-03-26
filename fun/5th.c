@@ -11,13 +11,13 @@
 #define DEFCODE_(_link, _flag, _name, _label, _code)\
 intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))\
 _code \
-static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {{.code = _label}}};
+static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = _label}, .data = {}};
 #define DEFCODE(_link, ...) DEFCODE_(&name_##_link, __VA_ARGS__)
 #define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label, { *--sp = (intptr_t)({ _value; }); NEXT; })
 #define DEFWORD(_link, _flag, _name, _label, ...)\
-static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {{.code = DOCOL}, __VA_ARGS__}};
+static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = DOCOL}, .data = {__VA_ARGS__}};
 
-#define CODE(_label) {.word = name_##_label.code}
+#define CODE(_label) {.word = &name_##_label.code}
 
 /* https://gcc.gnu.org/onlinedocs/cpp/Stringizing.html */
 #define XSTR(x) STR(x)
@@ -46,7 +46,8 @@ struct word_t {
     struct word_t *link;
     unsigned char flag;
     char name[15];
-    union instr_t code[];
+    union instr_t code;
+    union instr_t data[];
 };
 
 int key(void)
@@ -141,14 +142,14 @@ DEFCODE(ROT, 0, "-ROT", NROT, {
 })
 DEFCODE(NROT, 0, "2DROP", TWODROP,
 {
-    sp -= 2;
+    sp += 2;
     NEXT;
 })
 DEFCODE(TWODROP, 0, "2DUP", TWODUP, {
     register intptr_t a = sp[0];
     register intptr_t b = sp[1];
-    *--sp = a;
     *--sp = b;
+    *--sp = a;
     NEXT;
 })
 DEFCODE(TWODUP, 0, "2SWAP", TWOSWAP, 
@@ -340,7 +341,12 @@ DEFCODE(SUBSTORE, 0, "C!", STOREBYTE,
     *s = (char)*sp++;
     NEXT;
 })
-DEFCONST(STOREBYTE, 0, "C@", FETCHBYTE, *(char *)sp[0])
+DEFCODE(STOREBYTE, 0, "C@", FETCHBYTE,
+{
+    register char *s = (char *)sp[0];
+    sp[0] = s[0];
+    NEXT;
+})
 DEFCODE(FETCHBYTE, 0, "C@C!", CCOPY,
 {
     *(char *)sp[1] = *(char *)sp[0];
@@ -542,10 +548,10 @@ intptr_t *INTERPRET(struct interp_t *env, intptr_t *sp, union instr_t **rsp, uni
             write(STDERR_FILENO, env->buffer, c);
             write(STDERR_FILENO, "\n", sizeof "\n" - 1);
         } else if (env->state) {
-            (p++)->word = name_LIT.code;
+            (p++)->word = &name_LIT.code;
+            (p++)->literal = a;
         } else
             *--sp = a;
-        (p++)->literal = a;
     }
     env->here = (char *)p;
     NEXT;
@@ -554,7 +560,8 @@ static struct word_t name_INTERPRET __attribute__((used)) = {
     .link = &name_TELL,
     .flag = (sizeof "INTERPRET") - 1,
     .name = "INTERPRET",
-    .code = {{.code = INTERPRET}}
+    .code = {.code = INTERPRET},
+    .data = {},
 };
 DEFWORD(INTERPRET, 0, "QUIT", QUIT, CODE(RZ), CODE(RSPSTORE), CODE(INTERPRET),
     CODE(BRANCH), {.literal = -2 * __SIZEOF_POINTER__}, CODE(EXIT))
