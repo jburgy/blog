@@ -2,7 +2,7 @@ import os
 from functools import partial
 from pathlib import Path
 from subprocess import run
-from typing import Mapping
+from typing import Iterable, Mapping
 
 import pytest
 from _pytest import fixtures
@@ -57,7 +57,7 @@ def mapping(target: str) -> Mapping[str, str]:
 
 
 @pytest.fixture(scope="module")
-def cmd(target: str) -> partial:
+def cmd(target: str) -> Iterable[partial]:
     run(["make", target], cwd="fun", check=True)
     yield partial(
         run,
