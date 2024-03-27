@@ -1,6 +1,7 @@
 import _xxsubinterpreters as interpreters
 
 interpreter_id = interpreters.create()
-script = """from sys import version_info; print(version_info)"""
+script = "import sys; print(sys.version_info)"
 
 interpreters.run_string(interpreter_id, script)
+interpreters.destroy(interpreter_id)
