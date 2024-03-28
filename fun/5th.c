@@ -424,14 +424,14 @@ DEFCODE(EMIT, 0, "WORD", WORD,
 })
 DEFCODE(WORD, 0, "NUMBER", NUMBER,
 {
-    register intptr_t c = *sp++;
-    register char *s = (char *)*sp++;
+    register intptr_t c = sp[0];
+    register char *s = (char *)sp[1];
     register char a = s[c];
     char *r;
 
     s[c] = '\0';
-    *--sp = strtol(s, &r, env->base);
-    *--sp = r - s - c;
+    sp[1] = strtol(s, &r, env->base);
+    sp[0] = r - s - c;
     s[c] = a;
     NEXT;
 })
