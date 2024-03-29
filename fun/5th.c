@@ -8,12 +8,12 @@
 #include <unistd.h>
 
 #define NEXT __attribute__((musttail)) return ip->word->code(env, sp, rsp, ip + 1, ip->word)
-#define DEFCODE_(_link, _flag, _name, _label, _code)\
-intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))\
-_code \
-static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = _label}, .data = {}};
+#define DEFCODE_(_link, _flag, _name, _label) \
+intptr_t *_label(struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *); \
+static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = _label}}; \
+intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))
 #define DEFCODE(_link, ...) DEFCODE_(&name_##_link, __VA_ARGS__)
-#define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label, { *--sp = (intptr_t)({ _value; }); NEXT; })
+#define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label) { *--sp = (intptr_t)({ _value; }); NEXT; }
 #define DEFWORD(_link, _flag, _name, _label, ...)\
 static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = DOCOL}, .data = {__VA_ARGS__}};
 
@@ -108,21 +108,22 @@ intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union i
     ip = target + 1;
     NEXT;
 }
-DEFCODE_(NULL, 0, "DROP", DROP,
+DEFCODE_(NULL, 0, "DROP", DROP)
 {
     ++sp;
     NEXT;
-})
-DEFCODE(DROP, 0, "SWAP", SWAP,
+}
+DEFCODE(DROP, 0, "SWAP", SWAP)
 {
     register intptr_t tmp = sp[1];
     sp[1] = sp[0];
     sp[0] = tmp;
     NEXT;
-})
+}
 DEFCONST(SWAP, 0, "DUP", DUP, sp[0])
 DEFCONST(DUP, 0, "OVER", OVER, sp[1])
-DEFCODE(OVER, 0, "ROT", ROT, {
+DEFCODE(OVER, 0, "ROT", ROT)
+{
     register intptr_t a = sp[0];
     register intptr_t b = sp[1];
     register intptr_t c = sp[2];
@@ -130,8 +131,9 @@ DEFCODE(OVER, 0, "ROT", ROT, {
     sp[1] = a;
     sp[0] = c;
     NEXT;
-})
-DEFCODE(ROT, 0, "-ROT", NROT, {
+}
+DEFCODE(ROT, 0, "-ROT", NROT)
+{
     register intptr_t a = sp[0];
     register intptr_t b = sp[1];
     register intptr_t c = sp[2];
@@ -139,20 +141,21 @@ DEFCODE(ROT, 0, "-ROT", NROT, {
     sp[1] = c;
     sp[0] = b;
     NEXT;
-})
-DEFCODE(NROT, 0, "2DROP", TWODROP,
+}
+DEFCODE(NROT, 0, "2DROP", TWODROP)
 {
     sp += 2;
     NEXT;
-})
-DEFCODE(TWODROP, 0, "2DUP", TWODUP, {
+}
+DEFCODE(TWODROP, 0, "2DUP", TWODUP)
+{
     register intptr_t a = sp[0];
     register intptr_t b = sp[1];
     *--sp = b;
     *--sp = a;
     NEXT;
-})
-DEFCODE(TWODUP, 0, "2SWAP", TWOSWAP, 
+}
+DEFCODE(TWODUP, 0, "2SWAP", TWOSWAP)
 {
     register intptr_t a = sp[0];
     register intptr_t b = sp[1];
@@ -163,202 +166,202 @@ DEFCODE(TWODUP, 0, "2SWAP", TWOSWAP,
     sp[1] = d;
     sp[0] = c;
     NEXT;
-})
-DEFCODE(TWOSWAP, 0, "?DUP", QDUP, 
+}
+DEFCODE(TWOSWAP, 0, "?DUP", QDUP)
 {
     register intptr_t a = sp[0];
     if (a)
         *--sp = a;
     NEXT;
-})
-DEFCODE(QDUP, 0, "1+", INCR,
+}
+DEFCODE(QDUP, 0, "1+", INCR)
 {
     ++sp[0];
     NEXT;
-})
-DEFCODE(INCR, 0, "1-", DECR,
+}
+DEFCODE(INCR, 0, "1-", DECR)
 {
     --sp[0];
     NEXT;
-})
-DEFCODE(DECR, 0, XSTR(__SIZEOF_POINTER__) "+", INCRP,
+}
+DEFCODE(DECR, 0, XSTR(__SIZEOF_POINTER__) "+", INCRP)
 {
     sp[0] += __SIZEOF_POINTER__;
     NEXT;
-})
-DEFCODE(INCRP, 0, XSTR(__SIZEOF_POINTER__) "-", DECRP,
+}
+DEFCODE(INCRP, 0, XSTR(__SIZEOF_POINTER__) "-", DECRP)
 {
     sp[0] -= __SIZEOF_POINTER__;
     NEXT;
-});
-DEFCODE(DECRP, 0, "+", ADD, 
+};
+DEFCODE(DECRP, 0, "+", ADD) 
 {
     sp[1] += sp[0];
     ++sp;
     NEXT;
-})
-DEFCODE(ADD, 0, "-", SUB, 
+}
+DEFCODE(ADD, 0, "-", SUB)
 {
     sp[1] -= sp[0];
     ++sp;
     NEXT;
-})
-DEFCODE(SUB, 0, "*", MUL, 
+}
+DEFCODE(SUB, 0, "*", MUL) 
 {
     sp[1] *= sp[0];
     ++sp;
     NEXT;
-})
-DEFCODE(MUL, 0, "/MOD", DIVMOD, 
+}
+DEFCODE(MUL, 0, "/MOD", DIVMOD)
 {
     register intptr_t a = sp[1];
     register intptr_t b = sp[0];
     sp[1] = a % b;
     sp[0] = a / b;
     NEXT;
-})
-DEFCODE(DIVMOD, 0, "=", EQU, 
+}
+DEFCODE(DIVMOD, 0, "=", EQU)
 {
     sp[1] = sp[0] == sp[1] ? -1 : 0;
     ++sp;
     NEXT;
-})
-DEFCODE(EQU, 0, "<>", NEQU, 
+}
+DEFCODE(EQU, 0, "<>", NEQU)
 {
     sp[1] = sp[1] == sp[0] ? 0 : -1;
     ++sp;
     NEXT;
-})
-DEFCODE(NEQU, 0, "<", LT, 
+}
+DEFCODE(NEQU, 0, "<", LT)
 {
     sp[1] = sp[1] < sp[0] ? -1 : 0;
     ++sp;
     NEXT;
-})
-DEFCODE(LT, 0, ">", GT, 
+}
+DEFCODE(LT, 0, ">", GT)
 {
     sp[1] = sp[1] > sp[0] ? -1 : 0;
     ++sp;
     NEXT;
-})
-DEFCODE(GT, 0, "<=", LE, 
+}
+DEFCODE(GT, 0, "<=", LE) 
 {
     sp[1] = sp[1] <= sp[0] ? -1 : 0;
     ++sp;
     NEXT;
-})
-DEFCODE(LE, 0, ">=", GE, 
+}
+DEFCODE(LE, 0, ">=", GE) 
 {
     sp[1] = sp[1] >= sp[0] ? -1 : 0;
     ++sp;
     NEXT;
-})
-DEFCODE(GE, 0, "0=", ZEQU, 
+}
+DEFCODE(GE, 0, "0=", ZEQU) 
 {
     sp[0] = sp[0] ? 0 : -1;
     NEXT;
-})
-DEFCODE(ZEQU, 0, "0<>", ZNEQU, 
+}
+DEFCODE(ZEQU, 0, "0<>", ZNEQU) 
 {
     sp[0] = sp[0] ? -1 : 0;
     NEXT;
-})
-DEFCODE(ZNEQU, 0, "0<", ZLT, 
+}
+DEFCODE(ZNEQU, 0, "0<", ZLT)
 {
     sp[0] = sp[0] < 0 ? -1 : 0;
     NEXT;
-})
-DEFCODE(ZLT, 0, "0>", ZGT, 
+}
+DEFCODE(ZLT, 0, "0>", ZGT)
 {
     sp[0] = sp[0] > 0 ? -1 : 0;
     NEXT;
-})
-DEFCODE(ZGT, 0, "0<=", ZLE, 
+}
+DEFCODE(ZGT, 0, "0<=", ZLE) 
 {
     sp[0] = sp[0] <= 0 ? -1 : 0;
     NEXT;
-})
-DEFCODE(ZLE, 0, "0>=", ZGE, 
+}
+DEFCODE(ZLE, 0, "0>=", ZGE) 
 {
     sp[0] = sp[0] >= 0 ? -1 : 0;
     NEXT;
-})
-DEFCODE(ZGE, 0, "AND", AND,
+}
+DEFCODE(ZGE, 0, "AND", AND)
 {
     sp[1] &= sp[0];
     ++sp;
     NEXT;
-})
-DEFCODE(AND, 0, "OR", OR,
+}
+DEFCODE(AND, 0, "OR", OR)
 {
     sp[1] |= sp[0];
     ++sp;
     NEXT;
-})
-DEFCODE(OR, 0, "XOR", XOR,
+}
+DEFCODE(OR, 0, "XOR", XOR)
 {
     sp[1] ^= sp[0];
     ++sp;
     NEXT;
-})
-DEFCODE(XOR, 0, "INVERT", INVERT,
+}
+DEFCODE(XOR, 0, "INVERT", INVERT)
 {
     sp[0] = ~sp[0];
     NEXT;
-})
-DEFCODE(INVERT, 0, "EXIT", EXIT,
+}
+DEFCODE(INVERT, 0, "EXIT", EXIT)
 {
     ip = *rsp++;
     NEXT;
-})
+}
 DEFCONST(EXIT, 0, "LIT", LIT, (ip++)->literal)
-DEFCODE(LIT, 0, "!", STORE,
+DEFCODE(LIT, 0, "!", STORE)
 {
     register intptr_t *p = (intptr_t *)*sp++;
     *p = *sp++;
     NEXT;
-})
-DEFCODE(STORE, 0, "@", FETCH,
+}
+DEFCODE(STORE, 0, "@", FETCH)
 {
     sp[0] = *(intptr_t *)sp[0];
     NEXT;
-})
-DEFCODE(FETCH, 0, "+!", ADDSTORE,
+}
+DEFCODE(FETCH, 0, "+!", ADDSTORE)
 {
     register char **t = (char **)*sp++;
     *t += *sp++;
     NEXT;
-})
-DEFCODE(ADDSTORE, 0, "-!", SUBSTORE,
+}
+DEFCODE(ADDSTORE, 0, "-!", SUBSTORE)
 {
     register char **t = (char **)*sp++;
     *t -= *sp++;
     NEXT;
-})
-DEFCODE(SUBSTORE, 0, "C!", STOREBYTE,
+}
+DEFCODE(SUBSTORE, 0, "C!", STOREBYTE)
 {
     register char *s = (char *)*sp++;
     *s = (char)*sp++;
     NEXT;
-})
-DEFCODE(STOREBYTE, 0, "C@", FETCHBYTE,
+}
+DEFCODE(STOREBYTE, 0, "C@", FETCHBYTE)
 {
     register char *s = (char *)sp[0];
     sp[0] = s[0];
     NEXT;
-})
-DEFCODE(FETCHBYTE, 0, "C@C!", CCOPY,
+}
+DEFCODE(FETCHBYTE, 0, "C@C!", CCOPY)
 {
     *(char *)sp[1] = *(char *)sp[0];
     ++sp;
     NEXT;
-})
-DEFCODE(CCOPY, 0, "CMOVE", CMOVE,
+}
+DEFCODE(CCOPY, 0, "CMOVE", CMOVE)
 {
     sp[2] = (intptr_t)memmove((void *)sp[1], (const void *)sp[2], sp[0]);
     sp += 2;
     NEXT;
-})
+}
 DEFCONST(CMOVE, 0, "STATE", STATE, &env->state)
 DEFCONST(STATE, 0, "HERE", HERE, &env->here)
 DEFCONST(HERE, 0, "LATEST", LATEST, &env->latest)
@@ -386,43 +389,43 @@ DEFCONST(__O_CREAT, 0, "O_EXCL", __O_EXCL, O_EXCL)
 DEFCONST(__O_EXCL, 0, "O_TRUNC", __O_TRUNC, O_TRUNC)
 DEFCONST(__O_TRUNC, 0, "O_APPEND", __O_APPEND, O_APPEND)
 DEFCONST(__O_APPEND, 0, "O_NONBLOCK", __O_NONBLOCK, O_NONBLOCK)
-DEFCODE(__O_NONBLOCK, 0, ">R", TOR,
+DEFCODE(__O_NONBLOCK, 0, ">R", TOR)
 {
     *--rsp = (union instr_t *)*sp++;
     NEXT;
-})
+}
 DEFCONST(TOR, 0, "R>", FROMR, *rsp++)
 DEFCONST(FROMR, 0, "RSP@", RSPFETCH, (intptr_t)rsp)
-DEFCODE(RSPFETCH, 0, "RSP!", RSPSTORE,
+DEFCODE(RSPFETCH, 0, "RSP!", RSPSTORE)
 {
     rsp = (union instr_t **)*sp++;
     NEXT;
-})
-DEFCODE(RSPSTORE, 0, "RDROP", RDROP,
+}
+DEFCODE(RSPSTORE, 0, "RDROP", RDROP)
 {
     ++rsp;
     NEXT;
-})
+}
 DEFCONST(RDROP, 0, "DSP@", DSPFETCH, (intptr_t)sp)
-DEFCODE(DSPFETCH, 0, "DSP!", DSPSTORE,
+DEFCODE(DSPFETCH, 0, "DSP!", DSPSTORE)
 {
     sp = (intptr_t *)sp[0];
     NEXT;
-})
+}
 DEFCONST(DSPSTORE, 0, "KEY", KEY, key())
-DEFCODE(KEY, 0, "EMIT", EMIT,
+DEFCODE(KEY, 0, "EMIT", EMIT)
 {
     putchar(*sp++);
     fflush(stdout);
     NEXT;
-})
-DEFCODE(EMIT, 0, "WORD", WORD,
+}
+DEFCODE(EMIT, 0, "WORD", WORD)
 {
     *--sp = (intptr_t)env->buffer;
     *--sp = word(env->buffer);
     NEXT;
-})
-DEFCODE(WORD, 0, "NUMBER", NUMBER,
+}
+DEFCODE(WORD, 0, "NUMBER", NUMBER)
 {
     register intptr_t c = sp[0];
     register char *s = (char *)sp[1];
@@ -434,23 +437,23 @@ DEFCODE(WORD, 0, "NUMBER", NUMBER,
     sp[0] = r - s - c;
     s[c] = a;
     NEXT;
-})
-DEFCODE(NUMBER, 0, "FIND", FIND,
+}
+DEFCODE(NUMBER, 0, "FIND", FIND)
 {
     register intptr_t c = *sp++;
     register char *s = (char *)*sp++;
 
     *--sp = (intptr_t)find(env->latest, s, c);
     NEXT;
-})
-DEFCODE(FIND, 0, ">CFA", TCFA,
+}
+DEFCODE(FIND, 0, ">CFA", TCFA)
 {
     register struct word_t *new = (struct word_t *)*sp++;
     *--sp = (intptr_t)code_field_address(new);
     NEXT;
-})
+}
 DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCRP), CODE(EXIT), CODE(EXIT))
-DEFCODE(TDFA, 0, "CREATE", CREATE,
+DEFCODE(TDFA, 0, "CREATE", CREATE)
 {
     register intptr_t c = *sp++;
     register char *s = (char *)*sp++;
@@ -461,69 +464,69 @@ DEFCODE(TDFA, 0, "CREATE", CREATE,
     env->here = (char *)code_field_address(new);
     env->latest = new;
     NEXT;
-})
-DEFCODE(CREATE, 0, ",", COMMA,
+}
+DEFCODE(CREATE, 0, ",", COMMA)
 {
     register union instr_t *p = (union instr_t *)env->here;
     (p++)->word = (union instr_t *)*sp++;
     env->here = (char *)p;
     NEXT;
-})
-DEFCODE(COMMA, F_IMMED, "[", LBRAC,
+}
+DEFCODE(COMMA, F_IMMED, "[", LBRAC)
 {
     env->state = 0;
     NEXT;
-})
-DEFCODE(LBRAC, 0, "]", RBRAC,
+}
+DEFCODE(LBRAC, 0, "]", RBRAC)
 {
     env->state = 1;
     NEXT;
-})
-DEFCODE(RBRAC, F_IMMED, "IMMEDIATE", IMMEDIATE,
+}
+DEFCODE(RBRAC, F_IMMED, "IMMEDIATE", IMMEDIATE)
 {
     env->latest->flag ^= F_IMMED;
     NEXT;
-})
-DEFCODE(IMMEDIATE, 0, "HIDDEN", HIDDEN,
+}
+DEFCODE(IMMEDIATE, 0, "HIDDEN", HIDDEN)
 {
     register struct word_t *new = (typeof(new))*sp++;
     new->flag ^= F_HIDDEN;
     NEXT;
-})
+}
 DEFWORD(HIDDEN, 0, "HIDE", HIDE, CODE(WORD), CODE(FIND), CODE(HIDDEN), CODE(EXIT))
 DEFWORD(HIDE, 0, ":", COLON, CODE(WORD), CODE(CREATE), CODE(LIT), {.code = DOCOL},
     CODE(COMMA), CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(RBRAC), CODE(EXIT))
 DEFWORD(COLON, F_IMMED, ";", SEMICOLON, CODE(LIT), CODE(EXIT), CODE(COMMA),
     CODE(LATEST), CODE(FETCH), CODE(HIDDEN), CODE(LBRAC), CODE(EXIT))
 DEFCONST(SEMICOLON, 0, "'", TICK, (ip++)->literal)
-DEFCODE(TICK, 0, "BRANCH", BRANCH,
+DEFCODE(TICK, 0, "BRANCH", BRANCH)
 {
     ip += ip->literal / __SIZEOF_POINTER__;
     NEXT;
-})
-DEFCODE(BRANCH, 0, "0BRANCH", ZBRANCH, 
+}
+DEFCODE(BRANCH, 0, "0BRANCH", ZBRANCH)
 {
     if (!*sp++)
         __attribute__((musttail)) return BRANCH(env, sp, rsp, ip, ip->word);
     ++ip;
     NEXT;
-})
-DEFCODE(ZBRANCH, 0, "LITSTRING", LITSTRING,
+}
+DEFCODE(ZBRANCH, 0, "LITSTRING", LITSTRING)
 {
     register intptr_t c = (ip++)->literal;
     *--sp = (intptr_t)ip;
     *--sp = c;
     ip += (c + __SIZEOF_POINTER__) / __SIZEOF_POINTER__;
     NEXT;
-})
-DEFCODE(LITSTRING, 0, "TELL", TELL,
+}
+DEFCODE(LITSTRING, 0, "TELL", TELL)
 {
     register intptr_t c = *sp++;
     register char *s = (char *)*sp++;
     write(STDOUT_FILENO, s, c);
     NEXT;
-})
-intptr_t *INTERPRET(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+}
+DEFCODE(TELL, 0, "INTERPRET", INTERPRET)
 {
     static char errmsg[] = "PARSE ERROR: ";
     register union instr_t *p = (union instr_t *)env->here;
@@ -556,49 +559,42 @@ intptr_t *INTERPRET(struct interp_t *env, intptr_t *sp, union instr_t **rsp, uni
     env->here = (char *)p;
     NEXT;
 }
-static struct word_t name_INTERPRET __attribute__((used)) = {
-    .link = &name_TELL,
-    .flag = (sizeof "INTERPRET") - 1,
-    .name = "INTERPRET",
-    .code = {.code = INTERPRET},
-    .data = {},
-};
 DEFWORD(INTERPRET, 0, "QUIT", QUIT, CODE(RZ), CODE(RSPSTORE), CODE(INTERPRET),
     CODE(BRANCH), {.literal = -2 * __SIZEOF_POINTER__}, CODE(EXIT))
-DEFCODE(QUIT, 0, "CHAR", CHAR,
+DEFCODE(QUIT, 0, "CHAR", CHAR)
 {
     word(env->buffer);
     *--sp = env->buffer[0];
     NEXT;
-})
-DEFCODE(CHAR, 0, "EXECUTE", EXECUTE,
+}
+DEFCODE(CHAR, 0, "EXECUTE", EXECUTE)
 {
     target = (union instr_t *)*sp++;
     __attribute__((musttail)) return target->code(env, sp, rsp, ip, target);
-})
-DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3,
+}
+DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
 {
     sp[3] = syscall(sp[0], sp[1], sp[2], sp[3]);
     sp += 3;
     NEXT;
-})
-DEFCODE(SYSCALL3, 0, "SYSCALL2", SYSCALL2,
+}
+DEFCODE(SYSCALL3, 0, "SYSCALL2", SYSCALL2)
 {
     sp[2] = syscall(sp[0], sp[1], sp[2]);
     sp += 2;
     NEXT;
-})
-DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1,
+}
+DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
 {
     sp[1] = syscall(sp[0], sp[1]);
     ++sp;
     NEXT;
-})
-DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0,
+}
+DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
 {
     sp[0] = syscall(sp[0]);
     NEXT;
-})
+}
 
 int main(int argc __attribute__((unused)), char *argv[]) {
     intptr_t N = 0x2000;
