@@ -588,6 +588,9 @@ DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
         case SYS_read:
             sp[3] = read(sp[1], (void *)sp[2], sp[3]);
             break;
+        case SYS_write:
+            sp[3] = write(sp[1], (const void *)sp[2], sp[3]);
+            break;
     }
     sp += 3;
     NEXT;
