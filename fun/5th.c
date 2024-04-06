@@ -583,7 +583,7 @@ DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
     switch (sp[0])
     {
         case SYS_openat:
-            sp[3] = openat(sp[1], (const char *)sp[2], sp[3]);
+            sp[3] = openat(AT_FDCWD, (const char *)sp[1], sp[2], sp[3]);
             break;
         case SYS_read:
             sp[3] = read(sp[1], (void *)sp[2], sp[3]);
