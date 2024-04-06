@@ -4,8 +4,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/syscall.h>
+#include <syscall.h>
 #include <unistd.h>
+
+#ifdef EMSCRIPTEN
+#include <stdarg.h>
+
+/* https://github.com/emscripten-core/emscripten/issues/6708 */
+enum SYS {SYS_exit, SYS_openat, SYS_close, SYS_read, SYS_write, SYS_brk};
+#endif
 
 #define NEXT __attribute__((musttail)) return ip->word->code(env, sp, rsp, ip + 1, ip->word)
 #define DEFCODE_(_link, _flag, _name, _label) \
@@ -374,13 +381,12 @@ DEFCONST(RZ, 0, "DOCOL", _DOCOL, DOCOL)
 DEFCONST(_DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED)
 DEFCONST(__F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN)
 DEFCONST(__F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK)
-DEFCONST(__F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, __NR_exit)
-DEFCONST(SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, __NR_open)
-DEFCONST(SYS_OPEN, 0, "SYS_CLOSE", SYS_CLOSE, __NR_close)
-DEFCONST(SYS_CLOSE, 0, "SYS_READ", SYS_READ, __NR_read)
-DEFCONST(SYS_READ, 0, "SYS_WRITE", SYS_WRITE, __NR_write)
-DEFCONST(SYS_WRITE, 0, "SYS_CREAT", SYS_CREAT, __NR_creat)
-DEFCONST(SYS_CREAT, 0, "SYS_BRK", SYS_BRK, __NR_brk)
+DEFCONST(__F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, SYS_exit)
+DEFCONST(SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, SYS_openat)
+DEFCONST(SYS_OPEN, 0, "SYS_CLOSE", SYS_CLOSE, SYS_close)
+DEFCONST(SYS_CLOSE, 0, "SYS_READ", SYS_READ, SYS_read)
+DEFCONST(SYS_READ, 0, "SYS_WRITE", SYS_WRITE, SYS_write)
+DEFCONST(SYS_WRITE, 0, "SYS_BRK", SYS_BRK, SYS_brk)
 DEFCONST(SYS_BRK, 0, "O_RDONLY", __O_RDONLY, O_RDONLY)
 DEFCONST(__O_RDONLY, 0, "O_WRONLY", __O_WRONLY, O_WRONLY)
 DEFCONST(__O_WRONLY, 0, "O_RDWR", __O_RDWR, O_RDWR)
@@ -574,25 +580,43 @@ DEFCODE(CHAR, 0, "EXECUTE", EXECUTE)
 }
 DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
 {
-    sp[3] = syscall(sp[0], sp[1], sp[2], sp[3]);
+    switch (sp[0])
+    {
+        case SYS_openat:
+            sp[3] = openat(sp[1], (const char *)sp[2], sp[3]);
+            break;
+        case SYS_read:
+            sp[3] = read(sp[1], (void *)sp[2], sp[3]);
+            break;
+    }
     sp += 3;
     NEXT;
 }
 DEFCODE(SYSCALL3, 0, "SYSCALL2", SYSCALL2)
 {
-    sp[2] = syscall(sp[0], sp[1], sp[2]);
+    switch (sp[0])
+    {
+        case SYS_openat:
+            sp[2] = openat(AT_FDCWD, (const char *)sp[1], sp[2]);
+            break;
+    }
     sp += 2;
     NEXT;
 }
 DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
 {
-    sp[1] = syscall(sp[0], sp[1]);
+    switch (sp[0])
+    {
+        case SYS_exit:
+            exit(sp[1]);
+        case SYS_close:
+            sp[1] = close(sp[1]);
+            break;
+        case SYS_brk:
+            sp[1] = sp[1] ? brk((void *)sp[1]) : (intptr_t)sbrk(sp[1]);
+            break;
+    }
     ++sp;
-    NEXT;
-}
-DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
-{
-    sp[0] = syscall(sp[0]);
     NEXT;
 }
 
@@ -603,7 +627,7 @@ int main(int argc __attribute__((unused)), char *argv[]) {
     char *memory = sbrk(0x10000);
     struct interp_t env = {
         .state = 0,
-        .latest = &name_SYSCALL0,
+        .latest = &name_SYSCALL1,
         .argc = (intptr_t *)&argv[-1],
         .s0 = stack + N,
         .base = 10,
