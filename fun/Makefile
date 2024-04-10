@@ -2,7 +2,7 @@ CC = gcc
 EC ?= emcc
 CFLAGS ?= -Wall -Wextra -O3 -DNDEBUG
 ARFLAGS = -m32 -S -fverbose-asm
-EFLAGS = -g -gsource-map --source-map-base http://localhost:8000/ -O -Wall -Wextra -fblocks -sEXIT_RUNTIME=0 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1
+EFLAGS = -g -gsource-map --source-map-base http://localhost:8000/ -O -Wall -Wextra -fblocks -mtail-call -sEXIT_RUNTIME=1 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1
 CPPFLAGS = -include cosmopolitan.h -I.
 LDFLAGS = -Wl,--oformat=binary -Wl,--gc-sections -Wl,-z,max-page-size=0x1000 -fuse-ld=bfd -gdwarf-4 -Wl,-T,ape.lds
 LDLIBS = cosmopolitan.a
@@ -37,6 +37,9 @@ run: 4th
 %.ll : %.c
 	clang $(CFLAGS) -fblocks -lBlocksRuntime -o $@ $^
 
+%.ll.32 : %.c
+	clang $(CFLAGS) -g -m32 -o $@ $^
+
 serve: 4th.js
 	open http://localhost:8000/4th.html
 	python -m http.server
@@ -51,7 +54,7 @@ cosmopolitan-amalgamation-2.2.zip :
 	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th 4th.ll 4th.wasm 4th.wasm.map 4th.js 4th.32 4th.gcov *.gcda *.gcno
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.ll *.wasm* 4th.js 4th.32 4th.gcov *.gcda *.gcno
 
 define allbutlast
 $(wordlist 2, $(words $(1)), x $(1))

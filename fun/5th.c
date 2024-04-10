@@ -33,7 +33,9 @@ static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_lin
 struct interp_t {
     intptr_t state;
     struct word_t *latest;
+#ifndef EMSCRIPTEN
     intptr_t *argc;
+#endif
     intptr_t *s0;
     intptr_t base;
     union instr_t **r0;
@@ -374,8 +376,12 @@ DEFCONST(STATE, 0, "HERE", HERE, &env->here)
 DEFCONST(HERE, 0, "LATEST", LATEST, &env->latest)
 DEFCONST(LATEST, 0, "S0", SZ, &env->s0)
 DEFCONST(SZ, 0, "BASE", BASE, &env->base)
+#ifdef EMSCRIPTEN
+DEFCONST(BASE, 0, "VERSION", VERSION, 47)
+#else
 DEFCONST(BASE, 0, "(ARGC)", ARGC, env->argc)
 DEFCONST(ARGC, 0, "VERSION", VERSION, 47)
+#endif
 DEFCONST(VERSION, 0, "R0", RZ, env->r0)
 DEFCONST(RZ, 0, "DOCOL", _DOCOL, DOCOL)
 DEFCONST(_DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED)
@@ -623,7 +629,12 @@ DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
     NEXT;
 }
 
-int main(int argc __attribute__((unused)), char *argv[]) {
+#ifdef EMSCRIPTEN
+int main(void)
+#else
+int main(int argc __attribute__((unused)), char *argv[])
+#endif
+{
     intptr_t N = 0x2000;
     intptr_t stack[N];
     union instr_t *return_stack[N];
@@ -631,7 +642,9 @@ int main(int argc __attribute__((unused)), char *argv[]) {
     struct interp_t env = {
         .state = 0,
         .latest = &name_SYSCALL1,
+#ifndef EMSCRIPTEN
         .argc = (intptr_t *)&argv[-1],
+#endif
         .s0 = stack + N,
         .base = 10,
         .r0 = return_stack + N,
