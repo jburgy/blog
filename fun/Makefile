@@ -54,7 +54,7 @@ cosmopolitan-amalgamation-2.2.zip :
 	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.ll *.wasm* 4th.js 4th.32 4th.gcov *.gcda *.gcno
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.ll *.wasm* 4th.js 5th.js 4th.32 4th.gcov *.gcda *.gcno
 
 define allbutlast
 $(wordlist 2, $(words $(1)), x $(1))
