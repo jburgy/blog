@@ -25,7 +25,7 @@
         slave.ldisc.toUpperBuf.push(...preamble);
 
         await initEmscripten({ pty: slave });
-        save.write("");
+        slave.ldisc.flushToUpper();
     </script>
 </body>
 
