@@ -14,11 +14,22 @@
 enum SYS {SYS_exit, SYS_openat, SYS_close, SYS_read, SYS_write, SYS_brk};
 #endif
 
-#define NEXT __attribute__((musttail)) return ip->word->code(env, sp, rsp, ip + 1, ip->word)
+// #define NEXT __attribute__((musttail)) return ip->word->code(ip->word, ip + 1, sp, rsp, env)
+#define NEXT asm volatile("movq %[rsp], %%rdi;" \
+                          "movq %[ip], %%rsi;" \
+                          "movq %[sp], %%rdx;" \
+                          "movq %[env], %%rcx;" \
+                          "lodsq (%%rsi), %%rax;" \
+                          "movq %%rdi, %[ip];" \
+                          "jmp *(%%rax)" \
+                          : [ip]"+r"(ip) \
+                          : [rsp]"r"(rsp), [sp]"r"(sp), [env]"r"(env) \
+                          : "rax", "rdi", "rsi", "rdx", "rcx");
+
 #define DEFCODE_(_link, _flag, _name, _label) \
-intptr_t *_label(struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *); \
+void _label(union instr_t **, union instr_t *, intptr_t *, struct interp_t *); \
 static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = _label}}; \
-intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))
+void _label(union instr_t **rsp __attribute__((unused)), union instr_t *ip, intptr_t *sp __attribute__((unused)), struct interp_t *env __attribute__((unused)))
 #define DEFCODE(_link, ...) DEFCODE_(&name_##_link, __VA_ARGS__)
 #define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label) { *--sp = (intptr_t)({ _value; }); NEXT; }
 #define DEFWORD(_link, _flag, _name, _label, ...)\
@@ -45,7 +56,7 @@ struct interp_t {
 
 /* A Forth instr_t. Code ("words") is a sequence of these. */
 union instr_t {
-    intptr_t *(*code)(struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *);
+    void (*code)(union instr_t **, union instr_t *, intptr_t *, struct interp_t *);
     intptr_t literal;
     union instr_t *word;
 };
@@ -111,10 +122,10 @@ union instr_t *code_field_address(struct word_t *word)
     return (union instr_t *)((char *)word + offset);
 }
 
-intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+void DOCOL(union instr_t **rsp, union instr_t *ip, intptr_t *sp __attribute__((unused)), struct interp_t *env __attribute__((unused)))
 {
     *--rsp = ip;
-    ip = target + 1;
+    asm volatile("addq $8, %%rax; movq %%rax, %[ip]" : [ip] "+r"(ip) :: "%rax");
     NEXT;
 }
 DEFCODE_(NULL, 0, "DROP", DROP)
@@ -519,7 +530,7 @@ DEFCODE(TICK, 0, "BRANCH", BRANCH)
 DEFCODE(BRANCH, 0, "0BRANCH", ZBRANCH)
 {
     if (!*sp++)
-        __attribute__((musttail)) return BRANCH(env, sp, rsp, ip, ip->word);
+        __attribute__((musttail)) return BRANCH(rsp, ip, sp, env);
     ++ip;
     NEXT;
 }
@@ -549,9 +560,18 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET)
     char *r;
 
     if (new) {
-        target = code_field_address(new);
+        register union instr_t *target = code_field_address(new);
         if ((new->flag & F_IMMED) || !env->state)
-            __attribute__((musttail)) return target->code(env, sp, rsp, ip, target);
+            // __attribute__((musttail)) return target->code(target, ip, sp, rsp, env);
+            asm volatile("movq %[target], %%rax;"
+                         "movq %[rsp], %%rdi;"
+                         "movq %[ip], %%rsi;"
+                         "movq %[sp], %%rdx;"
+                         "movq %[env], %%rcx;"
+                         "jmp *(%%rax)"
+                         :
+                         : [target]"r"(target), [rsp]"r"(rsp), [ip]"r"(ip), [sp]"r"(sp), [env]"r"(env)
+                         : "rax", "rdi", "rsi", "rdx", "rcx");
         (p++)->word = target;
     } else {
         b = env->buffer[c];
@@ -581,8 +601,8 @@ DEFCODE(QUIT, 0, "CHAR", CHAR)
 }
 DEFCODE(CHAR, 0, "EXECUTE", EXECUTE)
 {
-    target = (union instr_t *)*sp++;
-    __attribute__((musttail)) return target->code(env, sp, rsp, ip, target);
+    register union instr_t *target = (union instr_t *)*sp++;
+    __attribute__((musttail)) return target->code(rsp, ip, sp, env);
 }
 DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
 {
@@ -653,5 +673,6 @@ int main(int argc __attribute__((unused)), char *argv[])
     static union instr_t cold_start[] = {CODE(QUIT)};
     union instr_t *ip = cold_start;
 
-    return (intptr_t)ip->word->code(&env, env.s0, env.r0, ip, ip->word);
+    ip->word->code(env.r0, ip, env.s0, &env);
+    return 0;
 }
