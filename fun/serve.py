@@ -2,7 +2,7 @@
 # encoding: utf-8
 """Use instead of `python3 -m http.server` when you need CORS"""
 
-from http.server import HTTPServer, SimpleHTTPRequestHandler, test
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 
 class CORSRequestHandler(SimpleHTTPRequestHandler):
@@ -14,4 +14,7 @@ class CORSRequestHandler(SimpleHTTPRequestHandler):
         return super().end_headers()
 
 
-test(HandlerClass=CORSRequestHandler, ServerClass=HTTPServer)
+if __name__ == "__main__":
+    from http.server import test
+
+    test(HandlerClass=CORSRequestHandler, ServerClass=HTTPServer)
