@@ -58,3 +58,5 @@ cosmopolitan.h
 
 node_modules
 package-lock.json
+zig-cache/
+zig-out/
