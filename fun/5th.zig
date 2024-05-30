@@ -33,6 +33,11 @@ const Interp = struct {
 
     pub inline fn next(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
         _ = target;
+        var node: ?*Word = self.latest;
+        while (node != null and !std.meta.eql(node.?.code, ip[0].word)) {
+            node = @constCast(node.?.link);
+        }
+        std.debug.print("{s}\n", .{node.?.name[0..(node.?.flag & 0x1F)]});
         try @call(.always_tail, ip[0].word[0].code, .{ self, sp, rsp, ip[1..], ip[0].word });
     }
 
@@ -115,7 +120,7 @@ fn defconst(
     const wrap = struct {
         pub fn code(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
             const s = sp - 1;
-            sp[0] = switch (value) {
+            s[0] = switch (value) {
                 Type.self => |f| @intCast(@intFromPtr(&@field(self, f))),
                 Type.rsp => |g| g(rsp),
                 Type.ip => |h| h(ip),
@@ -478,7 +483,7 @@ const rz = defconst(&version, "R0", .{ .self = "r0" });
 fn docol_(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const r = rsp - 1;
     r[0] = @constCast(ip);
-    self.next(sp, r, @constCast(target[1..]), target[0].word);
+    self.next(sp, r, @constCast(target[1..]), target);
 }
 
 inline fn _docol(sp: [*]isize) anyerror![*]isize {
@@ -652,18 +657,7 @@ inline fn _tcfa(sp: [*]isize) anyerror![*]isize {
     return sp;
 }
 const tcfa = defcode(&find_, ">CFA", _tcfa);
-
-const tdfa = Word{
-    .link = &tcfa,
-    .flag = ">DFA".len,
-    .name = ">DFA",
-    .code = &[_]Instr{
-        .{ .code = docol_ },
-        .{ .word = tcfa.code },
-        .{ .word = incrp.code },
-        .{ .word = exit.code },
-    },
-};
+const tdfa = defword(&tcfa, Flag.ZERO, ">DFA", &[_]Word{ tcfa, incrp, exit });
 
 fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const c: usize = @intCast(sp[0]);
@@ -696,48 +690,40 @@ const comma = Word{
     .link = &create,
     .flag = ",".len,
     .name = ",",
-    .code = &[_]Instr{.{
-        .code = _comma,
-    }},
+    .code = &[_]Instr{.{ .code = _comma }},
 };
 
 fn _lbrac(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     self.state = 0;
-    self.next(sp + 1, rsp, ip, target);
+    self.next(sp, rsp, ip, target);
 }
 const lbrac = Word{
     .link = &comma,
     .flag = "[".len,
     .name = "[",
-    .code = &[_]Instr{.{
-        .code = _lbrac,
-    }},
+    .code = &[_]Instr{.{ .code = _lbrac }},
 };
 
 fn _rbrac(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     self.state = 1;
-    self.next(sp + 1, rsp, ip, target);
+    self.next(sp, rsp, ip, target);
 }
 const rbrac = Word{
     .link = &comma,
     .flag = "]".len,
     .name = "]",
-    .code = &[_]Instr{.{
-        .code = _rbrac,
-    }},
+    .code = &[_]Instr{.{ .code = _rbrac }},
 };
 
 fn _immediate(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     self.latest.flag ^= @intFromEnum(Flag.IMMED);
-    self.next(sp + 1, rsp, ip, target);
+    self.next(sp, rsp, ip, target);
 }
 const immediate = Word{
     .link = &rbrac,
     .flag = "IMMEDIATE".len,
     .name = "IMMEDIATE",
-    .code = &[_]Instr{.{
-        .code = _immediate,
-    }},
+    .code = &[_]Instr{.{ .code = _immediate }},
 };
 
 inline fn _hidden(sp: [*]isize) anyerror![*]isize {
@@ -754,16 +740,16 @@ const semicolon = defword(&colon, Flag.IMMED, ";", &[_]Word{ lit, exit, comma, l
 const tick = defcode(&semicolon, "'", _lit);
 
 fn _branch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const offset: usize = @intCast(ip[0].literal);
-    self.next(sp, rsp, ip[offset..], target);
+    const offset = @divTrunc(ip[0].literal, @alignOf(isize));
+    const p = if (offset < 0) ip.ptr - @abs(offset) else ip.ptr + @abs(offset);
+    const len = if (offset < 0) ip.len + @abs(offset) else ip.len - @abs(offset);
+    self.next(sp, rsp, p[0..len], target);
 }
 const branch = Word{
     .link = &tick,
     .flag = "BRANCH".len,
     .name = "BRANCH",
-    .code = &[_]Instr{.{
-        .code = _branch,
-    }},
+    .code = &[_]Instr{.{ .code = _branch }},
 };
 
 fn _zbranch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
@@ -775,9 +761,7 @@ const zbranch = Word{
     .link = &branch,
     .flag = "0BRANCH".len,
     .name = "0BRANCH",
-    .code = &[_]Instr{.{
-        .code = _zbranch,
-    }},
+    .code = &[_]Instr{.{ .code = _zbranch }},
 };
 
 fn _litstring(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
@@ -792,9 +776,7 @@ const litstring = Word{
     .link = &branch,
     .flag = "LITSTRING".len,
     .name = "LITSTRING",
-    .code = &[_]Instr{.{
-        .code = _litstring,
-    }},
+    .code = &[_]Instr{.{ .code = _litstring }},
 };
 
 inline fn _tell(sp: [*]isize) anyerror![*]isize {
@@ -810,6 +792,7 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
     const c = self.word();
     const p: [*]Instr = @alignCast(@ptrCast(self.here));
     var n: usize = 0;
+    var s = sp;
 
     if (self.find(self.buffer[0..c])) |new| {
         const tgt = new.code;
@@ -829,14 +812,22 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
             p[0] = .{ .word = @constCast(lit.code) };
             p[1] = .{ .literal = a };
             n = 2;
-        } else {}
+        } else {
+            s = sp - 1;
+            s[0] = a;
+        }
     } else |_| {
         std.debug.print("PARSE ERROR: {s}\n", .{self.buffer[0..c]});
     }
     self.here = @ptrCast(p + n);
-    self.next(sp, rsp, ip, target);
+    self.next(s, rsp, ip, target);
 }
-const interpret = Word{ .link = &tell, .flag = "INTERPRET".len, .name = "INTERPRET", .code = &[_]Instr{.{ .code = _interpret }} };
+const interpret = Word{
+    .link = &tell,
+    .flag = "INTERPRET".len,
+    .name = "INTERPRET",
+    .code = &[_]Instr{.{ .code = _interpret }},
+};
 
 const quit = Word{
     .link = &interpret,
@@ -859,7 +850,12 @@ fn _char(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []co
     s[0] = self.buffer[0];
     self.next(s, rsp, ip, target);
 }
-const char = Word{ .link = &quit, .flag = "CHAR".len, .name = "CHAR", .code = &[_]Instr{.{ .code = _char }} };
+const char = Word{
+    .link = &quit,
+    .flag = "CHAR".len,
+    .name = "CHAR",
+    .code = &[_]Instr{.{ .code = _char }},
+};
 
 fn _execute(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     _ = target;
@@ -867,7 +863,12 @@ fn _execute(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: [
     const target_: *Instr = @ptrFromInt(u);
     try @call(.always_tail, target_.code, .{ self, sp + 1, rsp, ip, target_[0..0] });
 }
-const execute = Word{ .link = &char, .flag = "EXECUTE".len, .name = "EXECUTE", .code = &[_]Instr{.{ .code = _execute }} };
+const execute = Word{
+    .link = &char,
+    .flag = "EXECUTE".len,
+    .name = "EXECUTE",
+    .code = &[_]Instr{.{ .code = _execute }},
+};
 
 inline fn _syscall3(sp: [*]isize) ![*]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
