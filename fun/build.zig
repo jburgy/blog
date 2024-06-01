@@ -6,7 +6,5 @@ pub fn build(b: *std.Build) void {
         .root_source_file = .{ .path = "5th.zig" },
         .target = b.host,
     });
-    exe.linkLibC();
-
     b.installArtifact(exe);
 }

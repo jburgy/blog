@@ -1,17 +1,14 @@
 const std = @import("std");
 const io = std.io;
 const fmt = std.fmt;
-const mem = std.mem;
+const eql = std.mem.eql;
 const os = std.os;
 const linux = os.linux;
 const syscalls = linux.syscalls;
+const posix = std.posix;
 const builtin = @import("builtin");
+
 const dbg = builtin.mode == .Debug;
-
-const libc = @cImport({
-    @cInclude("fcntl.h");
-});
-
 const stdin = io.getStdIn().reader();
 const stdout = io.getStdOut().writer();
 
@@ -66,7 +63,7 @@ const Interp = struct {
     pub fn find(self: *Interp, name: []u8) ?*Word {
         const mask = @intFromEnum(Flag.HIDDEN) | @intFromEnum(Flag.LENMASK);
         var node: ?*Word = self.latest;
-        while (node != null and ((node.?.flag & mask) != name.len or !mem.eql(u8, node.?.name, name)))
+        while (node != null and ((node.?.flag & mask) != name.len or !eql(u8, node.?.name, name)))
             node = @constCast(node.?.link);
 
         return node;
@@ -81,15 +78,11 @@ const Instr = union {
 
 const Type = enum {
     self,
-    rsp,
-    ip,
     literal,
 };
 
 const Source = union(Type) {
     self: []const u8,
-    rsp: fn ([*][]Instr) callconv(.Inline) isize,
-    ip: fn ([*]Instr) callconv(.Inline) isize,
     literal: isize,
 };
 
@@ -134,8 +127,6 @@ fn defconst(
             const s = sp - 1;
             s[0] = switch (value) {
                 Type.self => |f| @intCast(@intFromPtr(&@field(self, f))),
-                Type.rsp => |g| g(rsp),
-                Type.ip => |h| h(ip),
                 Type.literal => |i| i,
             };
             self.next(s, rsp, ip, target);
@@ -471,7 +462,7 @@ const ccopy = defcode(&fetchbyte, "C@C!", _ccopy);
 
 inline fn _cmove(sp: [*]isize) anyerror![*]isize {
     const n: usize = @intCast(sp[0]);
-    mem.copyForwards(u8, dest: {
+    @memcpy(dest: {
         const u: usize = @intCast(sp[1]);
         const p: [*]u8 = @ptrFromInt(u);
         break :dest p[0..n];
@@ -513,14 +504,14 @@ const sys_close = defconst(&sys_open, "SYS_CLOSE", .{ .literal = @intFromEnum(sy
 const sys_read = defconst(&sys_close, "SYS_READ", .{ .literal = @intFromEnum(syscalls.X64.read) });
 const sys_write = defconst(&sys_read, "SYS_WRITE", .{ .literal = @intFromEnum(syscalls.X64.write) });
 const sys_brk = defconst(&sys_write, "SYS_BRK", .{ .literal = @intFromEnum(syscalls.X64.brk) });
-const o_rdonly = defconst(&sys_brk, "O_RDONLY", .{ .literal = libc.O_RDONLY });
-const o_wronly = defconst(&o_rdonly, "O_WRONLY", .{ .literal = libc.O_WRONLY });
-const o_rdwr = defconst(&o_wronly, "O_RDWR", .{ .literal = libc.O_RDWR });
-const o_creat = defconst(&o_rdwr, "O_CREAT", .{ .literal = libc.O_CREAT });
-const o_excl = defconst(&o_creat, "O_EXCL", .{ .literal = libc.O_EXCL });
-const o_trunc = defconst(&o_excl, "O_TRUNC", .{ .literal = libc.O_TRUNC });
-const o_append = defconst(&o_trunc, "O_APPEND", .{ .literal = libc.O_APPEND });
-const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = libc.O_NONBLOCK });
+const o_rdonly = defconst(&sys_brk, "O_RDONLY", .{ .literal = @intFromEnum(posix.ACCMODE.RDONLY) });
+const o_wronly = defconst(&o_rdonly, "O_WRONLY", .{ .literal = @intFromEnum(posix.ACCMODE.WRONLY) });
+const o_rdwr = defconst(&o_wronly, "O_RDWR", .{ .literal = @intFromEnum(posix.ACCMODE.RDWR) });
+const o_creat = defconst(&o_rdwr, "O_CREAT", .{ .literal = 0x100 });
+const o_excl = defconst(&o_creat, "O_EXCL", .{ .literal = 0x200 });
+const o_trunc = defconst(&o_excl, "O_TRUNC", .{ .literal = 0x1000 });
+const o_append = defconst(&o_trunc, "O_APPEND", .{ .literal = 0x2000 });
+const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = 0x4000 });
 
 fn _tor(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const r = rsp - 1;
@@ -638,7 +629,7 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
     const new: *Word = @alignCast(@ptrCast(self.here));
     new.link = self.latest;
     new.flag = @truncate(c);
-    mem.copyForwards(u8, @constCast(new.name), s[0..c]);
+    @memcpy(@constCast(new.name), s[0..c]);
     self.here = @constCast(@ptrCast(new.code));
     self.latest = new;
     self.next(sp + 2, rsp, ip, target);
