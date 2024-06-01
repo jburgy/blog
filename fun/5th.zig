@@ -396,17 +396,18 @@ inline fn _invert(sp: [*]isize) anyerror![*]isize {
 }
 const invert = defcode(&xor, "INVERT", _invert);
 
-inline fn _exit(sp: [*]isize) anyerror![*]isize {
-    // FIXME: exit
-    return sp;
+fn _exit(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    _ = ip;
+    self.next(sp, rsp[1..], rsp[0], target);
 }
-const exit = defcode(&invert, "EXIT", _exit);
+const exit = defcode_(&invert, "EXIT", _exit);
 
-inline fn _lit(sp: [*]isize) anyerror![*]isize {
-    // FIXME: lit
-    return sp;
+fn _lit(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = sp - 1;
+    s[0] = ip[0].literal;
+    self.next(s, rsp, ip[1..], target);
 }
-const lit = defcode(&exit, "LIT", _lit);
+const lit = defcode_(&exit, "LIT", _lit);
 
 inline fn _store(sp: [*]isize) anyerror![*]isize {
     const u: usize = @intCast(sp[0]);
@@ -470,11 +471,15 @@ const ccopy = defcode(&fetchbyte, "C@C!", _ccopy);
 
 inline fn _cmove(sp: [*]isize) anyerror![*]isize {
     const n: usize = @intCast(sp[0]);
-    const u: usize = @intCast(sp[1]);
-    const v: usize = @intCast(sp[2]);
-    const p: [*]u8 = @ptrFromInt(u);
-    const q: [*]u8 = @ptrFromInt(v);
-    mem.copyForwards(u8, p[0..n], q[0..n]);
+    mem.copyForwards(u8, dest: {
+        const u: usize = @intCast(sp[1]);
+        const p: [*]u8 = @ptrFromInt(u);
+        break :dest p[0..n];
+    }, source: {
+        const v: usize = @intCast(sp[2]);
+        const q: [*]u8 = @ptrFromInt(v);
+        break :source q[0..n];
+    });
     return sp + 2;
 }
 const cmove = defcode(&ccopy, "CMOVE", _cmove);
@@ -679,7 +684,7 @@ const hidden = defcode(&immediate, "HIDDEN", _hidden);
 const hide = defword(&hidden, Flag.ZERO, "HIDE", &[_]Word{ word_, find_, hidden, exit });
 const colon = defword(&hide, Flag.ZERO, ":", &[_]Word{ word_, create, docol, comma, latest, fetch, hidden, rbrac, exit });
 const semicolon = defword(&colon, Flag.IMMED, ";", &[_]Word{ lit, exit, comma, latest, fetch, hidden, lbrac, exit });
-const tick = defcode(&semicolon, "'", _lit);
+const tick = defcode_(&semicolon, "'", _lit);
 
 fn _branch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const offset = @divTrunc(ip[0].literal, @alignOf(isize));
