@@ -570,6 +570,8 @@ inline fn _key(sp: [*]isize) anyerror![*]isize {
 const key_ = defcode(&dspstore, "KEY", _key);
 
 inline fn _emit(sp: [*]isize) anyerror![*]isize {
+    const c: u8 = @truncate(sp[0]);
+    try stdout.print("{c}", .{c});
     return sp + 1;
 }
 const emit = defcode(&key_, "EMIT", _emit);
