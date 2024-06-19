@@ -19,7 +19,7 @@ const Word = struct {
     link: ?*const Word,
     flag: u8,
     name: []const u8,
-    code: []const Instr,
+    code: []Instr,
 };
 
 const Interp = struct {
@@ -75,7 +75,7 @@ const Interp = struct {
 const Instr = union {
     code: *const fn (*Interp, [*]isize, [*][]Instr, []Instr, []const Instr) anyerror!void,
     literal: isize,
-    word: []const Instr,
+    word: []Instr,
 };
 
 const Type = enum {
@@ -102,7 +102,7 @@ fn defcode_(
         .link = last,
         .flag = name.len,
         .name = name,
-        .code = &[_]Instr{.{ .code = code }},
+        .code = @constCast(&[_]Instr{.{ .code = code }}),
     };
 }
 
@@ -147,13 +147,13 @@ fn defword(
         .link = last,
         .flag = name.len | @intFromEnum(flag),
         .name = name,
-        .code = [_]Instr{.{ .code = docol_ }} ++ comptime init: {
+        .code = @constCast([_]Instr{.{ .code = docol_ }} ++ comptime init: {
             var code: [data.len]Instr = undefined;
             for (&code, data) |*d, s| {
                 d.* = .{ .word = s.code };
             }
             break :init &code;
-        },
+        }),
     };
 }
 
@@ -642,8 +642,9 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
     new.link = self.latest;
     new.flag = @truncate(c);
     new.name = try self.here.dupe(u8, s[0..c]);
-    new.code = undefined;
+    new.code = try self.here.create([3]Instr);
     self.latest = new;
+    self.scratch = std.ArrayList(Instr).fromOwnedSlice(self.here, new.code);
     self.next(sp + 2, rsp, ip, target);
 }
 const create = defcode_(&tdfa, "CREATE", _create);
@@ -734,7 +735,7 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
         if ((new.flag & @intFromEnum(Flag.IMMED)) != 0 or self.state == 0) {
             return @call(.always_tail, tgt[0].code, .{ self, sp, rsp, ip, tgt });
         } else {
-            try self.scratch.append(.{ .word = target });
+            try self.scratch.append(.{ .word = tgt });
         }
     } else if (fmt.parseInt(isize, self.buffer[0..c], blk: {
         const ubase: usize = @intCast(self.base);
@@ -760,7 +761,7 @@ const quit = Word{
     .link = &interpret,
     .flag = "QUIT".len,
     .name = "QUIT",
-    .code = &[_]Instr{
+    .code = @constCast(&[_]Instr{
         .{ .code = docol_ },
         .{ .word = rz.code },
         .{ .word = rspstore.code },
@@ -768,7 +769,7 @@ const quit = Word{
         .{ .word = branch.code },
         .{ .literal = -2 * @sizeOf(usize) },
         .{ .word = exit.code },
-    },
+    }),
 };
 
 fn _char(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
@@ -842,7 +843,7 @@ pub fn main() anyerror!void {
         .r0 = rsp + N,
         .buffer = undefined,
         .here = allocator,
-        .scratch = std.ArrayList(Instr).init(allocator),
+        .scratch = undefined,
     };
     const self = &env;
     const cold_start = [_]Instr{.{ .word = @constCast(quit.code) }};
