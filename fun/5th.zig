@@ -39,7 +39,7 @@ const Interp = struct {
             while (node != null and !std.meta.eql(node.?.code, ip[0].word)) {
                 node = @constCast(node.?.link);
             }
-            std.debug.print("{s:<32} {s}\n", .{ self.buffer, node.?.name[0..(node.?.flag & 0x1F)] });
+            std.debug.print("{s:<32} {d} {s}\n", .{ self.buffer, self.state, node.?.name[0..(node.?.flag & 0x1F)] });
         }
         return @call(.always_tail, ip[0].word[0].code, .{ self, sp, rsp, ip[1..], ip[0].word });
     }
@@ -665,7 +665,12 @@ fn _lbrac(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []c
     self.state = 0;
     self.next(sp, rsp, ip, target);
 }
-const lbrac = defcode_(&comma, "[", _lbrac);
+const lbrac = Word{
+    .link = &comma,
+    .flag = "[".len | @intFromEnum(Flag.IMMED),
+    .name = "[",
+    .code = @constCast(&[_]Instr{.{ .code = _lbrac }}),
+};
 
 fn _rbrac(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     self.state = 1;
@@ -677,7 +682,12 @@ fn _immediate(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
     self.latest.flag ^= @intFromEnum(Flag.IMMED);
     self.next(sp, rsp, ip, target);
 }
-const immediate = defcode_(&rbrac, "IMMEDIATE", _immediate);
+const immediate = Word{
+    .link = &rbrac,
+    .flag = "IMMEDIATE".len | @intFromEnum(Flag.IMMED),
+    .name = "IMMEDIATE",
+    .code = @constCast(&[_]Instr{.{ .code = _immediate }}),
+};
 
 inline fn _hidden(sp: [*]isize) anyerror![*]isize {
     const u: usize = @intCast(sp[0]);
@@ -689,7 +699,23 @@ const hidden = defcode(&immediate, "HIDDEN", _hidden);
 
 const hide = defword(&hidden, Flag.ZERO, "HIDE", &[_]Word{ word_, find_, hidden, exit });
 const colon = defword(&hide, Flag.ZERO, ":", &[_]Word{ word_, create, docol, comma, latest, fetch, hidden, rbrac, exit });
-const semicolon = defword(&colon, Flag.IMMED, ";", &[_]Word{ lit, exit, comma, latest, fetch, hidden, lbrac, exit });
+const semicolon = Word{
+    .link = &colon,
+    .flag = ";".len | @intFromEnum(Flag.IMMED),
+    .name = ";",
+    .code = @constCast(&[_]Instr{
+        .{ .code = docol_ },
+        .{ .word = lit.code },
+        .{ .word = exit.code },
+        .{ .word = comma.code },
+        .{ .word = latest.code },
+        .{ .word = fetch.code },
+        .{ .word = hidden.code },
+        .{ .word = lbrac.code },
+        .{ .word = exit.code },
+    }),
+};
+
 const tick = defcode_(&semicolon, "'", _lit);
 
 fn _branch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
@@ -715,7 +741,7 @@ fn _litstring(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
     const offset: usize = (c + @sizeOf(usize)) / @sizeOf(usize);
     self.next(s, rsp, ip[offset..], target);
 }
-const litstring = defcode_(&branch, "LITSTRING", _litstring);
+const litstring = defcode_(&zbranch, "LITSTRING", _litstring);
 
 inline fn _tell(sp: [*]isize) anyerror![*]isize {
     const u: usize = @intCast(sp[0]);
@@ -751,7 +777,7 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
             s[0] = a;
         }
     } else |_| {
-        std.debug.print("PARSE ERROR: {s}\n", .{self.buffer[0..c]});
+        std.debug.panic("PARSE ERROR: {s}\n", .{self.buffer[0..c]});
     }
     self.next(s, rsp, ip, target);
 }
@@ -807,7 +833,7 @@ inline fn _syscall2(sp: [*]isize) ![*]isize {
     sp[2] = @intCast(linux.syscall2(number_, arg1, arg2));
     return sp + 2;
 }
-const syscall2 = defcode(&execute, "SYSCALL2", _syscall2);
+const syscall2 = defcode(&syscall3, "SYSCALL2", _syscall2);
 
 inline fn _syscall1(sp: [*]isize) ![*]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
@@ -816,7 +842,7 @@ inline fn _syscall1(sp: [*]isize) ![*]isize {
     sp[1] = @intCast(linux.syscall1(number_, arg1));
     return sp + 1;
 }
-const syscall1 = defcode(&execute, "SYSCALL1", _syscall1);
+const syscall1 = defcode(&syscall2, "SYSCALL1", _syscall1);
 
 inline fn _syscall0(sp: [*]isize) ![*]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
@@ -824,7 +850,7 @@ inline fn _syscall0(sp: [*]isize) ![*]isize {
     sp[0] = @intCast(linux.syscall0(number_));
     return sp;
 }
-const syscall0 = defcode(&execute, "SYSCALL0", _syscall0);
+const syscall0 = defcode(&syscall1, "SYSCALL0", _syscall0);
 
 pub fn main() anyerror!void {
     const N = 0x20;
