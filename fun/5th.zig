@@ -2,14 +2,10 @@ const std = @import("std");
 const io = std.io;
 const fmt = std.fmt;
 const mem = std.mem;
-const eql = mem.eql;
-const os = std.os;
-const linux = os.linux;
+const linux = std.os.linux;
 const syscalls = linux.syscalls;
 const posix = std.posix;
-const builtin = @import("builtin");
 
-const dbg = builtin.mode == .Debug;
 const stdin = io.getStdIn().reader();
 const stdout = io.getStdOut().writer();
 
@@ -30,17 +26,9 @@ const Interp = struct {
     r0: [*][]Instr,
     buffer: [32]u8,
     here: mem.Allocator,
-    scratch: std.ArrayList(Instr),
 
     pub inline fn next(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
         _ = target;
-        if (dbg) {
-            var node: ?*Word = self.latest;
-            while (node != null and !std.meta.eql(node.?.code, ip[0].word)) {
-                node = @constCast(node.?.link);
-            }
-            std.debug.print("{s:<32} {d} {s}\n", .{ self.buffer, self.state, node.?.name[0..(node.?.flag & 0x1F)] });
-        }
         return @call(.always_tail, ip[0].word[0].code, .{ self, sp, rsp, ip[1..], ip[0].word });
     }
 
@@ -65,10 +53,17 @@ const Interp = struct {
     pub fn find(self: *Interp, name: []u8) ?*Word {
         const mask = @intFromEnum(Flag.HIDDEN) | @intFromEnum(Flag.LENMASK);
         var node: ?*Word = self.latest;
-        while (node != null and ((node.?.flag & mask) != name.len or !eql(u8, node.?.name, name)))
+        while (node != null and ((node.?.flag & mask) != name.len or !mem.eql(u8, node.?.name, name)))
             node = @constCast(node.?.link);
 
         return node;
+    }
+
+    pub fn append(self: *Interp, instr: Instr) mem.Allocator.Error!void {
+        const code = self.latest.code;
+        const len = code.len;
+        self.latest.code = try self.here.realloc(code, len + 1);
+        self.latest.code[len] = instr;
     }
 };
 
@@ -397,8 +392,7 @@ const exit = defcode_(&invert, "EXIT", _exit);
 
 fn _lit(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const s = sp - 1;
-    const u = @intFromPtr(ip[0].word.ptr);
-    s[0] = @intCast(u);
+    s[0] = ip[0].literal;
     self.next(s, rsp, ip[1..], target);
 }
 const lit = defcode_(&exit, "LIT", _lit);
@@ -525,8 +519,8 @@ const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = 0x4000 });
 fn _tor(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const r = rsp - 1;
     const s: usize = @intCast(sp[0]);
-    const t: *Instr = @ptrFromInt(s);
-    r[0] = t[0..0];
+    const t: *[]Instr = @ptrFromInt(s);
+    r[0] = t.*;
     self.next(sp + 1, r, ip, target);
 }
 const tor = defcode_(&o_nonblock, ">R", _tor);
@@ -642,21 +636,19 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
     new.link = self.latest;
     new.flag = @truncate(c);
     new.name = try self.here.dupe(u8, s[0..c]);
-    new.code = try self.here.create([3]Instr);
+    new.code = try self.here.alloc(Instr, 0);
     self.latest = new;
-    self.scratch = std.ArrayList(Instr).fromOwnedSlice(self.here, new.code);
     self.next(sp + 2, rsp, ip, target);
 }
 const create = defcode_(&tdfa, "CREATE", _create);
 
 fn _comma(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const u: usize = @intCast(sp[0]);
-    if (u == 0) {
-        try self.scratch.append(.{ .literal = 0 });
-    } else {
-        const q: *const fn (*Interp, [*]isize, [*][]Instr, []Instr, []const Instr) anyerror!void = @ptrFromInt(u);
-        try self.scratch.append(.{ .code = q });
-    }
+    const instr: Instr = if (u == 0) .{ .literal = 0 } else if (u == @intFromPtr(&docol_)) .{ .code = docol_ } else .{ .word = blk: {
+        const p: *[]Instr = @ptrFromInt(u);
+        break :blk p.*;
+    } };
+    try self.append(instr);
     self.next(sp + 1, rsp, ip, target);
 }
 const comma = defcode_(&create, ",", _comma);
@@ -699,13 +691,22 @@ const hidden = defcode(&immediate, "HIDDEN", _hidden);
 
 const hide = defword(&hidden, Flag.ZERO, "HIDE", &[_]Word{ word_, find_, hidden, exit });
 const colon = defword(&hide, Flag.ZERO, ":", &[_]Word{ word_, create, docol, comma, latest, fetch, hidden, rbrac, exit });
+
+fn _tick(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = sp - 1;
+    const u = @intFromPtr(&ip[0].word);
+    s[0] = @intCast(u);
+    self.next(s, rsp, ip[1..], target);
+}
+const tick = defcode_(&colon, "'", _tick);
+
 const semicolon = Word{
-    .link = &colon,
+    .link = &tick,
     .flag = ";".len | @intFromEnum(Flag.IMMED),
     .name = ";",
     .code = @constCast(&[_]Instr{
         .{ .code = docol_ },
-        .{ .word = lit.code },
+        .{ .word = tick.code },
         .{ .word = exit.code },
         .{ .word = comma.code },
         .{ .word = latest.code },
@@ -716,15 +717,13 @@ const semicolon = Word{
     }),
 };
 
-const tick = defcode_(&semicolon, "'", _lit);
-
 fn _branch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const offset = @divTrunc(ip[0].literal, @alignOf(isize));
     const p = if (offset < 0) ip.ptr - @abs(offset) else ip.ptr + @abs(offset);
     const len = if (offset < 0) ip.len + @abs(offset) else ip.len - @abs(offset);
     self.next(sp, rsp, p[0..len], target);
 }
-const branch = defcode_(&tick, "BRANCH", _branch);
+const branch = defcode_(&semicolon, "BRANCH", _branch);
 
 fn _zbranch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     if (sp[0] == 0)
@@ -761,7 +760,7 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
         if ((new.flag & @intFromEnum(Flag.IMMED)) != 0 or self.state == 0) {
             return @call(.always_tail, tgt[0].code, .{ self, sp, rsp, ip, tgt });
         } else {
-            try self.scratch.append(.{ .word = tgt });
+            try self.append(.{ .word = tgt });
         }
     } else if (fmt.parseInt(isize, self.buffer[0..c], blk: {
         const ubase: usize = @intCast(self.base);
@@ -770,8 +769,8 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
         break :blk bbase;
     })) |a| {
         if (self.state == 1) {
-            try self.scratch.append(.{ .word = @constCast(lit.code) });
-            try self.scratch.append(.{ .literal = a });
+            try self.append(.{ .word = @constCast(lit.code) });
+            try self.append(.{ .literal = a });
         } else {
             s = sp - 1;
             s[0] = a;
@@ -869,7 +868,6 @@ pub fn main() anyerror!void {
         .r0 = rsp + N,
         .buffer = undefined,
         .here = allocator,
-        .scratch = undefined,
     };
     const self = &env;
     const cold_start = [_]Instr{.{ .word = @constCast(quit.code) }};
