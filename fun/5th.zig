@@ -26,6 +26,7 @@ const Interp = struct {
     r0: [*][]Instr,
     buffer: [32]u8,
     here: mem.Allocator,
+    index: usize,
 
     pub inline fn next(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
         _ = target;
@@ -47,6 +48,7 @@ const Interp = struct {
             i += 1;
             ch = key();
         }
+        std.debug.print("{s}\n", .{self.buffer[0..i]});
         return i;
     }
 
@@ -59,11 +61,24 @@ const Interp = struct {
         return node;
     }
 
+    fn ensureCapacity(self: *Interp, index: usize) error{OutOfMemory}!*Instr {
+        var code = self.latest.code;
+        while (index >= code.len) {
+            const n = code.len *| 2;
+            if (self.here.resize(code, n)) {
+                code.len = n;
+            } else {
+                return error.OutOfMemory;
+            }
+        }
+        self.latest.code = code;
+        return &code[index];
+    }
+
     pub fn append(self: *Interp, instr: Instr) mem.Allocator.Error!void {
-        const code = self.latest.code;
-        const len = code.len;
-        self.latest.code = try self.here.realloc(code, len + 1);
-        self.latest.code[len] = instr;
+        self.index += 1;
+        const end = try self.ensureCapacity(self.index);
+        end.* = instr;
     }
 };
 
@@ -473,7 +488,14 @@ inline fn _cmove(sp: [*]isize) anyerror![*]isize {
 const cmove = defcode(&ccopy, "CMOVE", _cmove);
 
 const state = defconst(&cmove, "STATE", .{ .self = "state" });
-const here = defconst(&state, "HERE", .{ .self = "here" });
+
+fn _here(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = sp - 1;
+    const u = @intFromPtr(&self.ensureCapacity(self.index));
+    s[0] = @intCast(u);
+    self.next(s, rsp, ip, target);
+}
+const here = defcode_(&state, "HERE", _here);
 const latest = defconst(&here, "LATEST", .{ .self = "latest" });
 const sz = defconst(&latest, "S0", .{ .self = "s0" });
 const base = defconst(&sz, "BASE", .{ .self = "base" });
@@ -636,7 +658,16 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
     new.link = self.latest;
     new.flag = @truncate(c);
     new.name = try self.here.dupe(u8, s[0..c]);
-    new.code = try self.here.alloc(Instr, 0);
+    new.code = try self.here.alloc(Instr, 4);
+    if (self.index > 0) {
+        var old = self.latest.code;
+        if (self.here.resize(old, self.index + 1)) {
+            old.len = self.index + 1;
+            self.latest.code = old;
+        } else {
+            return error.IndexOutOfBounds;
+        }
+    }
     self.latest = new;
     self.next(sp + 2, rsp, ip, target);
 }
@@ -644,7 +675,7 @@ const create = defcode_(&tdfa, "CREATE", _create);
 
 fn _comma(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const u: usize = @intCast(sp[0]);
-    const instr: Instr = if (u == 0) .{ .literal = 0 } else if (u == @intFromPtr(&docol_)) .{ .code = docol_ } else .{ .word = blk: {
+    const instr: Instr = if (u < 0x1000) .{ .literal = 0 } else if (u == @intFromPtr(&docol_)) .{ .code = docol_ } else .{ .word = blk: {
         const p: *[]Instr = @ptrFromInt(u);
         break :blk p.*;
     } };
@@ -868,6 +899,7 @@ pub fn main() anyerror!void {
         .r0 = rsp + N,
         .buffer = undefined,
         .here = allocator,
+        .index = 0,
     };
     const self = &env;
     const cold_start = [_]Instr{.{ .word = @constCast(quit.code) }};
