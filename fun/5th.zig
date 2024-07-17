@@ -76,24 +76,19 @@ const Interp = struct {
     }
 
     pub fn append(self: *Interp, instr: Instr) mem.Allocator.Error!void {
-        self.index += 1;
         const end = try self.ensureCapacity(self.index);
+        self.index += 1;
         end.* = instr;
     }
 };
 
-const Instr = union {
+const Instr = union(enum) {
     code: *const fn (*Interp, [*]isize, [*][]Instr, []Instr, []const Instr) anyerror!void,
     literal: isize,
     word: []Instr,
 };
 
-const Type = enum {
-    self,
-    literal,
-};
-
-const Source = union(Type) {
+const Source = union(enum) {
     self: []const u8,
     literal: isize,
 };
@@ -138,8 +133,8 @@ fn defconst(
         pub fn code(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
             const s = sp - 1;
             s[0] = switch (value) {
-                Type.self => |f| @intCast(@intFromPtr(&@field(self, f))),
-                Type.literal => |i| i,
+                .self => |f| @intCast(@intFromPtr(&@field(self, f))),
+                .literal => |i| i,
             };
             self.next(s, rsp, ip, target);
         }
@@ -660,15 +655,15 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
     new.name = try self.here.dupe(u8, s[0..c]);
     new.code = try self.here.alloc(Instr, 4);
     if (self.index > 0) {
-        var old = self.latest.code;
-        if (self.here.resize(old, self.index + 1)) {
-            old.len = self.index + 1;
-            self.latest.code = old;
+        const n = self.index;
+        if (self.here.resize(self.latest.code, n)) {
+            self.latest.code.len = n;
         } else {
             return error.IndexOutOfBounds;
         }
     }
     self.latest = new;
+    self.index = 0;
     self.next(sp + 2, rsp, ip, target);
 }
 const create = defcode_(&tdfa, "CREATE", _create);
