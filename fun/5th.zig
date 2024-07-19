@@ -25,7 +25,8 @@ const Interp = struct {
     base: i32,
     r0: [*][]Instr,
     buffer: [32]u8,
-    here: mem.Allocator,
+    alloc: mem.Allocator,
+    here: *Instr,
     index: usize,
 
     pub inline fn next(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
@@ -48,7 +49,6 @@ const Interp = struct {
             i += 1;
             ch = key();
         }
-        std.debug.print("{s}\n", .{self.buffer[0..i]});
         return i;
     }
 
@@ -63,16 +63,19 @@ const Interp = struct {
 
     fn ensureCapacity(self: *Interp, index: usize) error{OutOfMemory}!*Instr {
         var code = self.latest.code;
-        while (index >= code.len) {
-            const n = code.len *| 2;
-            if (self.here.resize(code, n)) {
+        var n = code.len;
+        while (index >= n)
+            n *|= 2;
+        if (n > code.len) {
+            if (self.alloc.resize(code, n)) {
                 code.len = n;
             } else {
                 return error.OutOfMemory;
             }
         }
         self.latest.code = code;
-        return &code[index];
+        self.here = &code[index];
+        return self.here;
     }
 
     pub fn append(self: *Interp, instr: Instr) mem.Allocator.Error!void {
@@ -85,7 +88,7 @@ const Interp = struct {
 const Instr = union(enum) {
     code: *const fn (*Interp, [*]isize, [*][]Instr, []Instr, []const Instr) anyerror!void,
     literal: isize,
-    word: []Instr,
+    word: []Instr, // FIXME: use pointer instead
 };
 
 const Source = union(enum) {
@@ -326,16 +329,16 @@ inline fn _le(sp: [*]isize) anyerror![*]isize {
     sp[1] = if (sp[0] <= sp[1]) -1 else 0;
     return sp + 1;
 }
-const le = defcode(&nequ, "<=", _le);
+const le = defcode(&gt, "<=", _le);
 
 inline fn _ge(sp: [*]isize) anyerror![*]isize {
     sp[1] = if (sp[0] >= sp[1]) -1 else 0;
     return sp + 1;
 }
-const ge = defcode(&le, "=>", _ge);
+const ge = defcode(&le, ">=", _ge);
 
 inline fn _zequ(sp: [*]isize) anyerror![*]isize {
-    sp[0] = if (sp[0] != 0) 0 else -1;
+    sp[0] = if (sp[0] == 0) -1 else 0;
     return sp;
 }
 const zequ = defcode(&ge, "0=", _zequ);
@@ -362,13 +365,13 @@ inline fn _zle(sp: [*]isize) anyerror![*]isize {
     sp[0] = if (sp[0] <= 0) -1 else 0;
     return sp;
 }
-const zle = defcode(&znequ, "0<", _zle);
+const zle = defcode(&zgt, "0<=", _zle);
 
 inline fn _zge(sp: [*]isize) anyerror![*]isize {
     sp[0] = if (sp[0] >= 0) -1 else 0;
     return sp;
 }
-const zge = defcode(&zle, "0>", _zge);
+const zge = defcode(&zle, "0>=", _zge);
 
 inline fn _and(sp: [*]isize) anyerror![*]isize {
     sp[1] &= sp[0];
@@ -486,7 +489,8 @@ const state = defconst(&cmove, "STATE", .{ .self = "state" });
 
 fn _here(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const s = sp - 1;
-    const u = @intFromPtr(&self.ensureCapacity(self.index));
+    _ = try self.ensureCapacity(self.index);
+    const u = @intFromPtr(&self.here);
     s[0] = @intCast(u);
     self.next(s, rsp, ip, target);
 }
@@ -649,14 +653,14 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
     const c: usize = @intCast(sp[0]);
     const u: usize = @intCast(sp[1]);
     const s: [*]u8 = @ptrFromInt(u);
-    const new: *Word = try self.here.create(Word);
+    const new: *Word = try self.alloc.create(Word);
     new.link = self.latest;
     new.flag = @truncate(c);
-    new.name = try self.here.dupe(u8, s[0..c]);
-    new.code = try self.here.alloc(Instr, 4);
+    new.name = try self.alloc.dupe(u8, s[0..c]);
+    new.code = try self.alloc.alloc(Instr, 4);
     if (self.index > 0) {
         const n = self.index;
-        if (self.here.resize(self.latest.code, n)) {
+        if (self.alloc.resize(self.latest.code, n)) {
             self.latest.code.len = n;
         } else {
             return error.IndexOutOfBounds;
@@ -669,8 +673,9 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
 const create = defcode_(&tdfa, "CREATE", _create);
 
 fn _comma(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const u: usize = @intCast(sp[0]);
-    const instr: Instr = if (u < 0x1000) .{ .literal = 0 } else if (u == @intFromPtr(&docol_)) .{ .code = docol_ } else .{ .word = blk: {
+    const s: isize = sp[0];
+    const instr: Instr = if (s < 0x1000) .{ .literal = s } else if (s == @intFromPtr(&docol_)) .{ .code = docol_ } else .{ .word = blk: {
+        const u: usize = @intCast(s);
         const p: *[]Instr = @ptrFromInt(u);
         break :blk p.*;
     } };
@@ -744,7 +749,7 @@ const semicolon = Word{
 };
 
 fn _branch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const offset = @divTrunc(ip[0].literal, @alignOf(isize));
+    const offset = @divTrunc(ip[0].literal, @sizeOf(Instr));
     const p = if (offset < 0) ip.ptr - @abs(offset) else ip.ptr + @abs(offset);
     const len = if (offset < 0) ip.len + @abs(offset) else ip.len - @abs(offset);
     self.next(sp, rsp, p[0..len], target);
@@ -753,7 +758,7 @@ const branch = defcode_(&semicolon, "BRANCH", _branch);
 
 fn _zbranch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     if (sp[0] == 0)
-        return @call(.always_tail, _branch, .{ self, sp + 1, rsp, ip, ip[0].word });
+        return @call(.always_tail, _branch, .{ self, sp + 1, rsp, ip, target });
     self.next(sp + 1, rsp, ip[1..], target);
 }
 const zbranch = defcode_(&branch, "0BRANCH", _zbranch);
@@ -763,7 +768,7 @@ fn _litstring(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
     const s = sp - 2;
     s[1] = @intCast(@intFromPtr(&ip[1]));
     s[0] = @intCast(c);
-    const offset: usize = (c + @sizeOf(usize)) / @sizeOf(usize);
+    const offset: usize = (c + @sizeOf(Instr)) / @sizeOf(Instr);
     self.next(s, rsp, ip[offset..], target);
 }
 const litstring = defcode_(&zbranch, "LITSTRING", _litstring);
@@ -818,7 +823,7 @@ const quit = Word{
         .{ .word = rspstore.code },
         .{ .word = interpret.code },
         .{ .word = branch.code },
-        .{ .literal = -2 * @sizeOf(usize) },
+        .{ .literal = -2 * @sizeOf(Instr) },
         .{ .word = exit.code },
     }),
 };
@@ -883,7 +888,7 @@ pub fn main() anyerror!void {
     const sp: [*]isize = &stack;
     const return_stack: [N][]Instr = [_][]Instr{undefined} ** N;
     const rsp: [*][]Instr = @constCast(&return_stack);
-    var memory: [0x10000]u8 = undefined;
+    var memory: [0x100000]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&memory);
     const allocator = fba.allocator();
     var env = Interp{
@@ -893,7 +898,8 @@ pub fn main() anyerror!void {
         .base = 10,
         .r0 = rsp + N,
         .buffer = undefined,
-        .here = allocator,
+        .alloc = allocator,
+        .here = undefined,
         .index = 0,
     };
     const self = &env;
