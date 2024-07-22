@@ -22,7 +22,7 @@ const Interp = struct {
     state: isize,
     latest: *Word,
     s0: [*]isize,
-    base: i32,
+    base: isize,
     r0: [*][]Instr,
     buffer: [32]u8,
     alloc: mem.Allocator,
@@ -302,37 +302,37 @@ inline fn _divmod(sp: [*]isize) anyerror![*]isize {
 const divmod = defcode(&mul, "/MOD", _divmod);
 
 inline fn _equ(sp: [*]isize) anyerror![*]isize {
-    sp[1] = if (sp[0] == sp[1]) -1 else 0;
+    sp[1] = if (sp[1] == sp[0]) -1 else 0;
     return sp + 1;
 }
 const equ = defcode(&divmod, "=", _equ);
 
 inline fn _nequ(sp: [*]isize) anyerror![*]isize {
-    sp[1] = if (sp[0] == sp[1]) 0 else -1;
+    sp[1] = if (sp[1] == sp[0]) 0 else -1;
     return sp + 1;
 }
 const nequ = defcode(&equ, "<>", _nequ);
 
 inline fn _lt(sp: [*]isize) anyerror![*]isize {
-    sp[1] = if (sp[0] < sp[1]) -1 else 0;
+    sp[1] = if (sp[1] < sp[0]) -1 else 0;
     return sp + 1;
 }
 const lt = defcode(&nequ, "<", _lt);
 
 inline fn _gt(sp: [*]isize) anyerror![*]isize {
-    sp[1] = if (sp[0] > sp[1]) -1 else 0;
+    sp[1] = if (sp[1] > sp[0]) -1 else 0;
     return sp + 1;
 }
 const gt = defcode(&lt, ">", _gt);
 
 inline fn _le(sp: [*]isize) anyerror![*]isize {
-    sp[1] = if (sp[0] <= sp[1]) -1 else 0;
+    sp[1] = if (sp[1] <= sp[0]) -1 else 0;
     return sp + 1;
 }
 const le = defcode(&gt, "<=", _le);
 
 inline fn _ge(sp: [*]isize) anyerror![*]isize {
-    sp[1] = if (sp[0] >= sp[1]) -1 else 0;
+    sp[1] = if (sp[1] >= sp[0]) -1 else 0;
     return sp + 1;
 }
 const ge = defcode(&le, ">=", _ge);
@@ -888,7 +888,7 @@ pub fn main() anyerror!void {
     const sp: [*]isize = &stack;
     const return_stack: [N][]Instr = [_][]Instr{undefined} ** N;
     const rsp: [*][]Instr = @constCast(&return_stack);
-    var memory: [0x100000]u8 = undefined;
+    var memory: [0x800000]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&memory);
     const allocator = fba.allocator();
     var env = Interp{
