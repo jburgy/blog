@@ -29,7 +29,7 @@ const Interp = struct {
     here: *Instr,
     index: usize,
 
-    pub inline fn next(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    pub inline fn next(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
         _ = target;
         return @call(.always_tail, ip[0].word[0].code, .{ self, sp, rsp, ip[1..], ip[0].word });
     }
@@ -86,7 +86,7 @@ const Interp = struct {
 };
 
 const Instr = union(enum) {
-    code: *const fn (*Interp, [*]isize, [*][]Instr, []Instr, []const Instr) anyerror!void,
+    code: *const fn (*Interp, []isize, [][]Instr, []Instr, []const Instr) anyerror!void,
     literal: isize,
     word: []Instr, // FIXME: use pointer instead
 };
@@ -104,7 +104,7 @@ fn key() u8 {
 fn defcode_(
     comptime last: ?*const Word,
     comptime name: []const u8,
-    comptime code: fn (*Interp, [*]isize, [*][]Instr, []Instr, []const Instr) anyerror!void,
+    comptime code: fn (*Interp, []isize, [][]Instr, []Instr, []const Instr) anyerror!void,
 ) Word {
     return Word{
         .link = last,
@@ -117,10 +117,10 @@ fn defcode_(
 fn defcode(
     comptime last: ?*const Word,
     comptime name: []const u8,
-    comptime stack: fn ([*]isize) callconv(.Inline) anyerror![*]isize,
+    comptime stack: fn ([]isize) callconv(.Inline) anyerror![]isize,
 ) Word {
     const wrap = struct {
-        pub fn code(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+        pub fn code(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
             self.next(try stack(sp), rsp, ip, target);
         }
     };
@@ -133,8 +133,8 @@ fn defconst(
     comptime value: Source,
 ) Word {
     const wrap = struct {
-        pub fn code(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-            const s = sp - 1;
+        pub fn code(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+            const s: []isize = (sp.ptr - 1)[0 .. sp.len + 1];
             s[0] = switch (value) {
                 .self => |f| @intCast(@intFromPtr(&@field(self, f))),
                 .literal => |i| i,
@@ -165,12 +165,12 @@ fn defword(
     };
 }
 
-inline fn _drop(sp: [*]isize) anyerror![*]isize {
-    return sp + 1;
+inline fn _drop(sp: []isize) anyerror![]isize {
+    return sp[1..];
 }
 const drop = defcode(null, "DROP", _drop);
 
-inline fn _swap(sp: [*]isize) anyerror![*]isize {
+inline fn _swap(sp: []isize) anyerror![]isize {
     const temp = sp[1];
     sp[1] = sp[0];
     sp[0] = temp;
@@ -178,21 +178,21 @@ inline fn _swap(sp: [*]isize) anyerror![*]isize {
 }
 const swap = defcode(&drop, "SWAP", _swap);
 
-inline fn _dup(sp: [*]isize) anyerror![*]isize {
-    const s = sp - 1;
+inline fn _dup(sp: []isize) anyerror![]isize {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = sp[0];
     return s;
 }
 const dup = defcode(&swap, "DUP", _dup);
 
-inline fn _over(sp: [*]isize) anyerror![*]isize {
-    const s = sp - 1;
+inline fn _over(sp: []isize) anyerror![]isize {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = sp[1];
     return s;
 }
 const over = defcode(&dup, "OVER", _over);
 
-inline fn _rot(sp: [*]isize) anyerror![*]isize {
+inline fn _rot(sp: []isize) anyerror![]isize {
     const a = sp[0];
     const b = sp[1];
     const c = sp[2];
@@ -203,7 +203,7 @@ inline fn _rot(sp: [*]isize) anyerror![*]isize {
 }
 const rot = defcode(&over, "ROT", _rot);
 
-inline fn _nrot(sp: [*]isize) anyerror![*]isize {
+inline fn _nrot(sp: []isize) anyerror![]isize {
     const a = sp[0];
     const b = sp[1];
     const c = sp[2];
@@ -214,20 +214,20 @@ inline fn _nrot(sp: [*]isize) anyerror![*]isize {
 }
 const nrot = defcode(&rot, "-ROT", _nrot);
 
-inline fn _twodrop(sp: [*]isize) anyerror![*]isize {
-    return sp + 2;
+inline fn _twodrop(sp: []isize) anyerror![]isize {
+    return sp[2..];
 }
 const twodrop = defcode(&nrot, "2DROP", _twodrop);
 
-inline fn _twodup(sp: [*]isize) anyerror![*]isize {
-    const s = sp - 2;
+inline fn _twodup(sp: []isize) anyerror![]isize {
+    const s = (sp.ptr - 2)[0 .. sp.len + 2];
     s[1] = sp[1];
     s[0] = sp[0];
     return s;
 }
 const twodup = defcode(&twodrop, "2DUP", _twodup);
 
-inline fn _twoswap(sp: [*]isize) anyerror![*]isize {
+inline fn _twoswap(sp: []isize) anyerror![]isize {
     const a = sp[0];
     const b = sp[1];
     const c = sp[2];
@@ -240,9 +240,9 @@ inline fn _twoswap(sp: [*]isize) anyerror![*]isize {
 }
 const twoswap = defcode(&twodup, "2SWAP", _twoswap);
 
-inline fn _qdup(sp: [*]isize) anyerror![*]isize {
+inline fn _qdup(sp: []isize) anyerror![]isize {
     if (sp[0] != 0) {
-        const s = sp - 1;
+        const s = (sp.ptr - 1)[0 .. sp.len + 1];
         s[0] = sp[0];
         return s;
     }
@@ -250,49 +250,49 @@ inline fn _qdup(sp: [*]isize) anyerror![*]isize {
 }
 const qdup = defcode(&twoswap, "?DUP", _qdup);
 
-inline fn _incr(sp: [*]isize) anyerror![*]isize {
+inline fn _incr(sp: []isize) anyerror![]isize {
     sp[0] += 1;
     return sp;
 }
 const incr = defcode(&qdup, "1+", _incr);
 
-inline fn _decr(sp: [*]isize) anyerror![*]isize {
+inline fn _decr(sp: []isize) anyerror![]isize {
     sp[0] -= 1;
     return sp;
 }
 const decr = defcode(&incr, "1-", _decr);
 
-inline fn _incrp(sp: [*]isize) anyerror![*]isize {
+inline fn _incrp(sp: []isize) anyerror![]isize {
     sp[0] += @sizeOf(usize);
     return sp;
 }
 const incrp = defcode(&decr, &[_]u8{ '0' + @sizeOf(usize), '+' }, _incrp);
 
-inline fn _decrp(sp: [*]isize) anyerror![*]isize {
+inline fn _decrp(sp: []isize) anyerror![]isize {
     sp[0] -= @sizeOf(usize);
     return sp;
 }
 const decrp = defcode(&incrp, &[_]u8{ '0' + @sizeOf(usize), '-' }, _incrp);
 
-inline fn _add(sp: [*]isize) anyerror![*]isize {
+inline fn _add(sp: []isize) anyerror![]isize {
     sp[1] += sp[0];
-    return sp + 1;
+    return sp[1..];
 }
 const add = defcode(&decrp, "+", _add);
 
-inline fn _sub(sp: [*]isize) anyerror![*]isize {
+inline fn _sub(sp: []isize) anyerror![]isize {
     sp[1] -= sp[0];
-    return sp + 1;
+    return sp[1..];
 }
 const sub = defcode(&add, "-", _sub);
 
-inline fn _mul(sp: [*]isize) anyerror![*]isize {
+inline fn _mul(sp: []isize) anyerror![]isize {
     sp[1] *= sp[0];
-    return sp + 1;
+    return sp[1..];
 }
 const mul = defcode(&sub, "*", _mul);
 
-inline fn _divmod(sp: [*]isize) anyerror![*]isize {
+inline fn _divmod(sp: []isize) anyerror![]isize {
     const a = sp[1];
     const b = sp[0];
     sp[1] = @rem(a, b);
@@ -301,124 +301,124 @@ inline fn _divmod(sp: [*]isize) anyerror![*]isize {
 }
 const divmod = defcode(&mul, "/MOD", _divmod);
 
-inline fn _equ(sp: [*]isize) anyerror![*]isize {
+inline fn _equ(sp: []isize) anyerror![]isize {
     sp[1] = if (sp[1] == sp[0]) -1 else 0;
-    return sp + 1;
+    return sp[1..];
 }
 const equ = defcode(&divmod, "=", _equ);
 
-inline fn _nequ(sp: [*]isize) anyerror![*]isize {
+inline fn _nequ(sp: []isize) anyerror![]isize {
     sp[1] = if (sp[1] == sp[0]) 0 else -1;
-    return sp + 1;
+    return sp[1..];
 }
 const nequ = defcode(&equ, "<>", _nequ);
 
-inline fn _lt(sp: [*]isize) anyerror![*]isize {
+inline fn _lt(sp: []isize) anyerror![]isize {
     sp[1] = if (sp[1] < sp[0]) -1 else 0;
-    return sp + 1;
+    return sp[1..];
 }
 const lt = defcode(&nequ, "<", _lt);
 
-inline fn _gt(sp: [*]isize) anyerror![*]isize {
+inline fn _gt(sp: []isize) anyerror![]isize {
     sp[1] = if (sp[1] > sp[0]) -1 else 0;
-    return sp + 1;
+    return sp[1..];
 }
 const gt = defcode(&lt, ">", _gt);
 
-inline fn _le(sp: [*]isize) anyerror![*]isize {
+inline fn _le(sp: []isize) anyerror![]isize {
     sp[1] = if (sp[1] <= sp[0]) -1 else 0;
-    return sp + 1;
+    return sp[1..];
 }
 const le = defcode(&gt, "<=", _le);
 
-inline fn _ge(sp: [*]isize) anyerror![*]isize {
+inline fn _ge(sp: []isize) anyerror![]isize {
     sp[1] = if (sp[1] >= sp[0]) -1 else 0;
-    return sp + 1;
+    return sp[1..];
 }
 const ge = defcode(&le, ">=", _ge);
 
-inline fn _zequ(sp: [*]isize) anyerror![*]isize {
+inline fn _zequ(sp: []isize) anyerror![]isize {
     sp[0] = if (sp[0] == 0) -1 else 0;
     return sp;
 }
 const zequ = defcode(&ge, "0=", _zequ);
 
-inline fn _znequ(sp: [*]isize) anyerror![*]isize {
+inline fn _znequ(sp: []isize) anyerror![]isize {
     sp[0] = if (sp[0] != 0) -1 else 0;
     return sp;
 }
 const znequ = defcode(&zequ, "0<>", _znequ);
 
-inline fn _zlt(sp: [*]isize) anyerror![*]isize {
+inline fn _zlt(sp: []isize) anyerror![]isize {
     sp[0] = if (sp[0] < 0) -1 else 0;
     return sp;
 }
 const zlt = defcode(&znequ, "0<", _zlt);
 
-inline fn _zgt(sp: [*]isize) anyerror![*]isize {
+inline fn _zgt(sp: []isize) anyerror![]isize {
     sp[0] = if (sp[0] > 0) -1 else 0;
     return sp;
 }
 const zgt = defcode(&zlt, "0>", _zgt);
 
-inline fn _zle(sp: [*]isize) anyerror![*]isize {
+inline fn _zle(sp: []isize) anyerror![]isize {
     sp[0] = if (sp[0] <= 0) -1 else 0;
     return sp;
 }
 const zle = defcode(&zgt, "0<=", _zle);
 
-inline fn _zge(sp: [*]isize) anyerror![*]isize {
+inline fn _zge(sp: []isize) anyerror![]isize {
     sp[0] = if (sp[0] >= 0) -1 else 0;
     return sp;
 }
 const zge = defcode(&zle, "0>=", _zge);
 
-inline fn _and(sp: [*]isize) anyerror![*]isize {
+inline fn _and(sp: []isize) anyerror![]isize {
     sp[1] &= sp[0];
-    return sp + 1;
+    return sp[1..];
 }
 const and_ = defcode(&zge, "AND", _and);
 
-inline fn _or(sp: [*]isize) anyerror![*]isize {
+inline fn _or(sp: []isize) anyerror![]isize {
     sp[1] |= sp[0];
-    return sp + 1;
+    return sp[1..];
 }
 const or_ = defcode(&and_, "OR", _or);
 
-inline fn _xor(sp: [*]isize) anyerror![*]isize {
+inline fn _xor(sp: []isize) anyerror![]isize {
     sp[1] ^= sp[0];
-    return sp + 1;
+    return sp[1..];
 }
 const xor = defcode(&or_, "XOR", _xor);
 
-inline fn _invert(sp: [*]isize) anyerror![*]isize {
+inline fn _invert(sp: []isize) anyerror![]isize {
     sp[0] = ~sp[0];
     return sp;
 }
 const invert = defcode(&xor, "INVERT", _invert);
 
-fn _exit(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _exit(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     _ = ip;
     self.next(sp, rsp[1..], rsp[0], target);
 }
 const exit = defcode_(&invert, "EXIT", _exit);
 
-fn _lit(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const s = sp - 1;
+fn _lit(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = ip[0].literal;
     self.next(s, rsp, ip[1..], target);
 }
 const lit = defcode_(&exit, "LIT", _lit);
 
-inline fn _store(sp: [*]isize) anyerror![*]isize {
+inline fn _store(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const p: *isize = @ptrFromInt(u);
     p.* = sp[1];
-    return sp + 2;
+    return sp[2..];
 }
 const store = defcode(&lit, "!", _store);
 
-inline fn _fetch(sp: [*]isize) anyerror![*]isize {
+inline fn _fetch(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const p: *isize = @ptrFromInt(u);
     sp[0] = p.*;
@@ -426,33 +426,33 @@ inline fn _fetch(sp: [*]isize) anyerror![*]isize {
 }
 const fetch = defcode(&store, "@", _fetch);
 
-inline fn _addstore(sp: [*]isize) anyerror![*]isize {
+inline fn _addstore(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const p: *isize = @ptrFromInt(u);
     p.* += sp[1];
-    return sp + 2;
+    return sp[2..];
 }
 const addstore = defcode(&fetch, "+!", _addstore);
 
-inline fn _substore(sp: [*]isize) anyerror![*]isize {
+inline fn _substore(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const p: *[*]u8 = @ptrFromInt(u);
     const v: usize = @intCast(sp[1]);
     p.* -= v;
-    return sp + 2;
+    return sp[2..];
 }
 const substore = defcode(&addstore, "-!", _substore);
 
-inline fn _storebyte(sp: [*]isize) anyerror![*]isize {
+inline fn _storebyte(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const v: u8 = @intCast(sp[1]);
     const p: [*]u8 = @ptrFromInt(u);
     p[0] = v;
-    return sp + 2;
+    return sp[2..];
 }
 const storebyte = defcode(&substore, "C!", _storebyte);
 
-inline fn _fetchbyte(sp: [*]isize) anyerror![*]isize {
+inline fn _fetchbyte(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const p: [*]u8 = @ptrFromInt(u);
     sp[0] = p[0];
@@ -460,17 +460,17 @@ inline fn _fetchbyte(sp: [*]isize) anyerror![*]isize {
 }
 const fetchbyte = defcode(&storebyte, "C@", _fetchbyte);
 
-inline fn _ccopy(sp: [*]isize) anyerror![*]isize {
+inline fn _ccopy(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const v: usize = @intCast(sp[1]);
     const p: [*]u8 = @ptrFromInt(u);
     const q: [*]u8 = @ptrFromInt(v);
     q[0] = p[0];
-    return sp + 2;
+    return sp[2..];
 }
 const ccopy = defcode(&fetchbyte, "C@C!", _ccopy);
 
-inline fn _cmove(sp: [*]isize) anyerror![*]isize {
+inline fn _cmove(sp: []isize) anyerror![]isize {
     const n: usize = @intCast(sp[0]);
     @memcpy(dest: {
         const u: usize = @intCast(sp[1]);
@@ -481,14 +481,14 @@ inline fn _cmove(sp: [*]isize) anyerror![*]isize {
         const q: [*]u8 = @ptrFromInt(v);
         break :source q[0..n];
     });
-    return sp + 2;
+    return sp[2..];
 }
 const cmove = defcode(&ccopy, "CMOVE", _cmove);
 
 const state = defconst(&cmove, "STATE", .{ .self = "state" });
 
-fn _here(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const s = sp - 1;
+fn _here(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     _ = try self.ensureCapacity(self.index);
     const u = @intFromPtr(&self.here);
     s[0] = @intCast(u);
@@ -499,22 +499,22 @@ const latest = defconst(&here, "LATEST", .{ .self = "latest" });
 const sz = defconst(&latest, "S0", .{ .self = "s0" });
 const base = defconst(&sz, "BASE", .{ .self = "base" });
 const version = defconst(&base, "VERSION", .{ .literal = 47 });
-fn _rz(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const s = sp - 1;
+fn _rz(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     const u = @intFromPtr(self.r0);
     s[0] = @intCast(u);
     self.next(s, rsp, ip, target);
 }
 const rz = defcode_(&version, "R0", _rz);
 
-fn docol_(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const r = rsp - 1;
+fn docol_(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const r = (rsp.ptr - 1)[0 .. rsp.len + 1];
     r[0] = @constCast(ip);
     self.next(sp, r, @constCast(target[1..]), target);
 }
 
-inline fn _docol(sp: [*]isize) anyerror![*]isize {
-    const s = sp - 1;
+inline fn _docol(sp: []isize) anyerror![]isize {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = @intCast(@intFromPtr(&docol_));
     return s;
 }
@@ -537,72 +537,75 @@ const o_trunc = defconst(&o_excl, "O_TRUNC", .{ .literal = 0x1000 });
 const o_append = defconst(&o_trunc, "O_APPEND", .{ .literal = 0x2000 });
 const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = 0x4000 });
 
-fn _tor(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const r = rsp - 1;
+fn _tor(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const r = (rsp.ptr - 1)[0 .. rsp.len + 1];
     const s: usize = @intCast(sp[0]);
     const t: *[]Instr = @ptrFromInt(s);
     r[0] = t.*;
-    self.next(sp + 1, r, ip, target);
+    self.next(sp[1..], r, ip, target);
 }
 const tor = defcode_(&o_nonblock, ">R", _tor);
 
-fn _fromr(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const s = sp - 1;
+fn _fromr(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     sp[0] = @intCast(@intFromPtr(&rsp[0]));
-    self.next(s, rsp + 1, ip, target);
+    self.next(s, rsp[1..], ip, target);
 }
 const fromr = defcode_(&tor, "R>", _fromr);
 
-fn _rspfetch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const s = sp - 1;
-    sp[0] = @intCast(@intFromPtr(rsp));
+fn _rspfetch(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
+    sp[0] = @intCast(@intFromPtr(rsp.ptr));
     self.next(s, rsp, ip, target);
 }
 const rspfetch = defcode_(&fromr, "RSP@", _rspfetch);
 
-fn _rspstore(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _rspstore(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     _ = rsp;
     const s: usize = @intCast(sp[0]);
     const t: [*][]Instr = @ptrFromInt(s);
-    self.next(sp + 1, t, ip, target);
+    // FIXME: compute length
+    self.next(sp[1..], t[0..1], ip, target);
 }
 const rspstore = defcode_(&rspfetch, "RSP!", _rspstore);
 
-fn _rdrop(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    self.next(sp, rsp + 1, ip, target);
+fn _rdrop(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    self.next(sp, rsp[1..], ip, target);
 }
 const rdrop = defcode_(&rspstore, "RDROP", _rdrop);
 
-inline fn _dspfetch(sp: [*]isize) anyerror![*]isize {
-    const s = sp - 1;
-    s[0] = @intCast(@intFromPtr(sp));
+inline fn _dspfetch(sp: []isize) anyerror![]isize {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
+    s[0] = @intCast(@intFromPtr(sp.ptr));
     return s;
 }
 const dspfetch = defcode(&rdrop, "DSP@", _dspfetch);
 
-inline fn _dspstore(sp: [*]isize) anyerror![*]isize {
+inline fn _dspstore(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
-    return @ptrFromInt(u);
+    const p: *isize = @ptrFromInt(u);
+    // FIXME: compute length
+    return p[0..1];
 }
 const dspstore = defcode(&dspfetch, "DSP!", _dspstore);
 
-inline fn _key(sp: [*]isize) anyerror![*]isize {
-    const s = sp - 1;
+inline fn _key(sp: []isize) anyerror![]isize {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = @as(isize, key());
     return s;
 }
 const key_ = defcode(&dspstore, "KEY", _key);
 
-inline fn _emit(sp: [*]isize) anyerror![*]isize {
+inline fn _emit(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const c: u8 = @truncate(u);
     try stdout.print("{c}", .{c});
-    return sp + 1;
+    return sp[1..];
 }
 const emit = defcode(&key_, "EMIT", _emit);
 
-fn _word(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const s = sp - 2;
+fn _word(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = (sp.ptr - 2)[0 .. sp.len + 2];
     const u = @intFromPtr(&self.buffer);
     s[1] = @intCast(u);
     s[0] = @intCast(self.word());
@@ -610,7 +613,7 @@ fn _word(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []co
 }
 const word_ = defcode_(&emit, "WORD", _word);
 
-fn _number(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _number(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     if (fmt.parseInt(isize, buf: {
         const c: usize = @intCast(sp[0]);
         const u: usize = @intCast(sp[1]);
@@ -629,18 +632,18 @@ fn _number(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
 }
 const number = defcode_(&word_, "NUMBER", _number);
 
-fn _find(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _find(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const c: usize = @intCast(sp[0]);
     const u: usize = @intCast(sp[1]);
     const s: [*]u8 = @ptrFromInt(u);
     const v = self.find(s[0..c]);
 
     sp[1] = @intCast(@intFromPtr(v));
-    self.next(sp + 1, rsp, ip, target);
+    self.next(sp[1..], rsp, ip, target);
 }
 const find_ = defcode_(&number, "FIND", _find);
 
-inline fn _tcfa(sp: [*]isize) anyerror![*]isize {
+inline fn _tcfa(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const w: *Word = @ptrFromInt(u);
     sp[0] = @intCast(@intFromPtr(&w.code));
@@ -649,7 +652,7 @@ inline fn _tcfa(sp: [*]isize) anyerror![*]isize {
 const tcfa = defcode(&find_, ">CFA", _tcfa);
 const tdfa = defword(&tcfa, Flag.ZERO, ">DFA", &[_]Word{ tcfa, incrp, exit });
 
-fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _create(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const c: usize = @intCast(sp[0]);
     const u: usize = @intCast(sp[1]);
     const s: [*]u8 = @ptrFromInt(u);
@@ -668,11 +671,11 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
     }
     self.latest = new;
     self.index = 0;
-    self.next(sp + 2, rsp, ip, target);
+    self.next(sp[2..], rsp, ip, target);
 }
 const create = defcode_(&tdfa, "CREATE", _create);
 
-fn _comma(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _comma(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const s: isize = sp[0];
     const instr: Instr = if (s < 0x1000) .{ .literal = s } else if (s == @intFromPtr(&docol_)) .{ .code = docol_ } else .{ .word = blk: {
         const u: usize = @intCast(s);
@@ -680,11 +683,11 @@ fn _comma(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []c
         break :blk p.*;
     } };
     try self.append(instr);
-    self.next(sp + 1, rsp, ip, target);
+    self.next(sp[1..], rsp, ip, target);
 }
 const comma = defcode_(&create, ",", _comma);
 
-fn _lbrac(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _lbrac(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     self.state = 0;
     self.next(sp, rsp, ip, target);
 }
@@ -695,13 +698,13 @@ const lbrac = Word{
     .code = @constCast(&[_]Instr{.{ .code = _lbrac }}),
 };
 
-fn _rbrac(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _rbrac(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     self.state = 1;
     self.next(sp, rsp, ip, target);
 }
 const rbrac = defcode_(&lbrac, "]", _rbrac);
 
-fn _immediate(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _immediate(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     self.latest.flag ^= @intFromEnum(Flag.IMMED);
     self.next(sp, rsp, ip, target);
 }
@@ -712,19 +715,19 @@ const immediate = Word{
     .code = @constCast(&[_]Instr{.{ .code = _immediate }}),
 };
 
-inline fn _hidden(sp: [*]isize) anyerror![*]isize {
+inline fn _hidden(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const w: *Word = @ptrFromInt(u);
     w.flag ^= @intFromEnum(Flag.HIDDEN);
-    return sp + 1;
+    return sp[1..];
 }
 const hidden = defcode(&immediate, "HIDDEN", _hidden);
 
 const hide = defword(&hidden, Flag.ZERO, "HIDE", &[_]Word{ word_, find_, hidden, exit });
 const colon = defword(&hide, Flag.ZERO, ":", &[_]Word{ word_, create, docol, comma, latest, fetch, hidden, rbrac, exit });
 
-fn _tick(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const s = sp - 1;
+fn _tick(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     const u = @intFromPtr(&ip[0].word);
     s[0] = @intCast(u);
     self.next(s, rsp, ip[1..], target);
@@ -748,7 +751,7 @@ const semicolon = Word{
     }),
 };
 
-fn _branch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _branch(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const offset = @divTrunc(ip[0].literal, @sizeOf(Instr));
     const p = if (offset < 0) ip.ptr - @abs(offset) else ip.ptr + @abs(offset);
     const len = if (offset < 0) ip.len + @abs(offset) else ip.len - @abs(offset);
@@ -756,16 +759,16 @@ fn _branch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []
 }
 const branch = defcode_(&semicolon, "BRANCH", _branch);
 
-fn _zbranch(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _zbranch(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     if (sp[0] == 0)
-        return @call(.always_tail, _branch, .{ self, sp + 1, rsp, ip, target });
-    self.next(sp + 1, rsp, ip[1..], target);
+        return @call(.always_tail, _branch, .{ self, sp[1..], rsp, ip, target });
+    self.next(sp[1..], rsp, ip[1..], target);
 }
 const zbranch = defcode_(&branch, "0BRANCH", _zbranch);
 
-fn _litstring(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _litstring(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const c: usize = @intCast(ip[0].literal);
-    const s = sp - 2;
+    const s = (sp.ptr - 2)[0 .. sp.len + 2];
     s[1] = @intCast(@intFromPtr(&ip[1]));
     s[0] = @intCast(c);
     const offset: usize = (c + @sizeOf(Instr)) / @sizeOf(Instr);
@@ -773,16 +776,16 @@ fn _litstring(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
 }
 const litstring = defcode_(&zbranch, "LITSTRING", _litstring);
 
-inline fn _tell(sp: [*]isize) anyerror![*]isize {
+inline fn _tell(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const v: u8 = @intCast(sp[1]);
     const p: [*]u8 = @ptrFromInt(v);
     _ = try stdout.write(p[0..u]);
-    return sp + 2;
+    return sp[2..];
 }
 const tell = defcode(&litstring, "TELL", _tell);
 
-fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _interpret(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const c = self.word();
     var s = sp;
 
@@ -803,7 +806,7 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target:
             try self.append(.{ .word = @constCast(lit.code) });
             try self.append(.{ .literal = a });
         } else {
-            s = sp - 1;
+            s = (sp.ptr - 1)[0 .. sp.len + 1];
             s[0] = a;
         }
     } else |_| {
@@ -828,53 +831,53 @@ const quit = Word{
     }),
 };
 
-fn _char(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
-    const s = sp - 1;
+fn _char(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
     _ = self.word();
     s[0] = self.buffer[0];
     self.next(s, rsp, ip, target);
 }
 const char = defcode_(&quit, "CHAR", _char);
 
-fn _execute(self: *Interp, sp: [*]isize, rsp: [*][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
+fn _execute(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     _ = target;
     const u: usize = @intCast(sp[0]);
     const target_: *Instr = @ptrFromInt(u);
-    return @call(.always_tail, target_.code, .{ self, sp + 1, rsp, ip, target_[0..0] });
+    return @call(.always_tail, target_.code, .{ self, sp[1..], rsp, ip, target_[0..0] });
 }
 const execute = defcode_(&char, "EXECUTE", _execute);
 
-inline fn _syscall3(sp: [*]isize) ![*]isize {
+inline fn _syscall3(sp: []isize) ![]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
     const arg1: usize = @intCast(sp[1]);
     const arg2: usize = @intCast(sp[2]);
     const arg3: usize = @intCast(sp[3]);
 
     sp[3] = @intCast(linux.syscall3(number_, arg1, arg2, arg3));
-    return sp + 3;
+    return sp[3..];
 }
 const syscall3 = defcode(&execute, "SYSCALL3", _syscall3);
 
-inline fn _syscall2(sp: [*]isize) ![*]isize {
+inline fn _syscall2(sp: []isize) ![]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
     const arg1: usize = @intCast(sp[1]);
     const arg2: usize = @intCast(sp[2]);
 
     sp[2] = @intCast(linux.syscall2(number_, arg1, arg2));
-    return sp + 2;
+    return sp[2..];
 }
 const syscall2 = defcode(&syscall3, "SYSCALL2", _syscall2);
 
-inline fn _syscall1(sp: [*]isize) ![*]isize {
+inline fn _syscall1(sp: []isize) ![]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
     const arg1: usize = @intCast(sp[1]);
 
     sp[1] = @intCast(linux.syscall1(number_, arg1));
-    return sp + 1;
+    return sp[1..];
 }
 const syscall1 = defcode(&syscall2, "SYSCALL1", _syscall1);
 
-inline fn _syscall0(sp: [*]isize) ![*]isize {
+inline fn _syscall0(sp: []isize) ![]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
 
     sp[0] = @intCast(linux.syscall0(number_));
@@ -885,18 +888,18 @@ const syscall0 = defcode(&syscall1, "SYSCALL0", _syscall0);
 pub fn main() anyerror!void {
     const N = 0x20;
     var stack: [N]isize = [_]isize{undefined} ** N;
-    const sp: [*]isize = &stack;
+    const sp: []isize = stack[N..];
     const return_stack: [N][]Instr = [_][]Instr{undefined} ** N;
-    const rsp: [*][]Instr = @constCast(&return_stack);
+    const rsp: [][]Instr = return_stack[N..];
     var memory: [0x800000]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&memory);
     const allocator = fba.allocator();
     var env = Interp{
         .state = 0,
         .latest = @constCast(&syscall0),
-        .s0 = sp + N,
+        .s0 = sp.ptr,
         .base = 10,
-        .r0 = rsp + N,
+        .r0 = rsp.ptr,
         .buffer = undefined,
         .alloc = allocator,
         .here = undefined,
