@@ -665,6 +665,18 @@ fn _create(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []co
         const n = self.index;
         if (self.alloc.resize(self.latest.code, n)) {
             self.latest.code.len = n;
+            // Fix RECURSE len
+            for (0..n) |i| {
+                const instr = self.latest.code[i];
+                switch (instr) {
+                    .word => {
+                        if (std.meta.eql(instr.word.ptr, self.latest.code.ptr)) {
+                            self.latest.code[i].word.len = n;
+                        }
+                    },
+                    else => {},
+                }
+            }
         } else {
             return error.IndexOutOfBounds;
         }
@@ -753,9 +765,9 @@ const semicolon = Word{
 
 fn _branch(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const offset = @divTrunc(ip[0].literal, @sizeOf(Instr));
-    const p = if (offset < 0) ip.ptr - @abs(offset) else ip.ptr + @abs(offset);
-    const len = if (offset < 0) ip.len + @abs(offset) else ip.len - @abs(offset);
-    self.next(sp, rsp, p[0..len], target);
+    const a = @abs(offset);
+    const p = if (offset < 0) (ip.ptr - a)[0 .. ip.len + a] else (ip.ptr + a)[0 .. ip.len - a];
+    self.next(sp, rsp, p, target);
 }
 const branch = defcode_(&semicolon, "BRANCH", _branch);
 
