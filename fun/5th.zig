@@ -2,7 +2,8 @@ const std = @import("std");
 const io = std.io;
 const fmt = std.fmt;
 const mem = std.mem;
-const linux = std.os.linux;
+const os = std.os;
+const linux = os.linux;
 const syscalls = linux.syscalls;
 const posix = std.posix;
 
@@ -498,7 +499,15 @@ const here = defcode_(&state, "HERE", _here);
 const latest = defconst(&here, "LATEST", .{ .self = "latest" });
 const sz = defconst(&latest, "S0", .{ .self = "s0" });
 const base = defconst(&sz, "BASE", .{ .self = "base" });
-const version = defconst(&base, "VERSION", .{ .literal = 47 });
+
+inline fn _argc(sp: []isize) anyerror![]isize {
+    const s = (sp.ptr - 1)[0 .. sp.len + 1];
+    const u = @intFromPtr(os.argv.ptr - 1);
+    s[0] = @intCast(u);
+    return s;
+}
+const argc = defcode(&base, "(ARGC)", _argc);
+const version = defconst(&argc, "VERSION", .{ .literal = 47 });
 fn _rz(self: *Interp, sp: []isize, rsp: [][]Instr, ip: []Instr, target: []const Instr) anyerror!void {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
     const u = @intFromPtr(self.r0);
