@@ -12,10 +12,10 @@ const stdout = io.getStdOut().writer();
 
 const Flag = enum(u8) { IMMED = 0x80, HIDDEN = 0x20, LENMASK = 0x1F, ZERO = 0x0 };
 
-const Word = struct {
+const Word = extern struct {
     link: ?*const Word,
     flag: u8,
-    name: []const u8,
+    name: [31]u8 align(1),
     code: [*]Instr,
 };
 
@@ -57,7 +57,7 @@ const Interp = struct {
     pub fn find(self: *Interp, name: []u8) ?*Word {
         const mask = @intFromEnum(Flag.HIDDEN) | @intFromEnum(Flag.LENMASK);
         var node: ?*Word = self.latest;
-        while (node != null and ((node.?.flag & mask) != name.len or !mem.eql(u8, node.?.name, name)))
+        while (node != null and ((node.?.flag & mask) != name.len or !mem.eql(u8, node.?.name[0..name.len], name)))
             node = @constCast(node.?.link);
 
         return node;
@@ -107,12 +107,14 @@ fn defcode_(
     comptime name: []const u8,
     comptime code: fn (*Interp, []isize, [][*]Instr, [*]Instr, [*]const Instr) anyerror!void,
 ) Word {
-    return Word{
+    var w = Word{
         .link = last,
         .flag = name.len,
-        .name = name,
+        .name = .{0} ** 31,
         .code = @constCast(&[_]Instr{.{ .code = code }}),
     };
+    @memcpy(w.name[0..name.len], name);
+    return w;
 }
 
 fn defcode(
@@ -152,10 +154,10 @@ fn defword(
     comptime name: []const u8,
     comptime data: []const Word,
 ) Word {
-    return Word{
+    var w = Word{
         .link = last,
         .flag = name.len | @intFromEnum(flag),
-        .name = name,
+        .name = .{0} ** 31,
         .code = @constCast([_]Instr{.{ .code = docol_ }} ++ comptime init: {
             var code: [data.len]Instr = undefined;
             for (&code, data) |*d, s| {
@@ -164,6 +166,8 @@ fn defword(
             break :init &code;
         }),
     };
+    @memcpy(w.name[0..name.len], name);
+    return w;
 }
 
 inline fn _drop(sp: []isize) anyerror![]isize {
@@ -665,10 +669,11 @@ fn _create(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*
     const c: usize = @intCast(sp[0]);
     const u: usize = @intCast(sp[1]);
     const s: [*]u8 = @ptrFromInt(u);
-    const new: *Word = try self.alloc.create(Word);
+    var new: *Word = try self.alloc.create(Word);
     new.link = self.latest;
     new.flag = @truncate(c);
-    new.name = try self.alloc.dupe(u8, s[0..c]);
+    @memset(new.name[0..31], 0);
+    @memcpy(new.name[0..c], s[0..c]);
     const code = try self.alloc.alloc(Instr, 4);
     new.code = code.ptr;
     if (self.index > 0 and self.alloc.resize(self.code, self.index) == false)
@@ -699,7 +704,7 @@ fn _lbrac(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]
 const lbrac = Word{
     .link = &comma,
     .flag = "[".len | @intFromEnum(Flag.IMMED),
-    .name = "[",
+    .name = .{'['} ++ .{0} ** 30,
     .code = @constCast(&[_]Instr{.{ .code = _lbrac }}),
 };
 
@@ -716,7 +721,7 @@ fn _immediate(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target:
 const immediate = Word{
     .link = &rbrac,
     .flag = "IMMEDIATE".len | @intFromEnum(Flag.IMMED),
-    .name = "IMMEDIATE",
+    .name = .{ 'I', 'M', 'M', 'E', 'D', 'I', 'A', 'T', 'E' } ++ .{0} ** (31 - "IMMEDIATE".len),
     .code = @constCast(&[_]Instr{.{ .code = _immediate }}),
 };
 
@@ -742,7 +747,7 @@ const tick = defcode_(&colon, "'", _tick);
 const semicolon = Word{
     .link = &tick,
     .flag = ";".len | @intFromEnum(Flag.IMMED),
-    .name = ";",
+    .name = .{';'} ++ .{0} ** 30,
     .code = @constCast(&[_]Instr{
         .{ .code = docol_ },
         .{ .word = tick.code },
@@ -824,7 +829,7 @@ const interpret = defcode_(&tell, "INTERPRET", _interpret);
 const quit = Word{
     .link = &interpret,
     .flag = "QUIT".len,
-    .name = "QUIT",
+    .name = .{ 'Q', 'U', 'I', 'T' } ++ .{0} ** (31 - "QUIT".len),
     .code = @constCast(&[_]Instr{
         .{ .code = docol_ },
         .{ .word = rz.code },
