@@ -27,8 +27,7 @@ const Interp = struct {
     r0: [*][*]Instr,
     buffer: [32]u8,
     alloc: mem.Allocator,
-    here: *Instr,
-    index: usize,
+    here: [*]u8,
     code: []Instr,
 
     pub inline fn next(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
@@ -63,9 +62,14 @@ const Interp = struct {
         return node;
     }
 
-    fn ensureCapacity(self: *Interp, index: usize) error{OutOfMemory}!*Instr {
+    pub fn index(self: *Interp) usize {
+        return @divTrunc(@intFromPtr(self.here) - @intFromPtr(self.code.ptr), @sizeOf(Instr));
+    }
+
+    fn ensureCapacity(self: *Interp) error{OutOfMemory}!usize {
         var n = self.code.len;
-        while (index >= n)
+        const i = self.index();
+        while (i >= n)
             n *|= 2;
         if (n > self.code.len) {
             if (self.alloc.resize(self.code, n)) {
@@ -74,22 +78,20 @@ const Interp = struct {
                 return error.OutOfMemory;
             }
         }
-        self.latest.code = self.code.ptr;
-        self.here = &self.code[index];
-        return self.here;
+        return i;
     }
 
     pub fn append(self: *Interp, instr: Instr) mem.Allocator.Error!void {
-        const end = try self.ensureCapacity(self.index);
-        self.index += 1;
-        end.* = instr;
+        const i = try self.ensureCapacity();
+        self.here = @ptrCast(self.code.ptr + (i + 1));
+        self.code[i] = instr;
     }
 };
 
 const Instr = union {
     code: *const fn (*Interp, []isize, [][*]Instr, [*]Instr, [*]const Instr) anyerror!void,
     literal: isize,
-    word: [*]Instr, // FIXME: use pointer instead
+    word: [*]Instr,
 };
 
 const Source = union(enum) {
@@ -494,7 +496,7 @@ const state = defconst(&cmove, "STATE", .{ .self = "state" });
 
 fn _here(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
-    _ = try self.ensureCapacity(self.index);
+    _ = try self.ensureCapacity();
     const u = @intFromPtr(&self.here);
     s[0] = @intCast(u);
     self.next(s, rsp, ip, target);
@@ -669,6 +671,8 @@ fn _create(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*
     const c: usize = @intCast(sp[0]);
     const u: usize = @intCast(sp[1]);
     const s: [*]u8 = @ptrFromInt(u);
+    if (self.code.len > 0 and self.alloc.resize(self.code, self.index()) == false)
+        return error.IndexOutOfBounds;
     var new: *Word = try self.alloc.create(Word);
     new.link = self.latest;
     new.flag = @truncate(c);
@@ -676,10 +680,8 @@ fn _create(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*
     @memcpy(new.name[0..c], s[0..c]);
     const code = try self.alloc.alloc(Instr, 4);
     new.code = code.ptr;
-    if (self.index > 0 and self.alloc.resize(self.code, self.index) == false)
-        return error.IndexOutOfBounds;
     self.latest = new;
-    self.index = 0;
+    self.here = @ptrCast(code.ptr);
     self.code = code;
     self.next(sp[2..], rsp, ip, target);
 }
@@ -913,7 +915,6 @@ pub fn main() anyerror!void {
         .buffer = undefined,
         .alloc = allocator,
         .here = undefined,
-        .index = 0,
         .code = undefined,
     };
     const self = &env;
