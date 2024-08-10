@@ -88,7 +88,7 @@ const Interp = struct {
     }
 };
 
-const Instr = union {
+const Instr = packed union {
     code: *const fn (*Interp, []isize, [][*]Instr, [*]Instr, [*]const Instr) anyerror!void,
     literal: isize,
     word: [*]Instr,
@@ -279,7 +279,7 @@ inline fn _decrp(sp: []isize) anyerror![]isize {
     sp[0] -= @sizeOf(usize);
     return sp;
 }
-const decrp = defcode(&incrp, &[_]u8{ '0' + @sizeOf(usize), '-' }, _incrp);
+const decrp = defcode(&incrp, &[_]u8{ '0' + @sizeOf(usize), '-' }, _decrp);
 
 inline fn _add(sp: []isize) anyerror![]isize {
     sp[1] += sp[0];
@@ -435,8 +435,9 @@ const fetch = defcode(&store, "@", _fetch);
 
 inline fn _addstore(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
-    const p: *isize = @ptrFromInt(u);
-    p.* += sp[1];
+    const p: *[*]u8 = @ptrFromInt(u);
+    const v: usize = @intCast(sp[1]);
+    p.* += v;
     return sp[2..];
 }
 const addstore = defcode(&fetch, "+!", _addstore);
@@ -783,14 +784,14 @@ fn _litstring(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target:
     const s = (sp.ptr - 2)[0 .. sp.len + 2];
     s[1] = @intCast(@intFromPtr(&ip[1]));
     s[0] = @intCast(c);
-    const offset: usize = (c + @sizeOf(Instr)) / @sizeOf(Instr);
+    const offset: usize = 1 + @divTrunc(c + @sizeOf(Instr), @sizeOf(Instr));
     self.next(s, rsp, ip[offset..], target);
 }
 const litstring = defcode_(&zbranch, "LITSTRING", _litstring);
 
 inline fn _tell(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
-    const v: u8 = @intCast(sp[1]);
+    const v: usize = @intCast(sp[1]);
     const p: [*]u8 = @ptrFromInt(v);
     _ = try stdout.write(p[0..u]);
     return sp[2..];
