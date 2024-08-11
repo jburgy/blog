@@ -577,11 +577,10 @@ fn _rspfetch(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: 
 const rspfetch = defcode_(&fromr, "RSP@", _rspfetch);
 
 fn _rspstore(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
-    _ = rsp;
     const s: usize = @intCast(sp[0]);
     const t: [*][*]Instr = @ptrFromInt(s);
-    // FIXME: compute length
-    self.next(sp[1..], t[0..1], ip, target);
+    const n = @divTrunc(@intFromPtr(rsp.ptr + rsp.len) - s, @sizeOf([*][*]Instr));
+    self.next(sp[1..], t[0..n], ip, target);
 }
 const rspstore = defcode_(&rspfetch, "RSP!", _rspstore);
 
@@ -599,9 +598,9 @@ const dspfetch = defcode(&rdrop, "DSP@", _dspfetch);
 
 inline fn _dspstore(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
-    const p: *isize = @ptrFromInt(u);
-    // FIXME: compute length
-    return p[0..1];
+    const p: [*]isize = @ptrFromInt(u);
+    const n = @divTrunc(@intFromPtr(sp.ptr + sp.len) - u, @sizeOf([*]Instr));
+    return p[0..n];
 }
 const dspstore = defcode(&dspfetch, "DSP!", _dspstore);
 
