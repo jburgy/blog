@@ -881,14 +881,17 @@ inline fn _syscall2(sp: []isize) ![]isize {
 }
 const syscall2 = defcode(&syscall3, "SYSCALL2", _syscall2);
 
-inline fn _syscall1(sp: []isize) ![]isize {
+fn _syscall1(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
     const arg1: usize = @intCast(sp[1]);
 
-    sp[1] = @intCast(linux.syscall1(number_, arg1));
-    return sp[1..];
+    sp[1] = if (number_ == syscalls.X64.brk and arg1 == 0) blk: {
+        const p: *std.heap.FixedBufferAllocator = @alignCast(@ptrCast(self.alloc.ptr));
+        break :blk @intCast(@intFromPtr(p.buffer.ptr + p.buffer.len));
+    } else @intCast(linux.syscall1(number_, arg1));
+    self.next(sp[1..], rsp, ip, target);
 }
-const syscall1 = defcode(&syscall2, "SYSCALL1", _syscall1);
+const syscall1 = defcode_(&syscall2, "SYSCALL1", _syscall1);
 
 inline fn _syscall0(sp: []isize) ![]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
