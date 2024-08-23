@@ -16,8 +16,13 @@ const Word = extern struct {
     link: ?*const Word,
     flag: u8,
     name: [31]u8 align(1),
-    code: [*]Instr,
 };
+
+inline fn codeFieldAddress(w: *const Word) [*]Instr {
+    const offset = @divTrunc(@sizeOf(Word), @sizeOf(Instr));
+    const p: [*]Instr = @constCast(@ptrCast(w));
+    return p + offset;
+}
 
 const Interp = struct {
     state: isize,
@@ -109,14 +114,15 @@ fn defcode_(
     comptime name: []const u8,
     comptime code: fn (*Interp, []isize, [][*]Instr, [*]Instr, [*]const Instr) anyerror!void,
 ) Word {
-    var w = Word{
-        .link = last,
-        .flag = name.len,
-        .name = .{0} ** 31,
-        .code = @constCast(&[_]Instr{.{ .code = code }}),
-    };
-    @memcpy(w.name[0..name.len], name);
-    return w;
+    const offset = @divTrunc(@sizeOf(Word), @sizeOf(Instr));
+    var temp: [offset + 1]Instr = undefined;
+    var p: *Word = @ptrCast(&temp);
+    p.link = last;
+    p.flag = name.len;
+    @memset(p.name[0..31], 0);
+    @memcpy(p.name[0..name.len], name);
+    temp[offset].code = code;
+    return p.*;
 }
 
 fn defcode(
@@ -150,26 +156,37 @@ fn defconst(
     return defcode_(last, name, wrap.code);
 }
 
+fn defword_(
+    comptime last: ?*const Word,
+    comptime flag: Flag,
+    comptime name: []const u8,
+    comptime code: []const Instr,
+) Word {
+    const offset = @divTrunc(@sizeOf(Word), @sizeOf(Instr));
+    var temp: [offset + code.len]Instr = undefined;
+    var p: *Word = @ptrCast(&temp);
+    p.link = last;
+    p.flag = name.len | @intFromEnum(flag);
+    @memset(p.name[0..31], 0);
+    @memcpy(p.name[0..name.len], name);
+    @memcpy(temp[offset..], code);
+    return p.*;
+}
+
 fn defword(
     comptime last: ?*const Word,
     comptime flag: Flag,
     comptime name: []const u8,
     comptime data: []const Word,
 ) Word {
-    var w = Word{
-        .link = last,
-        .flag = name.len | @intFromEnum(flag),
-        .name = .{0} ** 31,
-        .code = @constCast([_]Instr{.{ .code = docol_ }} ++ comptime init: {
-            var code: [data.len]Instr = undefined;
-            for (&code, data) |*d, s| {
-                d.* = .{ .word = s.code };
-            }
-            break :init &code;
-        }),
+    const code = [_]Instr{.{ .code = docol_ }} ++ comptime init: {
+        var code: [data.len]Instr = undefined;
+        for (&code, data) |*d, s| {
+            d.* = .{ .word = codeFieldAddress(&s) };
+        }
+        break :init &code;
     };
-    @memcpy(w.name[0..name.len], name);
-    return w;
+    return defword_(last, flag, name, code);
 }
 
 inline fn _drop(sp: []isize) anyerror![]isize {
@@ -661,11 +678,11 @@ const find_ = defcode_(&number, "FIND", _find);
 inline fn _tcfa(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
     const w: *Word = @ptrFromInt(u);
-    sp[0] = @intCast(@intFromPtr(&w.code));
+    sp[0] = @intCast(@intFromPtr(codeFieldAddress(w)));
     return sp;
 }
 const tcfa = defcode(&find_, ">CFA", _tcfa);
-const tdfa = defword(&tcfa, Flag.ZERO, ">DFA", &[_]Word{ tcfa, incrp, exit });
+const tdfa = defword(&tcfa, Flag.ZERO, ">DFA", @constCast(&[_]Word{ tcfa, fetch, incrp, exit }));
 
 fn _create(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
     const c: usize = @intCast(sp[0]);
@@ -673,15 +690,15 @@ fn _create(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*
     const s: [*]u8 = @ptrFromInt(u);
     if (self.code.len > 0 and self.alloc.resize(self.code, self.index()) == false)
         return error.IndexOutOfBounds;
-    var new: *Word = try self.alloc.create(Word);
+    const n = @divTrunc(@sizeOf(Word), @sizeOf(Instr));
+    const code = try self.alloc.alloc(Instr, n + 4);
+    var new: *Word = @ptrCast(code.ptr);
     new.link = self.latest;
     new.flag = @truncate(c);
     @memset(new.name[0..31], 0);
     @memcpy(new.name[0..c], s[0..c]);
-    const code = try self.alloc.alloc(Instr, 4);
-    new.code = code.ptr;
     self.latest = new;
-    self.here = @ptrCast(code.ptr);
+    self.here = @ptrCast(&code[n]);
     self.code = code;
     self.next(sp[2..], rsp, ip, target);
 }
@@ -703,12 +720,12 @@ fn _lbrac(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]
     self.state = 0;
     self.next(sp, rsp, ip, target);
 }
-const lbrac = Word{
-    .link = &comma,
-    .flag = "[".len | @intFromEnum(Flag.IMMED),
-    .name = .{'['} ++ .{0} ** 30,
-    .code = @constCast(&[_]Instr{.{ .code = _lbrac }}),
-};
+const lbrac = defword_(
+    &comma,
+    Flag.IMMED,
+    "[",
+    &[_]Instr{.{ .code = _lbrac }},
+);
 
 fn _rbrac(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
     self.state = 1;
@@ -720,12 +737,12 @@ fn _immediate(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target:
     self.latest.flag ^= @intFromEnum(Flag.IMMED);
     self.next(sp, rsp, ip, target);
 }
-const immediate = Word{
-    .link = &rbrac,
-    .flag = "IMMEDIATE".len | @intFromEnum(Flag.IMMED),
-    .name = .{ 'I', 'M', 'M', 'E', 'D', 'I', 'A', 'T', 'E' } ++ .{0} ** (31 - "IMMEDIATE".len),
-    .code = @constCast(&[_]Instr{.{ .code = _immediate }}),
-};
+const immediate = defword_(
+    &rbrac,
+    Flag.IMMED,
+    "IMMEDIATE",
+    &[_]Instr{.{ .code = _immediate }},
+);
 
 inline fn _hidden(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
@@ -735,8 +752,18 @@ inline fn _hidden(sp: []isize) anyerror![]isize {
 }
 const hidden = defcode(&immediate, "HIDDEN", _hidden);
 
-const hide = defword(&hidden, Flag.ZERO, "HIDE", &[_]Word{ word_, find_, hidden, exit });
-const colon = defword(&hide, Flag.ZERO, ":", &[_]Word{ word_, create, docol, comma, latest, fetch, hidden, rbrac, exit });
+const hide = defword(
+    &hidden,
+    Flag.ZERO,
+    "HIDE",
+    &[_]Word{ word_, find_, hidden, exit },
+);
+const colon = defword(
+    &hide,
+    Flag.ZERO,
+    ":",
+    &[_]Word{ word_, create, docol, comma, latest, fetch, hidden, rbrac, exit },
+);
 
 fn _tick(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
@@ -746,22 +773,12 @@ fn _tick(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]c
 }
 const tick = defcode_(&colon, "'", _tick);
 
-const semicolon = Word{
-    .link = &tick,
-    .flag = ";".len | @intFromEnum(Flag.IMMED),
-    .name = .{';'} ++ .{0} ** 30,
-    .code = @constCast(&[_]Instr{
-        .{ .code = docol_ },
-        .{ .word = tick.code },
-        .{ .word = exit.code },
-        .{ .word = comma.code },
-        .{ .word = latest.code },
-        .{ .word = fetch.code },
-        .{ .word = hidden.code },
-        .{ .word = lbrac.code },
-        .{ .word = exit.code },
-    }),
-};
+const semicolon = defword(
+    &tick,
+    Flag.IMMED,
+    ";",
+    &[_]Word{ tick, exit, comma, latest, fetch, hidden, lbrac, exit },
+);
 
 fn _branch(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
     const offset = @divTrunc(ip[0].literal, @sizeOf(Instr));
@@ -802,7 +819,7 @@ fn _interpret(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target:
     var s = sp;
 
     if (self.find(self.buffer[0..c])) |new| {
-        const tgt = new.code;
+        const tgt = codeFieldAddress(new);
         if ((new.flag & @intFromEnum(Flag.IMMED)) != 0 or self.state == 0) {
             return @call(.always_tail, tgt[0].code, .{ self, sp, rsp, ip, tgt });
         } else {
@@ -815,7 +832,7 @@ fn _interpret(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target:
         break :blk bbase;
     })) |a| {
         if (self.state == 1) {
-            try self.append(.{ .word = @constCast(lit.code) });
+            try self.append(.{ .word = @constCast(codeFieldAddress(&lit)) });
             try self.append(.{ .literal = a });
         } else {
             s = (sp.ptr - 1)[0 .. sp.len + 1];
@@ -828,20 +845,20 @@ fn _interpret(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target:
 }
 const interpret = defcode_(&tell, "INTERPRET", _interpret);
 
-const quit = Word{
-    .link = &interpret,
-    .flag = "QUIT".len,
-    .name = .{ 'Q', 'U', 'I', 'T' } ++ .{0} ** (31 - "QUIT".len),
-    .code = @constCast(&[_]Instr{
+const quit = defword_(
+    &interpret,
+    Flag.ZERO,
+    "QUIT",
+    &[_]Instr{
         .{ .code = docol_ },
-        .{ .word = rz.code },
-        .{ .word = rspstore.code },
-        .{ .word = interpret.code },
-        .{ .word = branch.code },
+        .{ .word = codeFieldAddress(&rz) },
+        .{ .word = codeFieldAddress(&rspstore) },
+        .{ .word = codeFieldAddress(&interpret) },
+        .{ .word = codeFieldAddress(&branch) },
         .{ .literal = -2 * @sizeOf(Instr) },
-        .{ .word = exit.code },
-    }),
-};
+        .{ .word = codeFieldAddress(&exit) },
+    },
+);
 
 fn _char(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
@@ -921,8 +938,9 @@ pub fn main() anyerror!void {
         .code = undefined,
     };
     const self = &env;
-    const cold_start = [_]Instr{.{ .word = @constCast(quit.code) }};
+    const target = codeFieldAddress(&quit);
+    const cold_start = [_]Instr{.{ .word = target }};
     const ip: [*]Instr = @constCast(&cold_start);
 
-    try ip[0].word[0].code(self, sp, rsp, ip, ip[0].word);
+    try docol_(self, sp, rsp, ip, target);
 }
