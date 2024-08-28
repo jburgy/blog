@@ -815,8 +815,7 @@ fn _interpret(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target:
     var s = sp;
 
     if (self.find(self.buffer[0..c])) |new| {
-        const tmp: [*]Instr = @ptrCast(new);
-        const tgt = tmp + offset;
+        const tgt = codeFieldAddress(@ptrCast(new));
         if ((new.flag & @intFromEnum(Flag.IMMED)) != 0 or self.state == 0) {
             return @call(.always_tail, tgt[0].code, .{ self, sp, rsp, ip, tgt });
         } else {
