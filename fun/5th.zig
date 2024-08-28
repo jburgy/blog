@@ -59,11 +59,11 @@ const Interp = struct {
         return i;
     }
 
-    pub fn find(self: *Interp, name: []u8) ?*Word {
+    pub fn find(self: *Interp, name: []u8) ?*const Word {
         const mask = @intFromEnum(Flag.HIDDEN) | @intFromEnum(Flag.LENMASK);
-        var node: ?*Word = self.latest;
+        var node: ?*const Word = self.latest;
         while (node != null and ((node.?.flag & mask) != name.len or !mem.eql(u8, node.?.name[0..name.len], name)))
-            node = @constCast(node.?.link);
+            node = node.?.link;
 
         return node;
     }
