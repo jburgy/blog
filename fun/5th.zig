@@ -27,9 +27,9 @@ inline fn codeFieldAddress(w: [*]const Instr) [*]const Instr {
 const Interp = struct {
     state: isize,
     latest: *Word,
-    s0: [*]isize,
+    s0: [*]const isize,
     base: isize,
-    r0: [*][*]Instr,
+    r0: [*]const [*]Instr,
     buffer: [32]u8,
     alloc: mem.Allocator,
     here: [*]u8,
@@ -37,7 +37,8 @@ const Interp = struct {
 
     pub inline fn next(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
         _ = target;
-        return @call(.always_tail, ip[0].word[0].code, .{ self, sp, rsp, ip[1..], ip[0].word });
+        const tgt = ip[0].word;
+        return @call(.always_tail, tgt[0].code, .{ self, sp, rsp, ip[1..], tgt });
     }
 
     pub fn word(self: *Interp) usize {
@@ -668,8 +669,8 @@ const find_ = defcode_(&number, "FIND", _find);
 
 inline fn _tcfa(sp: []isize) anyerror![]isize {
     const u: usize = @intCast(sp[0]);
-    const w: [*]Instr = @ptrFromInt(u);
-    sp[0] = @intCast(@intFromPtr(w + offset));
+    const w: [*]const Instr = @ptrFromInt(u);
+    sp[0] = @intCast(@intFromPtr(codeFieldAddress(w)));
     return sp;
 }
 const tcfa = defcode(&find_, ">CFA", _tcfa);
@@ -703,8 +704,8 @@ fn _comma(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]
     const s: isize = sp[0];
     const instr: Instr = if (s < 0x1000) .{ .literal = s } else if (s == @intFromPtr(&docol_)) .{ .code = docol_ } else .{ .word = blk: {
         const u: usize = @intCast(s);
-        const p: *[*]Instr = @ptrFromInt(u);
-        break :blk p.*;
+        const p: [*]Instr = @ptrFromInt(u);
+        break :blk p;
     } };
     try self.append(instr);
     self.next(sp[1..], rsp, ip, target);
@@ -762,7 +763,7 @@ const colon = defword(
 
 fn _tick(self: *Interp, sp: []isize, rsp: [][*]Instr, ip: [*]Instr, target: [*]const Instr) anyerror!void {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
-    const u = @intFromPtr(&ip[0].word);
+    const u = @intFromPtr(ip[0].word);
     s[0] = @intCast(u);
     self.next(s, rsp, ip[1..], target);
 }
@@ -937,12 +938,6 @@ pub fn main() anyerror!void {
     const target = codeFieldAddress(&quit);
     const cold_start = [_]Instr{.{ .word = target }};
     const ip: [*]Instr = @constCast(&cold_start);
-
-    var w: ?*Word = @constCast(@ptrCast(&syscall0));
-    while (w != null) {
-        std.debug.print("&{s:0} = {x}\n", .{ w.?.name, @intFromPtr(w) });
-        w = @constCast(w.?.link);
-    }
 
     try docol_(self, sp, rsp, ip, target);
 }
