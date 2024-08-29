@@ -687,7 +687,7 @@ fn _create(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr
     const s: [*]u8 = @ptrFromInt(u);
     if (self.code.len > 0 and self.alloc.resize(self.code, self.index()) == false)
         return error.IndexOutOfBounds;
-    const code = try self.alloc.alloc(Instr, offset + 4);
+    const code = try self.alloc.alloc(Instr, offset + 3);
     var new: *Word = @ptrCast(code.ptr);
     new.link = self.latest;
     new.flag = @truncate(c);
@@ -841,20 +841,16 @@ fn _interpret(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const In
 }
 const interpret = defcode_(&tell, "INTERPRET", _interpret);
 
-const quit = defword_(
-    &interpret,
-    Flag.ZERO,
-    "QUIT",
-    &[_]Instr{
-        .{ .code = docol_ },
-        .{ .word = codeFieldAddress(&rz) },
-        .{ .word = codeFieldAddress(&rspstore) },
-        .{ .word = codeFieldAddress(&interpret) },
-        .{ .word = codeFieldAddress(&branch) },
-        .{ .literal = -2 * @sizeOf(Instr) },
-        .{ .word = codeFieldAddress(&exit) },
-    },
-);
+const _quit = [_]Instr{
+    .{ .code = docol_ },
+    .{ .word = codeFieldAddress(&rz) },
+    .{ .word = codeFieldAddress(&rspstore) },
+    .{ .word = codeFieldAddress(&interpret) },
+    .{ .word = codeFieldAddress(&branch) },
+    .{ .literal = -2 * @sizeOf(Instr) },
+    .{ .word = codeFieldAddress(&exit) },
+};
+const quit = defword_(&interpret, Flag.ZERO, "QUIT", &_quit);
 
 fn _char(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr, target: [*]const Instr) anyerror!void {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
@@ -911,7 +907,7 @@ inline fn _syscall0(sp: []isize) ![]isize {
     sp[0] = @intCast(linux.syscall0(number_));
     return sp;
 }
-const syscall0 = defcode(&syscall1, "SYSCALL0", _syscall0);
+var syscall0 = defcode(&syscall1, "SYSCALL0", _syscall0);
 
 pub fn main() anyerror!void {
     const N = 0x20;
@@ -924,7 +920,7 @@ pub fn main() anyerror!void {
     const allocator = fba.allocator();
     var env = Interp{
         .state = 0,
-        .latest = @constCast(@ptrCast(&syscall0)),
+        .latest = @ptrCast(&syscall0),
         .s0 = sp.ptr,
         .base = 10,
         .r0 = rsp.ptr,
@@ -934,7 +930,7 @@ pub fn main() anyerror!void {
         .code = undefined,
     };
     const self = &env;
-    const target = codeFieldAddress(&quit);
+    const target = &_quit;
     const cold_start = [_]Instr{.{ .word = target }};
     const ip: [*]const Instr = &cold_start;
 
