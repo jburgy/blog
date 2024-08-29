@@ -181,12 +181,12 @@ fn defword(
     return defword_(last, flag, name, code);
 }
 
-inline fn _drop(sp: []isize) anyerror![]isize {
+inline fn _drop(sp: []isize) ![]isize {
     return sp[1..];
 }
 const drop = defcode(null, "DROP", _drop);
 
-inline fn _swap(sp: []isize) anyerror![]isize {
+inline fn _swap(sp: []isize) ![]isize {
     const temp = sp[1];
     sp[1] = sp[0];
     sp[0] = temp;
@@ -194,21 +194,21 @@ inline fn _swap(sp: []isize) anyerror![]isize {
 }
 const swap = defcode(&drop, "SWAP", _swap);
 
-inline fn _dup(sp: []isize) anyerror![]isize {
+inline fn _dup(sp: []isize) ![]isize {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = sp[0];
     return s;
 }
 const dup = defcode(&swap, "DUP", _dup);
 
-inline fn _over(sp: []isize) anyerror![]isize {
+inline fn _over(sp: []isize) ![]isize {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = sp[1];
     return s;
 }
 const over = defcode(&dup, "OVER", _over);
 
-inline fn _rot(sp: []isize) anyerror![]isize {
+inline fn _rot(sp: []isize) ![]isize {
     const a = sp[0];
     const b = sp[1];
     const c = sp[2];
@@ -219,7 +219,7 @@ inline fn _rot(sp: []isize) anyerror![]isize {
 }
 const rot = defcode(&over, "ROT", _rot);
 
-inline fn _nrot(sp: []isize) anyerror![]isize {
+inline fn _nrot(sp: []isize) ![]isize {
     const a = sp[0];
     const b = sp[1];
     const c = sp[2];
@@ -230,12 +230,12 @@ inline fn _nrot(sp: []isize) anyerror![]isize {
 }
 const nrot = defcode(&rot, "-ROT", _nrot);
 
-inline fn _twodrop(sp: []isize) anyerror![]isize {
+inline fn _twodrop(sp: []isize) ![]isize {
     return sp[2..];
 }
 const twodrop = defcode(&nrot, "2DROP", _twodrop);
 
-inline fn _twodup(sp: []isize) anyerror![]isize {
+inline fn _twodup(sp: []isize) ![]isize {
     const s = (sp.ptr - 2)[0 .. sp.len + 2];
     s[1] = sp[1];
     s[0] = sp[0];
@@ -243,7 +243,7 @@ inline fn _twodup(sp: []isize) anyerror![]isize {
 }
 const twodup = defcode(&twodrop, "2DUP", _twodup);
 
-inline fn _twoswap(sp: []isize) anyerror![]isize {
+inline fn _twoswap(sp: []isize) ![]isize {
     const a = sp[0];
     const b = sp[1];
     const c = sp[2];
@@ -256,7 +256,7 @@ inline fn _twoswap(sp: []isize) anyerror![]isize {
 }
 const twoswap = defcode(&twodup, "2SWAP", _twoswap);
 
-inline fn _qdup(sp: []isize) anyerror![]isize {
+inline fn _qdup(sp: []isize) ![]isize {
     if (sp[0] != 0) {
         const s = (sp.ptr - 1)[0 .. sp.len + 1];
         s[0] = sp[0];
@@ -266,49 +266,49 @@ inline fn _qdup(sp: []isize) anyerror![]isize {
 }
 const qdup = defcode(&twoswap, "?DUP", _qdup);
 
-inline fn _incr(sp: []isize) anyerror![]isize {
+inline fn _incr(sp: []isize) ![]isize {
     sp[0] += 1;
     return sp;
 }
 const incr = defcode(&qdup, "1+", _incr);
 
-inline fn _decr(sp: []isize) anyerror![]isize {
+inline fn _decr(sp: []isize) ![]isize {
     sp[0] -= 1;
     return sp;
 }
 const decr = defcode(&incr, "1-", _decr);
 
-inline fn _incrp(sp: []isize) anyerror![]isize {
+inline fn _incrp(sp: []isize) ![]isize {
     sp[0] += @sizeOf(usize);
     return sp;
 }
 const incrp = defcode(&decr, &[_]u8{ '0' + @sizeOf(usize), '+' }, _incrp);
 
-inline fn _decrp(sp: []isize) anyerror![]isize {
+inline fn _decrp(sp: []isize) ![]isize {
     sp[0] -= @sizeOf(usize);
     return sp;
 }
 const decrp = defcode(&incrp, &[_]u8{ '0' + @sizeOf(usize), '-' }, _decrp);
 
-inline fn _add(sp: []isize) anyerror![]isize {
+inline fn _add(sp: []isize) ![]isize {
     sp[1] += sp[0];
     return sp[1..];
 }
 const add = defcode(&decrp, "+", _add);
 
-inline fn _sub(sp: []isize) anyerror![]isize {
+inline fn _sub(sp: []isize) ![]isize {
     sp[1] -= sp[0];
     return sp[1..];
 }
 const sub = defcode(&add, "-", _sub);
 
-inline fn _mul(sp: []isize) anyerror![]isize {
+inline fn _mul(sp: []isize) ![]isize {
     sp[1] *= sp[0];
     return sp[1..];
 }
 const mul = defcode(&sub, "*", _mul);
 
-inline fn _divmod(sp: []isize) anyerror![]isize {
+inline fn _divmod(sp: []isize) ![]isize {
     const a = sp[1];
     const b = sp[0];
     sp[1] = @rem(a, b);
@@ -317,97 +317,97 @@ inline fn _divmod(sp: []isize) anyerror![]isize {
 }
 const divmod = defcode(&mul, "/MOD", _divmod);
 
-inline fn _equ(sp: []isize) anyerror![]isize {
+inline fn _equ(sp: []isize) ![]isize {
     sp[1] = if (sp[1] == sp[0]) -1 else 0;
     return sp[1..];
 }
 const equ = defcode(&divmod, "=", _equ);
 
-inline fn _nequ(sp: []isize) anyerror![]isize {
+inline fn _nequ(sp: []isize) ![]isize {
     sp[1] = if (sp[1] == sp[0]) 0 else -1;
     return sp[1..];
 }
 const nequ = defcode(&equ, "<>", _nequ);
 
-inline fn _lt(sp: []isize) anyerror![]isize {
+inline fn _lt(sp: []isize) ![]isize {
     sp[1] = if (sp[1] < sp[0]) -1 else 0;
     return sp[1..];
 }
 const lt = defcode(&nequ, "<", _lt);
 
-inline fn _gt(sp: []isize) anyerror![]isize {
+inline fn _gt(sp: []isize) ![]isize {
     sp[1] = if (sp[1] > sp[0]) -1 else 0;
     return sp[1..];
 }
 const gt = defcode(&lt, ">", _gt);
 
-inline fn _le(sp: []isize) anyerror![]isize {
+inline fn _le(sp: []isize) ![]isize {
     sp[1] = if (sp[1] <= sp[0]) -1 else 0;
     return sp[1..];
 }
 const le = defcode(&gt, "<=", _le);
 
-inline fn _ge(sp: []isize) anyerror![]isize {
+inline fn _ge(sp: []isize) ![]isize {
     sp[1] = if (sp[1] >= sp[0]) -1 else 0;
     return sp[1..];
 }
 const ge = defcode(&le, ">=", _ge);
 
-inline fn _zequ(sp: []isize) anyerror![]isize {
+inline fn _zequ(sp: []isize) ![]isize {
     sp[0] = if (sp[0] == 0) -1 else 0;
     return sp;
 }
 const zequ = defcode(&ge, "0=", _zequ);
 
-inline fn _znequ(sp: []isize) anyerror![]isize {
+inline fn _znequ(sp: []isize) ![]isize {
     sp[0] = if (sp[0] != 0) -1 else 0;
     return sp;
 }
 const znequ = defcode(&zequ, "0<>", _znequ);
 
-inline fn _zlt(sp: []isize) anyerror![]isize {
+inline fn _zlt(sp: []isize) ![]isize {
     sp[0] = if (sp[0] < 0) -1 else 0;
     return sp;
 }
 const zlt = defcode(&znequ, "0<", _zlt);
 
-inline fn _zgt(sp: []isize) anyerror![]isize {
+inline fn _zgt(sp: []isize) ![]isize {
     sp[0] = if (sp[0] > 0) -1 else 0;
     return sp;
 }
 const zgt = defcode(&zlt, "0>", _zgt);
 
-inline fn _zle(sp: []isize) anyerror![]isize {
+inline fn _zle(sp: []isize) ![]isize {
     sp[0] = if (sp[0] <= 0) -1 else 0;
     return sp;
 }
 const zle = defcode(&zgt, "0<=", _zle);
 
-inline fn _zge(sp: []isize) anyerror![]isize {
+inline fn _zge(sp: []isize) ![]isize {
     sp[0] = if (sp[0] >= 0) -1 else 0;
     return sp;
 }
 const zge = defcode(&zle, "0>=", _zge);
 
-inline fn _and(sp: []isize) anyerror![]isize {
+inline fn _and(sp: []isize) ![]isize {
     sp[1] &= sp[0];
     return sp[1..];
 }
 const and_ = defcode(&zge, "AND", _and);
 
-inline fn _or(sp: []isize) anyerror![]isize {
+inline fn _or(sp: []isize) ![]isize {
     sp[1] |= sp[0];
     return sp[1..];
 }
 const or_ = defcode(&and_, "OR", _or);
 
-inline fn _xor(sp: []isize) anyerror![]isize {
+inline fn _xor(sp: []isize) ![]isize {
     sp[1] ^= sp[0];
     return sp[1..];
 }
 const xor = defcode(&or_, "XOR", _xor);
 
-inline fn _invert(sp: []isize) anyerror![]isize {
+inline fn _invert(sp: []isize) ![]isize {
     sp[0] = ~sp[0];
     return sp;
 }
@@ -426,35 +426,35 @@ fn _lit(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr, t
 }
 const lit = defcode_(&exit, "LIT", _lit);
 
-inline fn _store(sp: []isize) anyerror![]isize {
+inline fn _store(sp: []isize) ![]isize {
     const p: *isize = @ptrFromInt(@abs(sp[0]));
     p.* = sp[1];
     return sp[2..];
 }
 const store = defcode(&lit, "!", _store);
 
-inline fn _fetch(sp: []isize) anyerror![]isize {
+inline fn _fetch(sp: []isize) ![]isize {
     const p: *isize = @ptrFromInt(@abs(sp[0]));
     sp[0] = p.*;
     return sp;
 }
 const fetch = defcode(&store, "@", _fetch);
 
-inline fn _addstore(sp: []isize) anyerror![]isize {
+inline fn _addstore(sp: []isize) ![]isize {
     const p: *[*]u8 = @ptrFromInt(@abs(sp[0]));
     p.* += @abs(sp[1]);
     return sp[2..];
 }
 const addstore = defcode(&fetch, "+!", _addstore);
 
-inline fn _substore(sp: []isize) anyerror![]isize {
+inline fn _substore(sp: []isize) ![]isize {
     const p: *[*]u8 = @ptrFromInt(@abs(sp[0]));
     p.* -= @abs(sp[1]);
     return sp[2..];
 }
 const substore = defcode(&addstore, "-!", _substore);
 
-inline fn _storebyte(sp: []isize) anyerror![]isize {
+inline fn _storebyte(sp: []isize) ![]isize {
     const p: [*]u8 = @ptrFromInt(@abs(sp[0]));
     const v: u8 = @truncate(@abs(sp[1]));
     p[0] = v;
@@ -462,14 +462,14 @@ inline fn _storebyte(sp: []isize) anyerror![]isize {
 }
 const storebyte = defcode(&substore, "C!", _storebyte);
 
-inline fn _fetchbyte(sp: []isize) anyerror![]isize {
+inline fn _fetchbyte(sp: []isize) ![]isize {
     const p: [*]u8 = @ptrFromInt(@abs(sp[0]));
     sp[0] = p[0];
     return sp;
 }
 const fetchbyte = defcode(&storebyte, "C@", _fetchbyte);
 
-inline fn _ccopy(sp: []isize) anyerror![]isize {
+inline fn _ccopy(sp: []isize) ![]isize {
     const p: [*]u8 = @ptrFromInt(@abs(sp[0]));
     const q: [*]u8 = @ptrFromInt(@abs(sp[1]));
     q[0] = p[0];
@@ -477,7 +477,7 @@ inline fn _ccopy(sp: []isize) anyerror![]isize {
 }
 const ccopy = defcode(&fetchbyte, "C@C!", _ccopy);
 
-inline fn _cmove(sp: []isize) anyerror![]isize {
+inline fn _cmove(sp: []isize) ![]isize {
     const n = @abs(sp[0]);
     @memcpy(dest: {
         const p: [*]u8 = @ptrFromInt(@abs(sp[1]));
@@ -486,10 +486,10 @@ inline fn _cmove(sp: []isize) anyerror![]isize {
         const q: [*]u8 = @ptrFromInt(@abs(sp[2]));
         break :source q[0..n];
     });
+    sp[2] = sp[1];
     return sp[2..];
 }
 const cmove = defcode(&ccopy, "CMOVE", _cmove);
-
 const state = defconst(&cmove, "STATE", .{ .self = "state" });
 
 fn _here(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr, target: [*]const Instr) anyerror!void {
@@ -504,7 +504,7 @@ const latest = defconst(&here, "LATEST", .{ .self = "latest" });
 const sz = defconst(&latest, "S0", .{ .self = "s0" });
 const base = defconst(&sz, "BASE", .{ .self = "base" });
 
-inline fn _argc(sp: []isize) anyerror![]isize {
+inline fn _argc(sp: []isize) ![]isize {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
     const u = @intFromPtr(os.argv.ptr - 1);
     s[0] = @intCast(u);
@@ -512,6 +512,7 @@ inline fn _argc(sp: []isize) anyerror![]isize {
 }
 const argc = defcode(&base, "(ARGC)", _argc);
 const version = defconst(&argc, "VERSION", .{ .literal = 47 });
+
 fn _rz(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr, target: [*]const Instr) anyerror!void {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
     const u = @intFromPtr(self.r0);
@@ -526,7 +527,7 @@ fn docol_(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr,
     self.next(sp, r, target[1..], target);
 }
 
-inline fn _docol(sp: []isize) anyerror![]isize {
+inline fn _docol(sp: []isize) ![]isize {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = @intCast(@intFromPtr(&docol_));
     return s;
@@ -585,14 +586,14 @@ fn _rdrop(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr,
 }
 const rdrop = defcode_(&rspstore, "RDROP", _rdrop);
 
-inline fn _dspfetch(sp: []isize) anyerror![]isize {
+inline fn _dspfetch(sp: []isize) ![]isize {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = @intCast(@intFromPtr(sp.ptr));
     return s;
 }
 const dspfetch = defcode(&rdrop, "DSP@", _dspfetch);
 
-inline fn _dspstore(sp: []isize) anyerror![]isize {
+inline fn _dspstore(sp: []isize) ![]isize {
     const u = @abs(sp[0]);
     const p: [*]isize = @ptrFromInt(u);
     const n = @divTrunc(@intFromPtr(sp.ptr + sp.len) - u, @sizeOf([*]const Instr));
@@ -600,14 +601,14 @@ inline fn _dspstore(sp: []isize) anyerror![]isize {
 }
 const dspstore = defcode(&dspfetch, "DSP!", _dspstore);
 
-inline fn _key(sp: []isize) anyerror![]isize {
+inline fn _key(sp: []isize) ![]isize {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
     s[0] = @intCast(key());
     return s;
 }
 const key_ = defcode(&dspstore, "KEY", _key);
 
-inline fn _emit(sp: []isize) anyerror![]isize {
+inline fn _emit(sp: []isize) ![]isize {
     const c: u8 = @truncate(@abs(sp[0]));
     try stdout.print("{c}", .{c});
     return sp[1..];
@@ -644,7 +645,7 @@ fn _find(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr, 
 }
 const find_ = defcode_(&number, "FIND", _find);
 
-inline fn _tcfa(sp: []isize) anyerror![]isize {
+inline fn _tcfa(sp: []isize) ![]isize {
     const w: [*]const Instr = @ptrFromInt(@abs(sp[0]));
     sp[0] = @intCast(@intFromPtr(codeFieldAddress(w)));
     return sp;
@@ -662,7 +663,7 @@ fn _create(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr
     const s: [*]u8 = @ptrFromInt(@abs(sp[1]));
     if (self.code.len > 0 and self.alloc.resize(self.code, self.index()) == false)
         return error.IndexOutOfBounds;
-    const code = try self.alloc.alloc(Instr, offset + 3);
+    const code = try self.alloc.alloc(Instr, 8);
     var new: *Word = @ptrCast(code.ptr);
     new.link = self.latest;
     new.flag = @truncate(c);
@@ -714,13 +715,12 @@ const immediate = defword_(
     &[_]Instr{.{ .code = _immediate }},
 );
 
-inline fn _hidden(sp: []isize) anyerror![]isize {
+inline fn _hidden(sp: []isize) ![]isize {
     const w: *Word = @ptrFromInt(@abs(sp[0]));
     w.flag ^= @intFromEnum(Flag.HIDDEN);
     return sp[1..];
 }
 const hidden = defcode(&immediate, "HIDDEN", _hidden);
-
 const hide = defword(
     &hidden,
     Flag.ZERO,
@@ -774,7 +774,7 @@ fn _litstring(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const In
 }
 const litstring = defcode_(&zbranch, "LITSTRING", _litstring);
 
-inline fn _tell(sp: []isize) anyerror![]isize {
+inline fn _tell(sp: []isize) ![]isize {
     const p: [*]u8 = @ptrFromInt(@abs(sp[1]));
     _ = try stdout.write(p[0..@abs(sp[0])]);
     return sp[2..];
@@ -806,7 +806,6 @@ fn _interpret(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const In
     self.next(s, rsp, ip, target);
 }
 const interpret = defcode_(&tell, "INTERPRET", _interpret);
-
 const _quit = [_]Instr{
     .{ .code = docol_ },
     .{ .word = codeFieldAddress(&rz) },
