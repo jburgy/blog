@@ -15,7 +15,7 @@ const Flag = enum(u8) { IMMED = 0x80, HIDDEN = 0x20, LENMASK = 0x1F, ZERO = 0x0 
 const Word = extern struct {
     link: ?*const Word,
     flag: u8,
-    name: [31]u8 align(1),
+    name: [@intFromEnum(Flag.LENMASK)]u8 align(1),
 };
 
 const offset = @divTrunc(@sizeOf(Word), @sizeOf(Instr));
@@ -121,7 +121,7 @@ fn defword_(
     p.link = if (last == null) null else @ptrCast(last.?.ptr);
     p.flag = name.len | @intFromEnum(flag);
     @memcpy(p.name[0..name.len], name);
-    @memset(p.name[name.len..31], 0);
+    @memset(p.name[name.len..@intFromEnum(Flag.LENMASK)], 0);
     @memcpy(instrs[offset..], code);
     return instrs;
 }
@@ -667,8 +667,8 @@ fn _create(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr
     var new: *Word = @ptrCast(code.ptr);
     new.link = self.latest;
     new.flag = @truncate(c);
-    @memset(new.name[0..31], 0);
     @memcpy(new.name[0..c], s[0..c]);
+    @memset(new.name[c..@intFromEnum(Flag.LENMASK)], 0);
     self.latest = new;
     self.here = @ptrCast(&code[offset]);
     self.code = code;
@@ -741,7 +741,6 @@ fn _tick(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr, 
     self.next(s, rsp, ip[1..], target);
 }
 const tick = defcode_(&colon, "'", _tick);
-
 const semicolon = defword(
     &tick,
     Flag.IMMED,
