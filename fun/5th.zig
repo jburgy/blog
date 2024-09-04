@@ -3,19 +3,24 @@ const io = std.io;
 const fmt = std.fmt;
 const mem = std.mem;
 const os = std.os;
-const linux = os.linux;
-const syscalls = linux.syscalls;
+const syscalls = os.linux.syscalls;
 const posix = std.posix;
+const O = posix.O;
+const native_os = @import("builtin").os.tag;
 
 const stdin = io.getStdIn().reader();
 const stdout = io.getStdOut().writer();
 
-const Flag = enum(u8) { IMMED = 0x80, HIDDEN = 0x20, LENMASK = 0x1F, ZERO = 0x0 };
+const O_RDONLY = if (@hasDecl(O, "read")) 1 << @bitOffsetOf(O, "read") else @intFromEnum(posix.ACCMODE.RDONLY);
+const O_WRONLY = if (@hasDecl(O, "write")) 1 << @bitOffsetOf(O, "write") else @intFromEnum(posix.ACCMODE.WRONLY);
+const O_RDWR = if (@hasDecl(O, "ACCMODE")) @intFromEnum(posix.ACCMODE.RDWR) else O_RDONLY | O_WRONLY;
+const F_LENMASK = std.ascii.control_code.us;
+const Flag = enum(u8) { IMMED = 0x80, HIDDEN = ' ', ZERO = 0x0 };
 
 const Word = extern struct {
     link: ?*const Word,
     flag: u8,
-    name: [@intFromEnum(Flag.LENMASK)]u8 align(1),
+    name: [F_LENMASK]u8 align(1),
 };
 
 const offset = @divTrunc(@sizeOf(Word), @sizeOf(Instr));
@@ -42,7 +47,7 @@ const Interp = struct {
     }
 
     pub fn word(self: *Interp) usize {
-        var ch: u8 = 0;
+        var ch: u8 = std.ascii.control_code.nul;
         var i: usize = 0;
 
         while (ch <= ' ') {
@@ -60,7 +65,7 @@ const Interp = struct {
     }
 
     pub fn find(self: *Interp, name: []u8) ?*const Word {
-        const mask = @intFromEnum(Flag.HIDDEN) | @intFromEnum(Flag.LENMASK);
+        const mask = @intFromEnum(Flag.HIDDEN) | F_LENMASK;
         var node: ?*const Word = self.latest;
         while (node != null and ((node.?.flag & mask) != name.len or !mem.eql(u8, node.?.name[0..name.len], name)))
             node = node.?.link;
@@ -76,7 +81,7 @@ const Interp = struct {
         var n = self.code.len;
         const i = self.index();
         while (i >= n)
-            n *|= 2;
+            n *= 2; // https://github.com/ziglang/zig/issues/13258
         if (n > self.code.len) {
             if (self.alloc.resize(self.code, n)) {
                 self.code.len = n;
@@ -121,7 +126,7 @@ fn defword_(
     p.link = if (last == null) null else @ptrCast(last.?.ptr);
     p.flag = name.len | @intFromEnum(flag);
     @memcpy(p.name[0..name.len], name);
-    @memset(p.name[name.len..@intFromEnum(Flag.LENMASK)], 0);
+    @memset(p.name[name.len..F_LENMASK], 0);
     @memcpy(instrs[offset..], code);
     return instrs;
 }
@@ -511,7 +516,10 @@ inline fn _argc(sp: []isize) ![]isize {
     return s;
 }
 const argc = defcode(&base, "(ARGC)", _argc);
-const version = defconst(&argc, "VERSION", .{ .literal = 47 });
+const version = defconst(&switch (native_os) {
+    .wasi, .windows => base,
+    else => argc,
+}, "VERSION", .{ .literal = 47 });
 
 fn _rz(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr, target: [*]const Instr) anyerror!void {
     const s = (sp.ptr - 1)[0 .. sp.len + 1];
@@ -535,21 +543,21 @@ inline fn _docol(sp: []isize) ![]isize {
 const docol = defcode(&rz, "DOCOL", _docol);
 const f_immed = defconst(&docol, "F_IMMED", .{ .literal = @intFromEnum(Flag.IMMED) });
 const f_hidden = defconst(&f_immed, "F_HIDDEN", .{ .literal = @intFromEnum(Flag.HIDDEN) });
-const f_lenmask = defconst(&f_hidden, "F_LENMASK", .{ .literal = @intFromEnum(Flag.LENMASK) });
+const f_lenmask = defconst(&f_hidden, "F_LENMASK", .{ .literal = F_LENMASK });
 const sys_exit = defconst(&f_lenmask, "SYS_EXIT", .{ .literal = @intFromEnum(syscalls.X64.exit) });
 const sys_open = defconst(&sys_exit, "SYS_OPEN", .{ .literal = @intFromEnum(syscalls.X64.open) });
 const sys_close = defconst(&sys_open, "SYS_CLOSE", .{ .literal = @intFromEnum(syscalls.X64.close) });
 const sys_read = defconst(&sys_close, "SYS_READ", .{ .literal = @intFromEnum(syscalls.X64.read) });
 const sys_write = defconst(&sys_read, "SYS_WRITE", .{ .literal = @intFromEnum(syscalls.X64.write) });
 const sys_brk = defconst(&sys_write, "SYS_BRK", .{ .literal = @intFromEnum(syscalls.X64.brk) });
-const o_rdonly = defconst(&sys_brk, "O_RDONLY", .{ .literal = @intFromEnum(posix.ACCMODE.RDONLY) });
-const o_wronly = defconst(&o_rdonly, "O_WRONLY", .{ .literal = @intFromEnum(posix.ACCMODE.WRONLY) });
-const o_rdwr = defconst(&o_wronly, "O_RDWR", .{ .literal = @intFromEnum(posix.ACCMODE.RDWR) });
-const o_creat = defconst(&o_rdwr, "O_CREAT", .{ .literal = 0x100 });
-const o_excl = defconst(&o_creat, "O_EXCL", .{ .literal = 0x200 });
-const o_trunc = defconst(&o_excl, "O_TRUNC", .{ .literal = 0x1000 });
-const o_append = defconst(&o_trunc, "O_APPEND", .{ .literal = 0x2000 });
-const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = 0x4000 });
+const o_rdonly = defconst(&sys_brk, "O_RDONLY", .{ .literal = O_RDONLY });
+const o_wronly = defconst(&o_rdonly, "O_WRONLY", .{ .literal = O_WRONLY });
+const o_rdwr = defconst(&o_wronly, "O_RDWR", .{ .literal = O_RDWR });
+const o_creat = defconst(&o_rdwr, "O_CREAT", .{ .literal = 1 << @bitOffsetOf(O, "CREAT") });
+const o_excl = defconst(&o_creat, "O_EXCL", .{ .literal = 1 << @bitOffsetOf(O, "EXCL") });
+const o_trunc = defconst(&o_excl, "O_TRUNC", .{ .literal = 1 << @bitOffsetOf(O, "TRUNC") });
+const o_append = defconst(&o_trunc, "O_APPEND", .{ .literal = 1 << @bitOffsetOf(O, "APPEND") });
+const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = 1 << @bitOffsetOf(O, "NONBLOCK") });
 
 fn _tor(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr, target: [*]const Instr) anyerror!void {
     const r = (rsp.ptr - 1)[0 .. rsp.len + 1];
@@ -668,7 +676,7 @@ fn _create(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr
     new.link = self.latest;
     new.flag = @truncate(c);
     @memcpy(new.name[0..c], s[0..c]);
-    @memset(new.name[c..@intFromEnum(Flag.LENMASK)], 0);
+    @memset(new.name[c..F_LENMASK], 0);
     self.latest = new;
     self.here = @ptrCast(&code[offset]);
     self.code = code;
@@ -834,7 +842,30 @@ const execute = defcode_(&char, "EXECUTE", _execute);
 inline fn _syscall3(sp: []isize) ![]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
 
-    sp[3] = @intCast(linux.syscall3(number_, @abs(sp[1]), @abs(sp[2]), @abs(sp[3])));
+    switch (number_) {
+        syscalls.X64.open => {
+            const p: usize = @intCast(sp[1]);
+            const file_path: [*:0]u8 = @ptrFromInt(p);
+            const flags: u32 = @intCast(sp[1]);
+            const perm: posix.mode_t = @intCast(sp[3]);
+            sp[3] = @intCast(try posix.openZ(file_path, @bitCast(flags), perm));
+        },
+        syscalls.X64.read => {
+            const fd: posix.fd_t = @intCast(sp[1]);
+            const p: usize = @intCast(sp[2]);
+            const buf: [*]u8 = @ptrFromInt(p);
+            const n: usize = @intCast(sp[3]);
+            sp[3] = @intCast(try posix.read(fd, buf[0..n]));
+        },
+        syscalls.X64.write => {
+            const fd: posix.fd_t = @intCast(sp[1]);
+            const p: usize = @intCast(sp[2]);
+            const buf: [*]u8 = @ptrFromInt(p);
+            const n: usize = @intCast(sp[3]);
+            sp[3] = @intCast(try posix.write(fd, buf[0..n]));
+        },
+        else => {},
+    }
     return sp[3..];
 }
 const syscall3 = defcode(&execute, "SYSCALL3", _syscall3);
@@ -842,30 +873,40 @@ const syscall3 = defcode(&execute, "SYSCALL3", _syscall3);
 inline fn _syscall2(sp: []isize) ![]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
 
-    sp[2] = @intCast(linux.syscall2(number_, @abs(sp[1]), @abs(sp[0])));
+    switch (number_) {
+        syscalls.X64.open => {
+            const p: usize = @intCast(sp[1]);
+            const file_path: [*:0]u8 = @ptrFromInt(p);
+            const flags: u32 = @intCast(sp[1]);
+            sp[2] = @intCast(try posix.openZ(file_path, @bitCast(flags), 0));
+        },
+        else => {},
+    }
     return sp[2..];
 }
 const syscall2 = defcode(&syscall3, "SYSCALL2", _syscall2);
 
 fn _syscall1(self: *Interp, sp: []isize, rsp: [][*]const Instr, ip: [*]const Instr, target: [*]const Instr) anyerror!void {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
-    const arg1 = @abs(sp[1]);
 
-    sp[1] = if (number_ == syscalls.X64.brk and arg1 == 0) blk: {
-        const p: *std.heap.FixedBufferAllocator = @alignCast(@ptrCast(self.alloc.ptr));
-        break :blk @intCast(@intFromPtr(p.buffer.ptr + p.buffer.len));
-    } else @intCast(linux.syscall1(number_, arg1));
+    switch (number_) {
+        syscalls.X64.exit => {
+            const status: u8 = @truncate(@abs(sp[1]));
+            posix.exit(status);
+        },
+        syscalls.X64.close => {
+            const fd: posix.fd_t = @intCast(sp[1]);
+            posix.close(fd);
+        },
+        syscalls.X64.brk => {
+            const p: *std.heap.FixedBufferAllocator = @alignCast(@ptrCast(self.alloc.ptr));
+            sp[1] = @intCast(@intFromPtr(p.buffer.ptr + p.buffer.len));
+        },
+        else => {},
+    }
     self.next(sp[1..], rsp, ip, target);
 }
-const syscall1 = defcode_(&syscall2, "SYSCALL1", _syscall1);
-
-inline fn _syscall0(sp: []isize) ![]isize {
-    const number_: syscalls.X64 = @enumFromInt(sp[0]);
-
-    sp[0] = @intCast(linux.syscall0(number_));
-    return sp;
-}
-var syscall0 = defcode(&syscall1, "SYSCALL0", _syscall0);
+var syscall1 = defcode_(&syscall2, "SYSCALL1", _syscall1);
 
 pub fn main() anyerror!void {
     const N = 0x20;
@@ -878,7 +919,7 @@ pub fn main() anyerror!void {
     const allocator = fba.allocator();
     var env = Interp{
         .state = 0,
-        .latest = @ptrCast(&syscall0),
+        .latest = @ptrCast(&syscall1),
         .s0 = sp.ptr,
         .base = 10,
         .r0 = rsp.ptr,
