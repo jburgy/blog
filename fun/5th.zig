@@ -846,7 +846,7 @@ inline fn _syscall3(sp: []isize) ![]isize {
         syscalls.X64.open => {
             const p: usize = @intCast(sp[1]);
             const file_path: [*:0]u8 = @ptrFromInt(p);
-            const flags: u32 = @intCast(sp[1]);
+            const flags: u32 = @intCast(sp[2]);
             const perm: posix.mode_t = @intCast(sp[3]);
             sp[3] = @intCast(try posix.openZ(file_path, @bitCast(flags), perm));
         },
@@ -877,7 +877,7 @@ inline fn _syscall2(sp: []isize) ![]isize {
         syscalls.X64.open => {
             const p: usize = @intCast(sp[1]);
             const file_path: [*:0]u8 = @ptrFromInt(p);
-            const flags: u32 = @intCast(sp[1]);
+            const flags: u32 = @intCast(sp[2]);
             sp[2] = @intCast(try posix.openZ(file_path, @bitCast(flags), 0));
         },
         else => {},
