@@ -6,8 +6,12 @@ const os = std.os;
 const syscalls = os.linux.syscalls;
 const posix = std.posix;
 const O = posix.O;
-const native_os = @import("builtin").os.tag;
+const builtin = @import("builtin");
 
+const conv = switch (builtin.cpu.arch) {
+    .x86_64 => .SysV,
+    else => .Unspecified,
+};
 const stdin = io.getStdIn().reader();
 const stdout = io.getStdOut().writer();
 
@@ -102,7 +106,7 @@ const Interp = struct {
 };
 
 const Instr = packed union {
-    code: *const fn (*Interp, [*]isize, [*][*]const Instr, [*]const Instr, [*]const Instr) callconv(.SysV) void,
+    code: *const fn (*Interp, [*]isize, [*][*]const Instr, [*]const Instr, [*]const Instr) callconv(conv) void,
     literal: isize,
     word: [*]const Instr,
 };
@@ -136,7 +140,7 @@ fn defword_(
 fn defcode_(
     comptime last: ?[]const Instr,
     comptime name: []const u8,
-    comptime code: fn (*Interp, [*]isize, [*][*]const Instr, [*]const Instr, [*]const Instr) callconv(.SysV) void,
+    comptime code: fn (*Interp, [*]isize, [*][*]const Instr, [*]const Instr, [*]const Instr) callconv(conv) void,
 ) [offset + 1]Instr {
     return defword_(last, Flag.ZERO, name, &[_]Instr{.{ .code = code }});
 }
@@ -147,7 +151,7 @@ fn defcode(
     comptime stack: fn ([*]isize) callconv(.Inline) [*]isize,
 ) [offset + 1]Instr {
     const wrap = struct {
-        pub fn code(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+        pub fn code(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
             self.next(stack(sp), rsp, ip, target);
         }
     };
@@ -160,7 +164,7 @@ fn defconst(
     comptime value: Source,
 ) [offset + 1]Instr {
     const wrap = struct {
-        pub fn code(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+        pub fn code(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
             const s = sp - 1;
             s[0] = switch (value) {
                 .self => |f| @intCast(@intFromPtr(&@field(self, f))),
@@ -420,13 +424,13 @@ inline fn _invert(sp: [*]isize) [*]isize {
 }
 const invert = defcode(&xor, "INVERT", _invert);
 
-fn _exit(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _exit(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     _ = ip;
     self.next(sp, rsp[1..], rsp[0], target);
 }
 const exit = defcode_(&invert, "EXIT", _exit);
 
-fn _lit(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _lit(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
     s[0] = ip[0].literal;
     self.next(s, rsp, ip[1..], target);
@@ -499,7 +503,7 @@ inline fn _cmove(sp: [*]isize) [*]isize {
 const cmove = defcode(&ccopy, "CMOVE", _cmove);
 const state = defconst(&cmove, "STATE", .{ .self = "state" });
 
-fn _here(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _here(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
     _ = self.ensureCapacity();
     const u = @intFromPtr(&self.here);
@@ -518,12 +522,12 @@ inline fn _argc(sp: [*]isize) [*]isize {
     return s;
 }
 const argc = defcode(&base, "(ARGC)", _argc);
-const version = defconst(&switch (native_os) {
+const version = defconst(&switch (builtin.os.tag) {
     .wasi, .windows => base,
     else => argc,
 }, "VERSION", .{ .literal = 47 });
 
-fn _rz(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _rz(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
     const u = @intFromPtr(self.r0);
     s[0] = @intCast(u);
@@ -531,7 +535,7 @@ fn _rz(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, 
 }
 const rz = defcode_(&version, "R0", _rz);
 
-fn docol_(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn docol_(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const r = rsp - 1;
     r[0] = ip;
     self.next(sp, r, target[1..], target);
@@ -561,7 +565,7 @@ const o_trunc = defconst(&o_excl, "O_TRUNC", .{ .literal = 1 << @bitOffsetOf(O, 
 const o_append = defconst(&o_trunc, "O_APPEND", .{ .literal = 1 << @bitOffsetOf(O, "APPEND") });
 const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = 1 << @bitOffsetOf(O, "NONBLOCK") });
 
-fn _tor(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _tor(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const r = rsp - 1;
     const t: *[*]const Instr = @ptrFromInt(@abs(sp[0]));
     r[0] = t.*;
@@ -569,21 +573,21 @@ fn _tor(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr,
 }
 const tor = defcode_(&o_nonblock, ">R", _tor);
 
-fn _fromr(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _fromr(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
     sp[0] = @intCast(@intFromPtr(&rsp[0]));
     self.next(s, rsp[1..], ip, target);
 }
 const fromr = defcode_(&tor, "R>", _fromr);
 
-fn _rspfetch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _rspfetch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
     sp[0] = @intCast(@intFromPtr(rsp));
     self.next(s, rsp, ip, target);
 }
 const rspfetch = defcode_(&fromr, "RSP@", _rspfetch);
 
-fn _rspstore(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _rspstore(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     _ = rsp;
     const s = @abs(sp[0]);
     const t: [*][*]const Instr = @ptrFromInt(s);
@@ -591,7 +595,7 @@ fn _rspstore(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
 }
 const rspstore = defcode_(&rspfetch, "RSP!", _rspstore);
 
-fn _rdrop(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _rdrop(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     self.next(sp, rsp[1..], ip, target);
 }
 const rdrop = defcode_(&rspstore, "RDROP", _rdrop);
@@ -624,7 +628,7 @@ inline fn _emit(sp: [*]isize) [*]isize {
 }
 const emit = defcode(&key_, "EMIT", _emit);
 
-fn _word(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _word(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 2;
     const u = @intFromPtr(&self.buffer);
     s[1] = @intCast(u);
@@ -633,7 +637,7 @@ fn _word(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr
 }
 const word_ = defcode_(&emit, "WORD", _word);
 
-fn _number(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _number(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     if (fmt.parseInt(isize, buf: {
         const s: [*]u8 = @ptrFromInt(@abs(sp[1]));
         break :buf s[0..@abs(sp[0])];
@@ -645,7 +649,7 @@ fn _number(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Ins
 }
 const number = defcode_(&word_, "NUMBER", _number);
 
-fn _find(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _find(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s: [*]u8 = @ptrFromInt(@abs(sp[1]));
     const v = self.find(s[0..@abs(sp[0])]);
 
@@ -667,7 +671,7 @@ const tdfa = defword(
     &[_][]const Instr{ &tcfa, &incrp, &exit, &exit },
 );
 
-fn _create(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _create(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const c = @abs(sp[0]);
     const s: [*]u8 = @ptrFromInt(@abs(sp[1]));
     if (self.code.len > 0 and self.alloc.resize(self.code, self.index()) == false)
@@ -685,7 +689,7 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Ins
 }
 const create = defcode_(&tdfa, "CREATE", _create);
 
-fn _comma(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _comma(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s: isize = sp[0];
     const instr: Instr = if (s < 0x1000) .{ .literal = s } else if (s == @intFromPtr(&docol_)) .{ .code = docol_ } else .{ .word = blk: {
         const p: [*]const Instr = @ptrFromInt(@abs(s));
@@ -696,7 +700,7 @@ fn _comma(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Inst
 }
 const comma = defcode_(&create, ",", _comma);
 
-fn _lbrac(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _lbrac(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     self.state = 0;
     self.next(sp, rsp, ip, target);
 }
@@ -707,13 +711,13 @@ const lbrac = defword_(
     &[_]Instr{.{ .code = _lbrac }},
 );
 
-fn _rbrac(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _rbrac(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     self.state = 1;
     self.next(sp, rsp, ip, target);
 }
 const rbrac = defcode_(&lbrac, "]", _rbrac);
 
-fn _immediate(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _immediate(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     self.latest.flag ^= @intFromEnum(Flag.IMMED);
     self.next(sp, rsp, ip, target);
 }
@@ -743,7 +747,7 @@ const colon = defword(
     &[_][]const Instr{ &word_, &create, &docol, &comma, &latest, &fetch, &hidden, &rbrac, &exit, &exit },
 );
 
-fn _tick(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _tick(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
     const u = @intFromPtr(ip[0].word);
     s[0] = @intCast(u);
@@ -757,7 +761,7 @@ const semicolon = defword(
     &[_][]const Instr{ &tick, &exit, &comma, &latest, &fetch, &hidden, &lbrac, &exit },
 );
 
-fn _branch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _branch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const n = @divTrunc(ip[0].literal, @sizeOf(Instr));
     const a = @abs(n);
     const p = if (n < 0) ip - a else ip + a;
@@ -765,14 +769,14 @@ fn _branch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Ins
 }
 const branch = defcode_(&semicolon, "BRANCH", _branch);
 
-fn _zbranch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _zbranch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     if (sp[0] == 0)
         return @call(.always_tail, _branch, .{ self, sp[1..], rsp, ip, target });
     self.next(sp[1..], rsp, ip[1..], target);
 }
 const zbranch = defcode_(&branch, "0BRANCH", _zbranch);
 
-fn _litstring(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _litstring(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const c = @abs(ip[0].literal);
     const s = sp - 2;
     s[1] = @intCast(@intFromPtr(&ip[1]));
@@ -789,7 +793,7 @@ inline fn _tell(sp: [*]isize) [*]isize {
 }
 const tell = defcode(&litstring, "TELL", _tell);
 
-fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const c = self.word();
     var s = sp;
 
@@ -825,7 +829,7 @@ const _quit = [_]Instr{
 };
 const quit = defword_(&interpret, Flag.ZERO, "QUIT", &_quit);
 
-fn _char(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _char(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
     _ = self.word();
     s[0] = self.buffer[0];
@@ -833,7 +837,7 @@ fn _char(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr
 }
 const char = defcode_(&quit, "CHAR", _char);
 
-fn _execute(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _execute(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     _ = target;
     const target_: *Instr = @ptrFromInt(@abs(sp[0]));
     return @call(.always_tail, target_.code, .{ self, sp[1..], rsp, ip, target_[0..0] });
@@ -887,7 +891,7 @@ inline fn _syscall2(sp: [*]isize) [*]isize {
 }
 const syscall2 = defcode(&syscall3, "SYSCALL2", _syscall2);
 
-fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(.SysV) void {
+fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
 
     switch (number_) {
@@ -909,7 +913,7 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
 }
 var syscall1 = defcode_(&syscall2, "SYSCALL1", _syscall1);
 
-pub fn main() callconv(.SysV) void {
+pub fn main() callconv(conv) void {
     const N = 0x20;
     const stack = [_]isize{undefined} ** N;
     const sp = stack[N..];
