@@ -522,10 +522,7 @@ inline fn _argc(sp: [*]isize) [*]isize {
     return s;
 }
 const argc = defcode(&base, "(ARGC)", _argc);
-const version = defconst(&switch (builtin.os.tag) {
-    .wasi, .windows => base,
-    else => argc,
-}, "VERSION", .{ .literal = 47 });
+const version = defconst(&if (builtin.target.isWasm()) base else argc, "VERSION", .{ .literal = 47 });
 
 fn _rz(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
@@ -848,21 +845,21 @@ inline fn _syscall3(sp: [*]isize) [*]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
 
     switch (number_) {
-        syscalls.X64.open => {
+        .open => {
             const p: usize = @intCast(sp[1]);
             const file_path: [*:0]u8 = @ptrFromInt(p);
             const flags: u32 = @intCast(sp[2]);
             const perm: posix.mode_t = @intCast(sp[3]);
             sp[3] = @intCast(posix.openZ(file_path, @bitCast(flags), perm) catch -1);
         },
-        syscalls.X64.read => {
+        .read => {
             const fd: posix.fd_t = @intCast(sp[1]);
             const p: usize = @intCast(sp[2]);
             const buf: [*]u8 = @ptrFromInt(p);
             const n: usize = @intCast(sp[3]);
             sp[3] = if (posix.read(fd, buf[0..n])) |m| @intCast(m) else |_| -1;
         },
-        syscalls.X64.write => {
+        .write => {
             const fd: posix.fd_t = @intCast(sp[1]);
             const p: usize = @intCast(sp[2]);
             const buf: [*]u8 = @ptrFromInt(p);
@@ -879,7 +876,7 @@ inline fn _syscall2(sp: [*]isize) [*]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
 
     switch (number_) {
-        syscalls.X64.open => {
+        .open => {
             const p: usize = @intCast(sp[1]);
             const file_path: [*:0]u8 = @ptrFromInt(p);
             const flags: u32 = @intCast(sp[2]);
@@ -895,16 +892,23 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
 
     switch (number_) {
-        syscalls.X64.exit => {
+        .exit => {
             const status: u8 = @truncate(@abs(sp[1]));
             posix.exit(status);
         },
-        syscalls.X64.close => {
+        .close => {
             const fd: posix.fd_t = @intCast(sp[1]);
             posix.close(fd);
         },
-        syscalls.X64.brk => {
+        .brk => {
+            const m = @abs(sp[1]);
             const p: *std.heap.FixedBufferAllocator = @alignCast(@ptrCast(self.alloc.ptr));
+            if (m > 0) {
+                const n = os.linux.syscall1(.brk, m);
+                if (n < m)
+                    @panic("brk syscall failed");
+                p.buffer.len = m - @intFromPtr(p.buffer.ptr);
+            }
             sp[1] = @intCast(@intFromPtr(p.buffer.ptr + p.buffer.len));
         },
         else => {},
@@ -912,6 +916,7 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
     self.next(sp[1..], rsp, ip, target);
 }
 var syscall1 = defcode_(&syscall2, "SYSCALL1", _syscall1);
+var memory: [0x800000]u8 linksection(".bss") = undefined;
 
 pub fn main() callconv(conv) void {
     const N = 0x20;
@@ -919,7 +924,6 @@ pub fn main() callconv(conv) void {
     const sp = stack[N..];
     const return_stack = [_][*]const Instr{undefined} ** N;
     const rsp = return_stack[N..];
-    var memory: [0x800000]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&memory);
     const allocator = fba.allocator();
     var env = Interp{
