@@ -1,3 +1,5 @@
+from bisect import bisect_left
+
 import numpy as np
 import numpy.typing as npt
 from scipy import sparse
@@ -66,3 +68,38 @@ def sumby(by: npt.ArrayLike):
         (np.ones(shape=len(by)), (inverse, range(len(by)))),
         shape=(len(keys), len(by)),
     )
+
+
+def matmul(a: sparse.csr_array, b: sparse.csr_array) -> sparse.csr_array:
+    assert isinstance(a, sparse.csr_array)
+    assert isinstance(b, sparse.csc_array)
+    assert a.shape[1] == b.shape[0]
+    indptr = np.copy(a.indptr)
+    indices: list[int] = []
+    data: list[float] = []
+
+    colbeg = indptr[0]
+    for row in range(a.shape[0]):
+        colend = indptr[row + 1]
+        rowbeg = b.indptr[0]
+        for col in range(b.shape[1]):
+            rowend = b.indptr[col + 1]
+            x = 0.0
+            for i in range(colbeg, colend):
+                k = a.indices[i]
+                rowbeg = bisect_left(b.indices, k, lo=rowbeg, hi=rowend)
+                if rowbeg == rowend:
+                    break
+                if k < b.indices[rowbeg]:
+                    continue
+                x += a.data[i] * b.data[rowbeg]
+                rowbeg += 1
+            else:
+                rowbeg = rowend
+            if np.isclose(x, 0.0):
+                continue
+            indices.append(col)
+            data.append(x)
+        indptr[row + 1] = len(indices)
+        colbeg = colend
+    return sparse.csr_array((data, indices, indptr), shape=(a.shape[0], b.shape[1]))
