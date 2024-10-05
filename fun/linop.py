@@ -1,4 +1,5 @@
 from bisect import bisect_left
+from typing import Union
 
 import numpy as np
 import numpy.typing as npt
@@ -70,19 +71,40 @@ def sumby(by: npt.ArrayLike):
     )
 
 
-def matmul(a: sparse.csr_array, b: sparse.csr_array) -> sparse.csr_array:
+def matmul(
+    a: sparse.csr_array, b: Union[sparse.csc_array, sparse.csr_array]
+) -> sparse.csr_array:
+    r""" Sparse multiplication of CSR with CSC or CSR.
+
+    >>> sparse.csr_array([[11., 12.], [21., 22.]])  # doctest: +NORMALIZE_WHITESPACE
+    <2x2 sparse array of type '<class 'numpy.float64'>'
+        with 4 stored elements in Compressed Sparse Row format>
+    >>> _ @ sparse.csr_array([[1., 0.], [0., 10.]])  # doctest: +NORMALIZE_WHITESPACE
+    <2x2 sparse array of type '<class 'numpy.float64'>'
+        with 4 stored elements in Compressed Sparse Row format>
+    >>> _.todense()
+    array([[ 11., 120.],
+           [ 21., 220.]])
+    """
     assert isinstance(a, sparse.csr_array)
+    if isinstance(b, sparse.csr_array):
+        return a @ b  # see _csr_matrix._matmul_sparse
+
     assert isinstance(b, sparse.csc_array)
-    assert a.shape[1] == b.shape[0]
+
+    n, k = a.shape
+    l, m = b.shape
+    assert k == l
+
     indptr = np.copy(a.indptr)
     indices: list[int] = []
     data: list[float] = []
 
     colbeg = indptr[0]
-    for row in range(a.shape[0]):
+    for row in range(m):
         colend = indptr[row + 1]
         rowbeg = b.indptr[0]
-        for col in range(b.shape[1]):
+        for col in range(n):
             rowend = b.indptr[col + 1]
             x = 0.0
             for i in range(colbeg, colend):
@@ -102,4 +124,4 @@ def matmul(a: sparse.csr_array, b: sparse.csr_array) -> sparse.csr_array:
             data.append(x)
         indptr[row + 1] = len(indices)
         colbeg = colend
-    return sparse.csr_array((data, indices, indptr), shape=(a.shape[0], b.shape[1]))
+    return sparse.csr_array((data, indices, indptr), shape=(m, n))
