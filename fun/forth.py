@@ -261,7 +261,7 @@ repeat nip ;
     Fnm1 = 1
     while m:
         Fn2 = Fn * Fn
-        Fn = 2 * Fnm1 * Fn2 + Fn2
+        Fn = 2 * Fnm1 * Fn + Fn2
         Fnm1 = Fnm1 * Fnm1 + Fn2
         if n & m:
             Fnm1, Fn = Fn, Fnm1 + Fn
