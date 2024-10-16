@@ -15,9 +15,8 @@
         ROT DUP
     WHILE
         -ROT                       \ n m a b
-        2DUP * DUP + -ROT          \ n m 2ab a b
-        DUP * SWAP DUP *           \ n m 2ab b^2 a^2
-        ROT OVER + -ROT +          \ n m a' b'
+        2DUP DUP + OVER + * -ROT   \ n m a' a b
+        DUP * SWAP DUP * +         \ n m a' b'
         2SWAP 2DUP AND             \ a b n m n&m
         IF
             2 / 2SWAP OVER + SWAP  \ n m a+b b
