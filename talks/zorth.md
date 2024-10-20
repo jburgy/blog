@@ -98,3 +98,4 @@ Benchmark 1: ./fibonacci
 * [Why not try Zig next?](https://bur.gy/2024/08/31/why-not-zig.html) (shameless plug)
 * [Starting FORTH](https://www.forth.com/starting-forth/) to go deeper
 * Discord conversations [1](https://discord.com/channels/605571803288698900/1254033012299927573/1254033012299927573), [2](https://discord.com/channels/605571803288698900/1274691126833578087/1274691126833578087), and [3](https://discord.com/channels/605571803288698900/1279771948447961148/1279771948447961148)
+* [Svgbob](https://ivanceras.github.io/svgbob-editor/) to generate diagrams
