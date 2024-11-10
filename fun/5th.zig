@@ -904,7 +904,10 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
             const m = @abs(sp[1]);
             const p: *std.heap.FixedBufferAllocator = @alignCast(@ptrCast(self.alloc.ptr));
             if (m > 0) {
-                const n = os.linux.syscall1(.brk, m);
+                const n = if (builtin.target.isWasm())
+                    @wasmMemoryGrow(0, @divTrunc(m, 0x10000))
+                else
+                    os.linux.syscall1(.brk, m);
                 if (n < m)
                     @panic("brk syscall failed");
                 p.buffer.len = m - @intFromPtr(p.buffer.ptr);
