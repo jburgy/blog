@@ -1,11 +1,10 @@
 const std = @import("std");
 const io = std.io;
 const fmt = std.fmt;
+const fs = std.fs;
 const mem = std.mem;
 const os = std.os;
 const syscalls = os.linux.syscalls;
-const posix = std.posix;
-const O = posix.O;
 const builtin = @import("builtin");
 
 const conv = switch (builtin.cpu.arch) {
@@ -15,9 +14,14 @@ const conv = switch (builtin.cpu.arch) {
 const stdin = io.getStdIn().reader();
 const stdout = io.getStdOut().writer();
 
-const O_RDONLY = if (@hasDecl(O, "read")) 1 << @bitOffsetOf(O, "read") else @intFromEnum(posix.ACCMODE.RDONLY);
-const O_WRONLY = if (@hasDecl(O, "write")) 1 << @bitOffsetOf(O, "write") else @intFromEnum(posix.ACCMODE.WRONLY);
-const O_RDWR = if (@hasDecl(O, "ACCMODE")) @intFromEnum(posix.ACCMODE.RDWR) else O_RDONLY | O_WRONLY;
+const O_RDONLY = 0o0;
+const O_WRONLY = 0o1;
+const O_RDWR = 0o2;
+const O_CREAT = 0o100;
+const O_EXCL = 0o200;
+const O_TRUNC = 0o1000;
+const O_APPEND = 0o2000;
+const O_NONBLOCK = 0o4000;
 const F_LENMASK = std.ascii.control_code.us;
 const Flag = enum(u8) { IMMED = 0x80, HIDDEN = ' ', ZERO = 0x0 };
 
@@ -556,11 +560,11 @@ const sys_brk = defconst(&sys_write, "SYS_BRK", .{ .literal = @intFromEnum(sysca
 const o_rdonly = defconst(&sys_brk, "O_RDONLY", .{ .literal = O_RDONLY });
 const o_wronly = defconst(&o_rdonly, "O_WRONLY", .{ .literal = O_WRONLY });
 const o_rdwr = defconst(&o_wronly, "O_RDWR", .{ .literal = O_RDWR });
-const o_creat = defconst(&o_rdwr, "O_CREAT", .{ .literal = 1 << @bitOffsetOf(O, "CREAT") });
-const o_excl = defconst(&o_creat, "O_EXCL", .{ .literal = 1 << @bitOffsetOf(O, "EXCL") });
-const o_trunc = defconst(&o_excl, "O_TRUNC", .{ .literal = 1 << @bitOffsetOf(O, "TRUNC") });
-const o_append = defconst(&o_trunc, "O_APPEND", .{ .literal = 1 << @bitOffsetOf(O, "APPEND") });
-const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = 1 << @bitOffsetOf(O, "NONBLOCK") });
+const o_creat = defconst(&o_rdwr, "O_CREAT", .{ .literal = O_CREAT });
+const o_excl = defconst(&o_creat, "O_EXCL", .{ .literal = O_EXCL });
+const o_trunc = defconst(&o_excl, "O_TRUNC", .{ .literal = O_TRUNC });
+const o_append = defconst(&o_trunc, "O_APPEND", .{ .literal = O_APPEND });
+const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = O_NONBLOCK });
 
 fn _tor(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const r = rsp - 1;
@@ -849,22 +853,28 @@ inline fn _syscall3(sp: [*]isize) [*]isize {
             const p: usize = @intCast(sp[1]);
             const file_path: [*:0]u8 = @ptrFromInt(p);
             const flags: u32 = @intCast(sp[2]);
-            const perm: posix.mode_t = @intCast(sp[3]);
-            sp[3] = @intCast(posix.openZ(file_path, @bitCast(flags), perm) catch -1);
+            const perm: fs.File.Mode = @intCast(sp[3]);
+            sp[3] = if (fs.cwd().createFileZ(file_path, .{
+                .read = (flags & (O_RDONLY | O_RDWR)) != 0,
+                .truncate = (flags & O_TRUNC) != 0,
+                .exclusive = (flags & O_EXCL) != 0,
+                .lock_nonblocking = (flags & O_NONBLOCK) != 0,
+                .mode = perm,
+            })) |file| @intCast(file.handle) else |_| -1;
         },
         .read => {
-            const fd: posix.fd_t = @intCast(sp[1]);
+            const file = fs.File{ .handle = @intCast(sp[1]) };
             const p: usize = @intCast(sp[2]);
             const buf: [*]u8 = @ptrFromInt(p);
             const n: usize = @intCast(sp[3]);
-            sp[3] = if (posix.read(fd, buf[0..n])) |m| @intCast(m) else |_| -1;
+            sp[3] = if (file.read(buf[0..n])) |m| @intCast(m) else |_| -1;
         },
         .write => {
-            const fd: posix.fd_t = @intCast(sp[1]);
+            const file = fs.File{ .handle = @intCast(sp[1]) };
             const p: usize = @intCast(sp[2]);
             const buf: [*]u8 = @ptrFromInt(p);
             const n: usize = @intCast(sp[3]);
-            sp[3] = if (posix.write(fd, buf[0..n])) |m| @intCast(m) else |_| -1;
+            sp[3] = if (file.write(buf[0..n])) |m| @intCast(m) else |_| -1;
         },
         else => {},
     }
@@ -880,7 +890,10 @@ inline fn _syscall2(sp: [*]isize) [*]isize {
             const p: usize = @intCast(sp[1]);
             const file_path: [*:0]u8 = @ptrFromInt(p);
             const flags: u32 = @intCast(sp[2]);
-            sp[2] = @intCast(posix.openZ(file_path, @bitCast(flags), 0) catch -1);
+            sp[2] = if (fs.cwd().openFileZ(file_path, .{
+                .mode = @enumFromInt(flags & (O_RDONLY | O_WRONLY | O_RDWR)),
+                .lock_nonblocking = (flags & O_NONBLOCK) != 0,
+            })) |file| @intCast(file.handle) else |_| -1;
         },
         else => {},
     }
@@ -894,11 +907,11 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
     switch (number_) {
         .exit => {
             const status: u8 = @truncate(@abs(sp[1]));
-            posix.exit(status);
+            std.process.exit(status);
         },
         .close => {
-            const fd: posix.fd_t = @intCast(sp[1]);
-            posix.close(fd);
+            const file = fs.File{ .handle = @intCast(sp[1]) };
+            file.close();
         },
         .brk => {
             const m = @abs(sp[1]);
@@ -946,4 +959,14 @@ pub fn main() callconv(conv) void {
     const ip: [*]const Instr = &cold_start;
 
     target[0].code(self, sp, rsp, ip, target);
+}
+
+fn mainWithoutEnv(c_argc: c_int, c_argv: [*][*:0]c_char) callconv(.C) c_int {
+    _ = @as([*][*:0]u8, @ptrCast(c_argv))[0..@as(usize, @intCast(c_argc))];
+    @call(.always_inline, main, .{});
+    return 0;
+}
+
+comptime {
+    @export(mainWithoutEnv, .{ .name = "__main_argc_argv" });
 }
