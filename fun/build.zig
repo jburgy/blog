@@ -13,9 +13,11 @@ pub fn build(b: *Build) void {
     }
 }
 
+/// Invoke using
+/// zig build -Dtarget=wasm32-emscripten -Dcpu=baseline+atomics+bulk_memory+tail_call
 fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
     const lib = b.addStaticLibrary(.{
-        .name = "5th",
+        .name = "zorth",
         .root_source_file = b.path("5th.zig"),
         .target = target,
         .optimize = optimize,
@@ -32,7 +34,7 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
     emcc.addArg("-sASSERTIONS=2");
     emcc.addArg("--js-library=node_modules/xterm-pty/emscripten-pty.js");
     emcc.addArg("-o");
-    const out_file = emcc.addOutputFileArg("5th.mjs");
+    const out_file = emcc.addOutputFileArg("zorth.mjs");
     emcc.addArtifactArg(lib);
 
     const install = b.addInstallDirectory(.{
