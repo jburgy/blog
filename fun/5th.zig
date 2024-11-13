@@ -32,6 +32,7 @@ const Word = extern struct {
 };
 
 const offset = @divTrunc(@sizeOf(Word), @sizeOf(Instr));
+const initial: comptime_int = @intFromFloat(@exp2(@ceil(@log2(@as(f32, offset)))));
 
 inline fn codeFieldAddress(w: [*]const Instr) [*]const Instr {
     return w + offset;
@@ -677,7 +678,7 @@ fn _create(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Ins
     const s: [*]u8 = @ptrFromInt(@abs(sp[1]));
     if (self.code.len > 0 and self.alloc.resize(self.code, self.index()) == false)
         @panic("_create cannot resize");
-    const code = self.alloc.alloc(Instr, 8) catch @panic("_create cannot allocate");
+    const code = self.alloc.alloc(Instr, initial) catch @panic("_create cannot allocate");
     var new: *Word = @ptrCast(code.ptr);
     new.link = self.latest;
     new.flag = @truncate(c);
