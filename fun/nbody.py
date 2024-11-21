@@ -5,11 +5,9 @@
 # modified by Tupteq, Fredrik Johansson, and Daniel Nanz
 # modified by Maciej Fijalkowski
 
-# %%
-import matplotlib
-from matplotlib import animation, pyplot as plt
 from numpy import array, divide, empty, greater, multiply, pi, r_, sqrt, sum, take
 from scipy.linalg.blas import daxpy, dspr2, zhpmv, zhpr
+
 
 # fmt: off
 x = array([
@@ -51,11 +49,7 @@ x2 = empty(n, dtype=float)
 ones = empty(n, dtype=float)
 ones.fill(1.0)
 
-# %%
-
 dt = 0.01
-
-xs = empty((20_000, *x.shape))
 
 for _ in range(20_000):
     a.real = x
@@ -80,34 +74,4 @@ for _ in range(20_000):
     daxpy(a=dt, x=a.real, y=v)  # v += a dt
     daxpy(a=dt, x=v, y=x)  # x += v dt
 
-    xs[_, ...] = x
-
-# %%
-matplotlib.use("widget")
-
-
-def update_lines(num: int, xs, lines):
-    for i, line in enumerate(lines):
-        line.set_data_3d(xs[i, :, :num])
-    return lines
-
-
-# Attaching 3D axis to the figure
-fig = plt.figure()
-ax = fig.add_subplot(projection="3d")
-
-# Create lines initially without data
-lines = [ax.plot([], [], [])[0] for _ in m]
-
-# Setting the Axes properties
-ax.set(xlim3d=(xs[:, 0, :].min(), xs[:, 0, :].max()), xlabel="X")
-ax.set(ylim3d=(xs[:, 1, :].min(), xs[:, 1, :].max()), ylabel="Y")
-ax.set(zlim3d=(xs[:, 2, :].min(), xs[:, 2, :].max()), zlabel="Z")
-
-# Creating the Animation object
-ani = animation.FuncAnimation(
-    fig, update_lines, len(xs), fargs=(xs.T, lines), interval=0
-)
-
-# %%
-plt.show()
+print(x.T)

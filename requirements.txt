@@ -1,7 +1,4 @@
 fastapi
-ipykernel
-ipympl
-matplotlib
 pandas
 scipy
 sqlalchemy
