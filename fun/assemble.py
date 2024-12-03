@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.9
 # ~*~ conding: utf8; ~*~
 from ast import literal_eval
 from dis import COMPILER_FLAG_NAMES, dis, show_code

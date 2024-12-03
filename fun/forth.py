@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.9
 # ~*~ encoding: utf8; ~*~
 """ Compiling forth to python bytecode for fun micro-optimizations
 
