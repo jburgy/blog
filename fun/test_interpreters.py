@@ -1,7 +1,11 @@
-import _xxsubinterpreters as interpreters
+try:
+    import interpreters
+except ModuleNotFoundError:
+    from interpreters_backport import interpreters
 
-interpreter_id = interpreters.create()
+from contextlib import closing
+
 script = "import sys; print(sys.version_info)"
 
-interpreters.run_string(interpreter_id, script)
-interpreters.destroy(interpreter_id)
+with closing(interpreters.create()) as interpreter:
+    interpreter.exec(script)

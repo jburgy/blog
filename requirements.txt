@@ -1,4 +1,5 @@
 fastapi
+interpreters-pep-734
 pandas
 scipy
 sqlalchemy

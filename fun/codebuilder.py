@@ -1,4 +1,4 @@
-from dis import COMPILER_FLAG_NAMES, MAKE_FUNCTION_FLAGS, stack_effect
+import dis
 from enum import IntFlag
 from functools import partialmethod
 from itertools import accumulate
@@ -15,9 +15,15 @@ from opcode import (
 )
 from types import CodeType
 
-CompilerFlags = IntFlag("CompilerFlags", " ".join(COMPILER_FLAG_NAMES.values()))
+CompilerFlags = IntFlag("CompilerFlags", " ".join(dis.COMPILER_FLAG_NAMES.values()))
 MakeFunctionFlags = IntFlag(
-    "MakeFunctionFlags", " ".join(flag.upper() for flag in MAKE_FUNCTION_FLAGS)
+    "MakeFunctionFlags",
+    " ".join(
+        flag.upper()
+        for flag in getattr(
+            dis, "MAKE_FUNCTION_FLAGS", getattr(dis, "FUNCTION_ATTR_FLAGS")
+        )
+    ),
 )
 
 
@@ -31,10 +37,14 @@ class CodeBuilderBase:
 
     def ascode(self, func_name: str, argcount: int) -> CodeType:
         code = bytes(self)
-        stacksize = max(accumulate(
-            stack_effect(op, arg) if op >= HAVE_ARGUMENT else stack_effect(op)
-            for op, arg in zip(code[::2], code[1::2])
-        ))
+        stacksize = max(
+            accumulate(
+                dis.stack_effect(op, arg)
+                if op >= HAVE_ARGUMENT
+                else dis.stack_effect(op)
+                for op, arg in zip(code[::2], code[1::2])
+            )
+        )
 
         return CodeType(
             argcount,
@@ -114,17 +124,23 @@ CodeBuilder = type(
     (CodeBuilderBase, bytearray),
     {
         name.replace("+", "_").lower(): partialmethod(
-            _closure if name == "LOAD_CLOSURE"
-            else _const if op in hasconst
-            else _compare if op in hascompare
-            else _free if op in hasfree
-            else _local if op in haslocal
-            else _name if op in hasname
+            _closure
+            if name == "LOAD_CLOSURE"
+            else _const
+            if op in hasconst
+            else _compare
+            if op in hascompare
+            else _free
+            if op in hasfree
+            else _local
+            if op in haslocal
+            else _name
+            if op in hasname
             else _code,
-            op
+            op,
         )
         for op, name in enumerate(opname)
-    }
+    },
 )
 
 if __name__ == "__main__":
@@ -163,6 +179,7 @@ if __name__ == "__main__":
             nonlocal y
             y += z
             return y + z
+
         return inner
 
     dis(func)
