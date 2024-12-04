@@ -13,7 +13,7 @@ with open("aoc2024/day2input.txt", "rt") as lines:
     for line in lines:
         numbers = tuple(map(int, line.rstrip().split()))
         valid += isvalid(*numbers) or any(
-            isvalid(*numbers[:i], *numbers[i + 1:]) for i in range(len(numbers))
+            isvalid(*numbers[:i], *numbers[i + 1 :]) for i in range(len(numbers))
         )
 
 print(valid)

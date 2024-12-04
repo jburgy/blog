@@ -77,11 +77,11 @@ def matmul(
     r""" Sparse multiplication of CSR with CSC or CSR.
 
     >>> sparse.csr_array([[11., 12.], [21., 22.]])  # doctest: +NORMALIZE_WHITESPACE
-    <2x2 sparse array of type '<class 'numpy.float64'>'
-        with 4 stored elements in Compressed Sparse Row format>
+    <Compressed Sparse Row sparse array of dtype 'float64'
+        with 4 stored elements and shape (2, 2)>
     >>> _ @ sparse.csr_array([[1., 0.], [0., 10.]])  # doctest: +NORMALIZE_WHITESPACE
-    <2x2 sparse array of type '<class 'numpy.float64'>'
-        with 4 stored elements in Compressed Sparse Row format>
+    <Compressed Sparse Row sparse array of dtype 'float64'
+        with 4 stored elements and shape (2, 2)>
     >>> _.todense()
     array([[ 11., 120.],
            [ 21., 220.]])
