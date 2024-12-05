@@ -13,6 +13,7 @@ from opcode import (
     hasname,
     opname,
 )
+from sys import version_info
 from types import CodeType
 
 CompilerFlags = IntFlag("CompilerFlags", " ".join(dis.COMPILER_FLAG_NAMES.values()))
@@ -20,9 +21,8 @@ MakeFunctionFlags = IntFlag(
     "MakeFunctionFlags",
     " ".join(
         flag.upper()
-        for flag in getattr(
-            dis, "MAKE_FUNCTION_FLAGS", getattr(dis, "FUNCTION_ATTR_FLAGS")
-        )
+        for flag in getattr(dis, "MAKE_FUNCTION_FLAGS", None)
+        or getattr(dis, "FUNCTION_ATTR_FLAGS", None)
     ),
 )
 
@@ -143,7 +143,7 @@ CodeBuilder = type(
     },
 )
 
-if __name__ == "__main__":
+if __name__ == "__main__" and version_info < (3, 10):
     from dis import dis, show_code
 
     inner = (
