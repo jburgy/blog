@@ -3,11 +3,12 @@ from functools import cmp_to_key
 
 
 def rules_to_key(precedes: dict[str, set[str]]):
-
     def mycmp(a: str, b: str) -> int:
         return (
-            -1 if b in precedes.get(a, set())
-            else 1 if a in precedes.get(b, set())
+            -1
+            if b in precedes.get(a, set())
+            else 1
+            if a in precedes.get(b, set())
             else 0
         )
 
@@ -28,8 +29,7 @@ with open("aoc2024/day5input.txt", "rt") as lines:
         elif line:
             update = line.split(",")
             if any(
-                (follow := precedes.get(tail))
-                and head in follow
+                (follow := precedes.get(tail)) and head in follow
                 for i, head in enumerate(update[:-1])
                 for tail in update[i:]
             ):
