@@ -1,5 +1,6 @@
 """ recursive alternative
 
+>>> import functools
 >>> @functools.cache
 ... def count(m: int, stone: str) -> int:
 ...     if m == 0:
