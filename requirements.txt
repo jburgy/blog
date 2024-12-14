@@ -1,6 +1,7 @@
 fastapi
 interpreters-pep-734
 pandas
+pillow
 scipy
 sqlalchemy
 sympy

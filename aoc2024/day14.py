@@ -1,37 +1,27 @@
 import re
-from math import prod
-from operator import itemgetter
 
 import numpy as np
 from PIL import Image
-
-
-def visualize(m: int, n: int, p: list[tuple[int, int]]) -> Image:
-    data = np.zeros(shape=(m, n), dtype=bool)
-    x = np.fromiter(map(itemgetter(0), p), dtype=int, count=len(p))
-    y = np.fromiter(map(itemgetter(1), p), dtype=int, count=len(p))
-    data[y, x] = True
-    return Image.frombytes(
-        mode="1", size=data.shape[::-1], data=np.packbits(data, axis=1)
-    )
+from scipy import ndimage
 
 
 pattern = re.compile(r"^p=(?P<px>-?\d+),(?P<py>-?\d+) v=(?P<vx>-?\d+),(?P<vy>-?\d+)$")
 
-p = []
-v = []
+p = np.empty((500, 2), dtype=int)
+v = np.empty((500, 2), dtype=int)
 with open("aoc2024/day14input.txt", "rt") as lines:
-    for line in lines:
+    for i, line in enumerate(lines):
         match = pattern.match(line)
-        p.append((int(match["px"]), int(match["py"])))
-        v.append((int(match["vx"]), int(match["vy"])))
+        p[i] = int(match["px"]), int(match["py"])
+        v[i] = int(match["vx"]), int(match["vy"])
 
 m = 101
 n = 103
 
 for _ in range(100):
-    for i, ((px, py), (vx, vy)) in enumerate(zip(p, v)):
-        p[i] = (px + vx) % m, (py + vy) % n
+    p += v
+    p[:, 0] %= m
+    p[:, 1] %= n
 
 bx, by = m // 2, n // 2
 counts = [0] * 4
@@ -41,9 +31,16 @@ for px, py in p:
     quadrant = int(px > bx) + int(py > by) * 2
     counts[quadrant] += 1
 
-print(prod(counts))
+data = np.empty(shape=(m, n), dtype=bool)
+labels = np.empty(shape=(m, n), dtype=int)
 
-for _ in range(6377 - 100):
-    for i, ((px, py), (vx, vy)) in enumerate(zip(p, v)):
-        p[i] = (px + vx) % m, (py + vy) % n
-visualize(m, n, p).save("aoc2024/day14output.png")
+for i in range(100, 8000):
+    p += v
+    p[:, 0] %= m
+    p[:, 1] %= n
+    data[:, :] = False
+    data[p[:, 0], p[:, 1]] = True
+    ndimage.label(data, output=labels)
+    if np.bincount(labels.flat)[1:].max() > 100:
+        print(i + 1)
+        Image.fromarray(data.T).save("aoc2024/day14output.png")
