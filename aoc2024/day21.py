@@ -42,6 +42,6 @@ def mincount(code: str, n: int) -> int:
     return length(code)
 
 
-codes = "140A 170A 169A 803A 129A".split()
+codes = "140A\n170A\n169A\n803A\n129A".splitlines()
 print(sum(mincount(code, 2) * int(code[:-1]) for code in codes))
 print(sum(mincount(code, 25) * int(code[:-1]) for code in codes))
