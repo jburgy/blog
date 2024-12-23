@@ -1,8 +1,8 @@
 fastapi
 interpreters-pep-734
+networkx
 pandas
 pillow
-scipy
 sqlalchemy
 sympy
 z3-solver
