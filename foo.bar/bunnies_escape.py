@@ -87,7 +87,7 @@ def solution(m):  # noqa: max-complexity: 20
 
                 a = max(a, c) if a else c
                 continue
-            for k, l in product(NEIGHBORS, NEIGHBORS):
+            for k, l in product(NEIGHBORS, NEIGHBORS):  # noqa: E741
                 if k == l:
                     continue
                 y = x + k

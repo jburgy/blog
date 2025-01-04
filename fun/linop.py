@@ -93,7 +93,7 @@ def matmul(
     assert isinstance(b, sparse.csc_array)
 
     n, k = a.shape
-    l, m = b.shape
+    l, m = b.shape  # noqa: E741
     assert k == l
 
     indptr = np.copy(a.indptr)
