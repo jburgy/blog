@@ -7,12 +7,14 @@ if len(argv) > 1:
     with open("fun/corncob_lowercase.txt", "rt") as lines:
         words = set(map(str.rstrip, lines))
 
-    for r in reversed(range(3, 7)):
+    p = argv[1]
+    n = len(p)
+    for r in range(n, n - 4, -1):
         print(
             *sorted(
                 {
                     word
-                    for t in permutations(argv[1], r=r)
+                    for t in permutations(p, r)
                     if (word := "".join(t)) in words
                 }
             )
