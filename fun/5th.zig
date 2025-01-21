@@ -31,8 +31,7 @@ const Word = extern struct {
     name: [F_LENMASK]u8 align(1),
 };
 
-const offset = @divTrunc(@sizeOf(Word), @sizeOf(Instr));
-const initial: comptime_int = @intFromFloat(@exp2(@ceil(@log2(@as(f32, offset)))));
+const offset = @divExact(@sizeOf(Word), @sizeOf(Instr));
 
 inline fn codeFieldAddress(w: [*]const Instr) [*]const Instr {
     return w + offset;
@@ -47,9 +46,21 @@ const Interp = struct {
     base: isize,
     r0: [*]const [*]const Instr,
     buffer: [32]u8,
-    alloc: mem.Allocator,
+    memory: std.ArrayList(Instr),
     here: [*]u8,
-    code: []Instr,
+
+    pub fn init(sp: []const isize, rsp: []const [*]const Instr, m: std.ArrayList(Instr)) Interp {
+        return .{
+            .state = 0,
+            .latest = @ptrCast(&syscall1),
+            .s0 = sp.ptr,
+            .base = 10,
+            .r0 = rsp.ptr,
+            .buffer = undefined,
+            .memory = m,
+            .here = @ptrCast(m.items.ptr),
+        };
+    }
 
     pub inline fn next(self: *Self, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) void {
         _ = target;
@@ -85,28 +96,13 @@ const Interp = struct {
     }
 
     pub fn index(self: *Self) usize {
-        return @divTrunc(@intFromPtr(self.here) - @intFromPtr(self.code.ptr), @sizeOf(Instr));
-    }
-
-    fn ensureCapacity(self: *Self) usize {
-        var n = self.code.len;
-        const i = self.index();
-        while (i >= n)
-            n *= 2; // https://github.com/ziglang/zig/issues/13258
-        if (n > self.code.len) {
-            if (self.alloc.resize(self.code, n)) {
-                self.code.len = n;
-            } else {
-                @panic("ensureCapacity cannot resize");
-            }
-        }
-        return i;
+        return @divTrunc(@intFromPtr(self.here) - @intFromPtr(self.memory.items.ptr), @sizeOf(Instr));
     }
 
     pub fn append(self: *Self, instr: Instr) void {
-        const i = self.ensureCapacity();
-        self.here = @ptrCast(self.code.ptr + (i + 1));
-        self.code[i] = instr;
+        self.memory.resize(self.index()) catch @panic("append cannot resize");
+        self.memory.append(instr) catch @panic("append cannot append");
+        self.here = @ptrCast(self.memory.items.ptr + self.memory.items.len);
     }
 };
 
@@ -510,7 +506,7 @@ const state = defconst(&cmove, "STATE", .{ .self = "state" });
 
 fn _here(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
-    _ = self.ensureCapacity();
+    self.memory.resize(self.index()) catch @panic("_here cannot resize");
     const u = @intFromPtr(&self.here);
     s[0] = @intCast(u);
     self.next(s, rsp, ip, target);
@@ -676,17 +672,14 @@ const tdfa = defword(
 fn _create(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const c = @abs(sp[0]);
     const s: [*]u8 = @ptrFromInt(@abs(sp[1]));
-    if (self.code.len > 0 and self.alloc.resize(self.code, self.index()) == false)
-        @panic("_create cannot resize");
-    const code = self.alloc.alloc(Instr, initial) catch @panic("_create cannot allocate");
+    const code = self.memory.addManyAsSlice(offset) catch @panic("_create cannot allocate");
     var new: *Word = @ptrCast(code.ptr);
     new.link = self.latest;
     new.flag = @truncate(c);
     @memcpy(new.name[0..c], s[0..c]);
     @memset(new.name[c..F_LENMASK], 0);
     self.latest = new;
-    self.here = @ptrCast(&code[offset]);
-    self.code = code;
+    self.here = @ptrCast(self.memory.items.ptr + self.memory.items.len);
     self.next(sp[2..], rsp, ip, target);
 }
 const create = defcode_(&tdfa, "CREATE", _create);
@@ -916,7 +909,7 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
         },
         .brk => {
             const m = @abs(sp[1]);
-            const p: *std.heap.FixedBufferAllocator = @alignCast(@ptrCast(self.alloc.ptr));
+            const p: *std.heap.FixedBufferAllocator = @alignCast(@ptrCast(self.memory.allocator.ptr));
             if (m > 0) {
                 const n = if (builtin.target.isWasm())
                     @wasmMemoryGrow(0, @divTrunc(m, 0x10000))
@@ -942,24 +935,14 @@ pub fn main() callconv(conv) void {
     const return_stack = [_][*]const Instr{undefined} ** N;
     const rsp = return_stack[N..];
     var fba = std.heap.FixedBufferAllocator.init(&memory);
-    const allocator = fba.allocator();
-    var env = Interp{
-        .state = 0,
-        .latest = @ptrCast(&syscall1),
-        .s0 = sp.ptr,
-        .base = 10,
-        .r0 = rsp.ptr,
-        .buffer = undefined,
-        .alloc = allocator,
-        .here = undefined,
-        .code = undefined,
-    };
-    const self = &env;
+    const m = std.ArrayList(Instr).init(fba.allocator());
+    defer m.deinit();
+    var env = Interp.init(sp, rsp, m);
     const target = &_quit;
     const cold_start = [_]Instr{.{ .word = target }};
     const ip: [*]const Instr = &cold_start;
 
-    target[0].code(self, sp, rsp, ip, target);
+    target[0].code(&env, sp, rsp, ip, target);
 }
 
 fn mainWithoutEnv(c_argc: c_int, c_argv: [*][*:0]c_char) callconv(.C) c_int {
