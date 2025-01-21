@@ -37,74 +37,74 @@ inline fn codeFieldAddress(w: [*]const Instr) [*]const Instr {
     return w + offset;
 }
 
-const Interp = struct {
-    const Self = @This();
+fn InterpAligned(comptime alignment: u29) type {
+    return struct {
+        const Self = @This();
 
-    state: isize,
-    latest: *Word,
-    s0: [*]const isize,
-    base: isize,
-    r0: [*]const [*]const Instr,
-    buffer: [32]u8,
-    memory: std.ArrayList(Instr),
-    here: [*]u8,
+        state: isize,
+        latest: *Word,
+        s0: [*]const isize,
+        base: isize,
+        r0: [*]const [*]const Instr,
+        buffer: [32]u8,
+        memory: std.ArrayListAligned(u8, alignment),
+        here: [*]u8,
 
-    pub fn init(sp: []const isize, rsp: []const [*]const Instr, m: std.ArrayList(Instr)) Interp {
-        return .{
-            .state = 0,
-            .latest = @ptrCast(&syscall1),
-            .s0 = sp.ptr,
-            .base = 10,
-            .r0 = rsp.ptr,
-            .buffer = undefined,
-            .memory = m,
-            .here = @ptrCast(m.items.ptr),
-        };
-    }
+        pub fn init(sp: []const isize, rsp: []const [*]const Instr, m: std.ArrayListAligned(u8, alignment)) Self {
+            return .{
+                .state = 0,
+                .latest = @ptrCast(&syscall1),
+                .s0 = sp.ptr,
+                .base = 10,
+                .r0 = rsp.ptr,
+                .buffer = undefined,
+                .memory = m,
+                .here = m.items.ptr + m.items.len,
+            };
+        }
 
-    pub inline fn next(self: *Self, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) void {
-        _ = target;
-        const tgt = ip[0].word;
-        return @call(.always_tail, tgt[0].code, .{ self, sp, rsp, ip[1..], tgt });
-    }
+        pub inline fn next(self: *Self, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) void {
+            _ = target;
+            const tgt = ip[0].word;
+            return @call(.always_tail, tgt[0].code, .{ self, sp, rsp, ip[1..], tgt });
+        }
 
-    pub fn word(self: *Self) usize {
-        var ch: u8 = std.ascii.control_code.nul;
-        var i: usize = 0;
+        pub fn word(self: *Self) usize {
+            var ch: u8 = std.ascii.control_code.nul;
+            var i: usize = 0;
 
-        while (ch <= ' ') {
-            ch = key();
-            if (ch == '\\') { // comment ⇒ skip line
-                while (ch != '\n') ch = key();
+            while (ch <= ' ') {
+                ch = key();
+                if (ch == '\\') { // comment ⇒ skip line
+                    while (ch != '\n') ch = key();
+                }
             }
+            while (ch > ' ') {
+                self.buffer[i] = ch;
+                i += 1;
+                ch = key();
+            }
+            return i;
         }
-        while (ch > ' ') {
-            self.buffer[i] = ch;
-            i += 1;
-            ch = key();
+
+        pub fn find(self: Self, name: []u8) ?*const Word {
+            const mask = @intFromEnum(Flag.HIDDEN) | F_LENMASK;
+            var node: ?*const Word = self.latest;
+            while (node != null and ((node.?.flag & mask) != name.len or !mem.eql(u8, node.?.name[0..name.len], name)))
+                node = node.?.link;
+
+            return node;
         }
-        return i;
-    }
 
-    pub fn find(self: *Self, name: []u8) ?*const Word {
-        const mask = @intFromEnum(Flag.HIDDEN) | F_LENMASK;
-        var node: ?*const Word = self.latest;
-        while (node != null and ((node.?.flag & mask) != name.len or !mem.eql(u8, node.?.name[0..name.len], name)))
-            node = node.?.link;
+        pub fn append(self: *Self, instr: Instr) void {
+            self.memory.items.len = @intFromPtr(self.here) - @intFromPtr(self.memory.items.ptr);
+            self.memory.appendSlice(mem.asBytes(&instr)) catch @panic("append cannot appendSlice");
+            self.here = self.memory.items.ptr + self.memory.items.len;
+        }
+    };
+}
 
-        return node;
-    }
-
-    pub fn index(self: *Self) usize {
-        return @divTrunc(@intFromPtr(self.here) - @intFromPtr(self.memory.items.ptr), @sizeOf(Instr));
-    }
-
-    pub fn append(self: *Self, instr: Instr) void {
-        self.memory.resize(self.index()) catch @panic("append cannot resize");
-        self.memory.append(instr) catch @panic("append cannot append");
-        self.here = @ptrCast(self.memory.items.ptr + self.memory.items.len);
-    }
-};
+const Interp = InterpAligned(@alignOf(Instr));
 
 const Instr = packed union {
     code: *const fn (*Interp, [*]isize, [*][*]const Instr, [*]const Instr, [*]const Instr) callconv(conv) void,
@@ -506,9 +506,8 @@ const state = defconst(&cmove, "STATE", .{ .self = "state" });
 
 fn _here(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
-    self.memory.resize(self.index()) catch @panic("_here cannot resize");
-    const u = @intFromPtr(&self.here);
-    s[0] = @intCast(u);
+    self.memory.ensureUnusedCapacity(@sizeOf(Instr)) catch @panic("_here cannot ensureUnusedCapacity");
+    s[0] = @intCast(@intFromPtr(&self.here));
     self.next(s, rsp, ip, target);
 }
 const here = defcode_(&state, "HERE", _here);
@@ -672,14 +671,14 @@ const tdfa = defword(
 fn _create(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const c = @abs(sp[0]);
     const s: [*]u8 = @ptrFromInt(@abs(sp[1]));
-    const code = self.memory.addManyAsSlice(offset) catch @panic("_create cannot allocate");
-    var new: *Word = @ptrCast(code.ptr);
+    const code = self.memory.addManyAsSlice(@sizeOf(Word)) catch @panic("_create cannot addManyAsSlice");
+    var new: *Word = @ptrCast(@alignCast(code.ptr));
     new.link = self.latest;
     new.flag = @truncate(c);
     @memcpy(new.name[0..c], s[0..c]);
     @memset(new.name[c..F_LENMASK], 0);
     self.latest = new;
-    self.here = @ptrCast(self.memory.items.ptr + self.memory.items.len);
+    self.here = self.memory.items.ptr + self.memory.items.len;
     self.next(sp[2..], rsp, ip, target);
 }
 const create = defcode_(&tdfa, "CREATE", _create);
@@ -909,7 +908,7 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
         },
         .brk => {
             const m = @abs(sp[1]);
-            const p: *std.heap.FixedBufferAllocator = @alignCast(@ptrCast(self.memory.allocator.ptr));
+            const p: *std.heap.FixedBufferAllocator = @ptrCast(@alignCast(self.memory.allocator.ptr));
             if (m > 0) {
                 const n = if (builtin.target.isWasm())
                     @wasmMemoryGrow(0, @divTrunc(m, 0x10000))
@@ -935,7 +934,7 @@ pub fn main() callconv(conv) void {
     const return_stack = [_][*]const Instr{undefined} ** N;
     const rsp = return_stack[N..];
     var fba = std.heap.FixedBufferAllocator.init(&memory);
-    const m = std.ArrayList(Instr).init(fba.allocator());
+    const m = std.ArrayListAligned(u8, @alignOf(Instr)).init(fba.allocator());
     defer m.deinit();
     var env = Interp.init(sp, rsp, m);
     const target = &_quit;
