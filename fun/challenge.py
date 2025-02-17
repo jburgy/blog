@@ -1,14 +1,21 @@
 import ast
+import base64
 import bz2
+import email
+import gzip
 import io
 import re
+import wave
+from calendar import isleap
+from datetime import date
+from difflib import ndiff
 from html.parser import HTMLParser
 from http.client import HTTPResponse
 from itertools import groupby
 from pickle import load
 from string import ascii_lowercase
 from typing import cast
-from urllib import request
+from urllib import parse, request
 from xmlrpc import client
 from zipfile import ZipFile
 
@@ -57,15 +64,21 @@ def equality(page: str) -> str:
 
 def linkedlist(nothing: int) -> str:
     """expected: peak.html (at 66831)"""
+    bits = []
     while True:
-        with request.urlopen(asurl("linkedlist", f"php?{nothing=}")) as response:
+        with request.urlopen(
+            asurl("linkedlist", f"php?busynothing={nothing}")
+        ) as response:
+            parts = cast(HTTPResponse, response).getheader("Set-Cookie").partition(";")
+            if parts[1] == ";" and parts[0].startswith("info="):
+                bits.append(parts[0][len("info="):])
             parts = cast(HTTPResponse, response).read().decode().rpartition(" ")
-            if parts[1] == " " and parts[0].endswith("and the next nothing is"):
+            if parts[1] == " " and parts[0].endswith("and the next busynothing is"):
                 nothing = int(parts[2])
             elif parts[0] == "Yes. Divide by two and keep" and parts[2] == "going.":
                 nothing //= 2
             else:
-                return parts[2]
+                return parts[2], bz2.decompress(parse.unquote_to_bytes("".join(bits)))
 
 
 def peak() -> str:
@@ -114,15 +127,16 @@ def oxygen(name: str) -> str:
     return "".join(map(chr, ast.literal_eval(text[42:])))
 
 
-def integrity() -> request.OpenerDirector:
-    un = bz2.decompress(
+def integrity(
+    un: str = bz2.decompress(
         b"BZh91AY&SYA\xaf\x82\r\x00\x00\x01\x01\x80\x02\xc0\x02"
         b"\x00 \x00!\x9ah3M\x07<]\xc9\x14\xe1BA\x06\xbe\x084"
-    ).decode()
-    pw = bz2.decompress(
+    ).decode(),
+    pw: str = bz2.decompress(
         b"BZh91AY&SY\x94$|\x0e\x00\x00\x00\x81\x00\x03$ "
         b"\x00!\x9ah3M\x13<]\xc9\x14\xe1BBP\x91\xf08"
     ).decode()
+) -> request.OpenerDirector:
     mgr = request.HTTPPasswordMgrWithDefaultRealm()
     mgr.add_password(None, "http://www.pythonchallenge.com/pc/", un, pw)
     return request.build_opener(request.HTTPBasicAuthHandler(mgr))
@@ -130,7 +144,7 @@ def integrity() -> request.OpenerDirector:
 
 def good(name: str, opener: request.OpenerDirector) -> Image.Image:
     comments = CommentCollector()
-    with opener.open(asurl("name", parent="return")) as response:
+    with opener.open(asurl(name, parent="return")) as response:
         comments.feed(cast(HTTPResponse, response).read().decode())
     lines = cast(list[str], comments)[-1].splitlines()
     first = tuple(map(int, "".join(lines[4:22]).split(",")))
@@ -164,12 +178,12 @@ def evil2(name: str, opener: request.OpenerDirector) -> list[Image.Image]:
     return [Image.open(io.BytesIO(data[start::5])) for start in range(5)]
 
 
-def disproportional() -> str:
+def disproportional(name: str) -> str:
     transport = type("Transport", (client.Transport,), {"accept_gzip_encoding": False})
     with client.ServerProxy(
         "http://www.pythonchallenge.com/pc/phonebook.php", transport=transport()
     ) as proxy:
-        return proxy.phone("Bert")
+        return proxy.phone(name)
 
 
 def italy(name: str, opener: request.OpenerDirector) -> Image.Image:
@@ -205,6 +219,114 @@ def italy(name: str, opener: request.OpenerDirector) -> Image.Image:
     return Image.fromarray(y)
 
 
+def uzi() -> date:
+    start = next(year for year in range(1006, 1997, 10) if isleap(year))
+    years = [
+        year for year in range(start, 1997, 20) if date(year, 1, 26).isoweekday() == 1
+    ]
+    return date(years[-2], 1, 27)
+
+
+def mozart(name: str, opener: request.OpenerDirector) -> Image.Image:
+    with opener.open(asurl(name, ext="gif", parent="return")) as response:
+        image = Image.open(response)
+    x = np.asarray(image)
+    y = np.empty_like(x)
+    for i in range(len(x)):
+        row = x[i, :]
+        y[i, :] = np.roll(row, -np.argwhere(row == 195)[0])
+    return Image.fromarray(y)
+
+
+def violin(name: str, message: str) -> str:
+    with request.urlopen(request.Request(
+        url=asurl(name, ext="php", parent="stuff"),
+        headers={"Cookie": f"info={parse.quote_plus(message)}"}
+    )) as response:
+        return cast(HTTPResponse, response).read().decode()
+
+
+def balloons(name: str, opener: request.OpenerDirector) -> Image.Image:
+    with opener.open(asurl(name, ext="jpg", parent="return")) as response:
+        image = Image.open(response)
+    data = np.asarray(image)
+    width = data.shape[1] // 2
+    return Image.fromarray(data[:, width:, :] - data[:, :width, :])
+
+
+def brightness(name: str, opener: request.OpenerDirector) -> dict[str, Image.Image]:
+    a = []
+    b = []
+    with opener.open(asurl(name, ext="gz", parent="return")) as response:
+        with gzip.open(response) as lines:
+            for line in lines:
+                line = line.decode()
+                a.append(line[:52] + "\n")
+                b.append(line[56:])
+    acc = {prefix: bytearray() for prefix in "-+ "}
+    for delta in ndiff(a, b):
+        if delta[0] in acc:
+            acc[delta[0]].extend(int(c, 16) for c in delta[2:].rstrip().split())
+    return {prefix: Image.open(io.BytesIO(buf)) for prefix, buf in acc.items()}
+
+
+def butterfly(name: str, opener: request.OpenerDirector) -> wave.Wave_read:
+    comments = CommentCollector()
+    with opener.open(asurl(name, parent="hex")) as response:
+        comments.feed(cast(HTTPResponse, response).read().decode())
+
+    message = email.message_from_string(comments[-1][1:-2])
+    payload = next(
+        part.get_payload()
+        for part in message.walk()
+        if part.get_filename() == "indian.wav"
+    )
+    with wave.open(io.BytesIO(base64.b64decode(payload))) as indian:
+        with wave.open("result.wav", "wb") as result:
+            result.setnchannels(indian.getnchannels())
+            result.setsampwidth(indian.getsampwidth() // 2)
+            result.setframerate(indian.getframerate() * 2)
+            frames = indian.readframes(indian.getnframes())
+            wave.big_endian = 1
+            result.writeframes(frames)
+
+
+def idiot(name: str, opener: request.OpenerDirector) -> None:
+    url = asurl(name, ext="jpg", parent="hex")
+    with opener.open(url) as response:
+        content_range = cast(HTTPResponse, response).getheader("Content-Range")
+    pattern = re.compile(r"bytes (?P<start>\d+)-(?P<end>\d+)/(?P<length>\d+)")
+    for _ in range(5):
+        match = pattern.search(content_range)
+        with opener.open(request.Request(
+            url=url, headers={"Range": f"bytes={int(match['end']) + 1}-"}
+        )) as resp:
+            response: HTTPResponse = resp
+            content_range = response.getheader("Content-Range")
+            print(response.read().decode(), end="")
+
+    with opener.open(request.Request(
+        url=url, headers={"Range": f"bytes={int(match['length']) + 1}-"}
+    )) as resp:
+        response: HTTPResponse = resp
+        content_range = response.getheader("Content-Range")
+        match = pattern.search(content_range)
+        print(response.read().decode(), end="")
+
+    with opener.open(request.Request(
+        url=url, headers={"Range": f"bytes={int(match['start']) - 1}-"}
+    )) as resp:
+        response: HTTPResponse = resp
+        print(response.read().decode(), end="")
+
+    with opener.open(request.Request(
+        url=url, headers={"Range": "bytes=1152983631-"}
+    )) as resp:
+        response: HTTPResponse = resp
+        with open("level21.zip", "wb") as file:
+            file.write(response.read())
+
+
 if __name__ == "__main__":
     # print(zero(2**38))
     # print(translate("map"))
@@ -214,11 +336,20 @@ if __name__ == "__main__":
     # print(banner(banner.__name__))
     # print(channel(channel.__name__, 90052))
     # print(oxygen(oxygen.__name__))
-    opener = integrity()
+    # opener = integrity()
     # good(good.__name__, opener=opener).show()
     # print(bull())
     # cave(cave.__name__, opener=opener).show()
     # for image in evil2(evil2.__name__, opener=opener):
     #     image.show()
-    # print(disproportional())
-    italy("wire", opener=opener).show()
+    # print(disproportional("Bert"))
+    # italy("wire", opener=opener).show()
+    # print(uzi())
+    # mozart(mozart.__name__, opener=opener).show()
+    # print(disproportional("Leopold"))
+    # print(violin(violin.__name__, "the flowers are on their way"))
+    # balloons(balloons.__name__, opener=opener).show()
+    # for _, image in brightness("deltas", opener=opener):
+    #     image.show()
+    # butterfly("bin", opener=integrity("butter", "fly"))
+    idiot("unreal", opener=integrity("butter", "fly"))
