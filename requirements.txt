@@ -3,6 +3,7 @@ interpreters-pep-734
 networkx
 pandas
 pillow
+qrcode[pil]
 scipy
 sqlalchemy
 sympy
