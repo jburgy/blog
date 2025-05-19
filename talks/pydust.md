@@ -14,10 +14,10 @@ h3 { break-before: column; margin-top: 0; }
 </style>
 
 ### Context
-- Python is _getting faster_
+- Python is [getting faster](https://github.com/markshannon/faster-cpython)
 - Still write C extensions
 - CPython makes it "easy"
-- But Lots of boilerplate
+- But **lots** of boilerplate
 
 ### Official docs
 ```c
@@ -102,14 +102,15 @@ h3 { break-before: column; margin-top: 0; }
 ### Stuck on Zig 0.12
 - [Zig 0.12](https://github.com/ziglang/zig/pull/19414) bans
 global comptime mutable state ⇒ different approach
-- Replace global `State` by "viral" `type` parameter
+- ~~Abuse~~ leverage comptime memoization
+- Replace global `State` by (viral) `root` parameter
 
 ### Timeline
 * 2/24 Start [discussion](https://github.com/spiraldb/ziggy-pydust/discussions/428)
 * 2/26 Raise [#429](https://github.com/spiraldb/ziggy-pydust/pull/429)
 * 2/26 Builds (?!?)
 * 3/30 Got something
-* 4/02 All but 1 tests
+* 4/02 All tests but 1
 * 4/29 All tests
 * 4/29 Merged!
 * 4/30 Python 3.13
