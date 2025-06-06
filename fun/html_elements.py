@@ -7,9 +7,9 @@ to generate simple javascript.
 Generate https://developer.mozilla.org/en-US/docs/Web/HTML/Element/output
 """
 from json import dumps
-from typing import Dict
+from typing import cast
 
-from sympy import Expr, abc, jscode
+from sympy import Expr, Symbol, abc, jscode
 
 # OK, this looks very much like jinja2 but it's boilerplate to guarantee
 # the DOM exists before we attempt defining interactions between its nodes.
@@ -37,12 +37,12 @@ document.addEventListener("DOMContentLoaded", (event) => {{
 """
 
 
-def interactions(**kwds: Dict[str, Expr]) -> Dict[str, str]:
+def interactions(**kwds: Expr) -> tuple[str, str]:
     """Generate valid JS from sympy expressions"""
     listeners = {}
     structure = []
     for target, expr in kwds.items():
-        args = [arg.name for arg in expr.args]
+        args = [cast(Symbol, arg).name for arg in expr.args]
         listeners[target] = f"({', '.join(args)}) => ({jscode(expr)})"
 
         structure.append(dict(argIds=args, targetId=target))
