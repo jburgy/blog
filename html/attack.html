@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en-US">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Attack Matrix</title>
+    <script type="module">
+        function toHit([band, ...adjust], level) {
+            const a = adjust[Math.min(Math.floor((level - 1) / band), adjust.length - 1)];
+            const b = a - 5
+            document.querySelectorAll("tbody > tr > td").forEach((value, key, parent) => {
+                value.innerText = 20 - Math.max(key - a, 0) - Math.min(key - b, 0);
+            });
+        }
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            () => document.querySelector("form#attacker").addEventListener(
+                "input", () => toHit(
+                    JSON.parse(document.querySelector("form#attacker>select#class-choice").value),
+                    parseInt(document.querySelector("form#attacker>input#level").value, 10)
+                )
+            )
+        )
+    </script>
+    <style>
+        table {
+            border-collapse: collapse;
+            text-align: right;
+        }
+
+        tbody>tr:nth-child(6n+1),
+        tbody>tr:nth-child(6n+2),
+        tbody>tr:nth-child(6n+3) {
+            background-color: lightgray;
+        }
+    </style>
+</head>
+
+<body>
+    <details>
+        <summary>Attack Matrix</summary>
+        <dialog open>
+            <form id="attacker">
+                <label for="class-choice">Class:</label>
+                <select id="class-choice" name="class-choice">
+                    <option value="[3, 10, 8, 6, 4, 2, 0, -1]">Clerics, Druids, and Monks</option>
+                    <option value="[5, 11, 9, 6, 3, 1]">Magic-Users and Illusionists</option>
+                    <option value="[2, 10, 8, 6, 4, 2, 0, -2, -4, -6]">Fighters, Paladins, and Rangers</option>
+                    <option value="[4, 11, 9, 6, 4, 2, 0]">Thieves and Assassins</option>
+                </select>
+                <br />
+                <label for="level">Level: </label>
+                <input id="level" type="number" value="1" min="1" step="1" />
+            </form>
+            <table>
+                <thead>
+                    <tr>
+                        <th scope="col">AC</th>
+                        <th scope="col">TH</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th scope="row">-10</th>
+                        <td>25</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">-9</th>
+                        <td>24</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">-8</th>
+                        <td>23</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">-7</th>
+                        <td>22</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">-6</th>
+                        <td>21</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">-5</th>
+                        <td>20</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">-4</th>
+                        <td>20</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">-3</th>
+                        <td>20</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">-2</th>
+                        <td>20</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">-1</th>
+                        <td>20</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">0</th>
+                        <td>20</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">1</th>
+                        <td>19</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">2</th>
+                        <td>18</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">3</th>
+                        <td>17</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">4</th>
+                        <td>16</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">5</th>
+                        <td>15</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">6</th>
+                        <td>14</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">7</th>
+                        <td>13</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">8</th>
+                        <td>12</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">9</th>
+                        <td>11</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">10</th>
+                        <td>10</td>
+                    </tr>
+                </tbody>
+            </table>
+        </dialog>
+    </details>
+</body>
+
+</html>
