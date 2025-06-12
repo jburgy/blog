@@ -5,9 +5,9 @@ const fs = std.fs;
 const mem = std.mem;
 const os = std.os;
 const syscalls = os.linux.syscalls;
-const builtin = @import("builtin");
+const arch = @import("builtin").cpu.arch;
 
-const conv = switch (builtin.cpu.arch) {
+const conv: std.builtin.CallingConvention = switch (arch) {
     .x86_64 => .SysV,
     else => .Unspecified,
 };
@@ -143,7 +143,7 @@ fn defcode_(
     comptime name: []const u8,
     comptime code: fn (*Interp, [*]isize, [*][*]const Instr, [*]const Instr, [*]const Instr) callconv(conv) void,
 ) [offset + 1]Instr {
-    return defword_(last, Flag.ZERO, name, &[_]Instr{.{ .code = code }});
+    return defword_(last, Flag.ZERO, name, &.{.{ .code = code }});
 }
 
 fn defcode(
@@ -294,13 +294,13 @@ inline fn _incrp(sp: [*]isize) [*]isize {
     sp[0] += @sizeOf(usize);
     return sp;
 }
-const incrp = defcode(&decr, &[_]u8{ '0' + @sizeOf(usize), '+' }, _incrp);
+const incrp = defcode(&decr, fmt.comptimePrint("{d}+", .{@sizeOf(usize)}), _incrp);
 
 inline fn _decrp(sp: [*]isize) [*]isize {
     sp[0] -= @sizeOf(usize);
     return sp;
 }
-const decrp = defcode(&incrp, &[_]u8{ '0' + @sizeOf(usize), '-' }, _decrp);
+const decrp = defcode(&incrp, fmt.comptimePrint("{d}-", .{@sizeOf(usize)}), _decrp);
 
 inline fn _add(sp: [*]isize) [*]isize {
     sp[1] += sp[0];
@@ -522,7 +522,7 @@ inline fn _argc(sp: [*]isize) [*]isize {
     return s;
 }
 const argc = defcode(&base, "(ARGC)", _argc);
-const version = defconst(&if (builtin.target.isWasm()) base else argc, "VERSION", .{ .literal = 47 });
+const version = defconst(&if (arch.isWasm()) base else argc, "VERSION", .{ .literal = 47 });
 
 fn _rz(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
@@ -665,7 +665,7 @@ const tdfa = defword(
     &tcfa,
     Flag.ZERO,
     ">DFA",
-    &[_][]const Instr{ &tcfa, &incrp, &exit, &exit },
+    &.{ &tcfa, &incrp, &exit, &exit },
 );
 
 fn _create(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
@@ -702,7 +702,7 @@ const lbrac = defword_(
     &comma,
     Flag.IMMED,
     "[",
-    &[_]Instr{.{ .code = _lbrac }},
+    &.{.{ .code = _lbrac }},
 );
 
 fn _rbrac(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
@@ -719,7 +719,7 @@ const immediate = defword_(
     &rbrac,
     Flag.IMMED,
     "IMMEDIATE",
-    &[_]Instr{.{ .code = _immediate }},
+    &.{.{ .code = _immediate }},
 );
 
 inline fn _hidden(sp: [*]isize) [*]isize {
@@ -732,13 +732,13 @@ const hide = defword(
     &hidden,
     Flag.ZERO,
     "HIDE",
-    &[_][]const Instr{ &word_, &find_, &hidden, &exit },
+    &.{ &word_, &find_, &hidden, &exit },
 );
 const colon = defword(
     &hide,
     Flag.ZERO,
     ":",
-    &[_][]const Instr{ &word_, &create, &docol, &comma, &latest, &fetch, &hidden, &rbrac, &exit, &exit },
+    &.{ &word_, &create, &docol, &comma, &latest, &fetch, &hidden, &rbrac, &exit, &exit },
 );
 
 fn _tick(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
@@ -752,7 +752,7 @@ const semicolon = defword(
     &tick,
     Flag.IMMED,
     ";",
-    &[_][]const Instr{ &tick, &exit, &comma, &latest, &fetch, &hidden, &lbrac, &exit },
+    &.{ &tick, &exit, &comma, &latest, &fetch, &hidden, &lbrac, &exit },
 );
 
 fn _branch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
@@ -910,7 +910,7 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
             const m = @abs(sp[1]);
             const p: *std.heap.FixedBufferAllocator = @ptrCast(@alignCast(self.memory.allocator.ptr));
             if (m > 0) {
-                const n = if (builtin.target.isWasm())
+                const n = if (arch.isWasm())
                     @wasmMemoryGrow(0, @divTrunc(m, 0x10000))
                 else
                     os.linux.syscall1(.brk, m);
@@ -951,5 +951,5 @@ fn mainWithoutEnv(c_argc: c_int, c_argv: [*][*:0]c_char) callconv(.C) c_int {
 }
 
 comptime {
-    @export(mainWithoutEnv, .{ .name = "__main_argc_argv" });
+    @export(&mainWithoutEnv, .{ .name = "__main_argc_argv" });
 }

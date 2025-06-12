@@ -6,7 +6,7 @@ pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    if (target.result.isWasm()) {
+    if (target.result.cpu.arch.isWasm()) {
         try buildWasm(b, target, optimize);
     } else {
         try buildNative(b, target, optimize);
