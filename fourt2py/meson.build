@@ -28,7 +28,7 @@ add_project_arguments(
 py_mod = import('python')
 py3 = py_mod.find_installation('python3')
 py3_dep = py3.dependency()
-message(py3.path())
+message(py3.full_path())
 message(py3.get_install_dir())
 
 incdir_numpy = run_command(py3,

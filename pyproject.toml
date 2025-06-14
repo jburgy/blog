@@ -25,7 +25,11 @@ dependencies = [
 packages = ["fun", "sudoku"]
 
 [tool.uv]
-dev-dependencies = ["pytest"]
+dev-dependencies = [
+    "meson>=1.8.2",
+    "ninja>=1.11.1.4",
+    "pytest",
+]
 
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
