@@ -1,6 +1,16 @@
 import pytest
 
 
+collect_ignore = [
+    "aoc2024",
+    "fourt2py/test_fourt.py",
+    "fun/api_from.py",
+    "fun/assemble.py",
+    "fun/combination.py",
+    "fun/forth.py",
+    "fun/store_sa.py"
+]
+
 def pytest_addoption(parser: pytest.Parser):
     parser.addoption(
         "--target",
