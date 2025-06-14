@@ -2,6 +2,7 @@
 import io
 import numpy as np
 import numpy.ma as ma
+import numpy.typing as npt
 from time import perf_counter
 
 
@@ -12,11 +13,11 @@ def bitcount(x):
     return (x + (x >> 8)) & 0xF
 
 
-def neighbors(i: int, j: int) -> np.array:
+def neighbors(i: int, j: int) -> npt.NDArray[np.intp]:
     k, l = (i//3)*3, (j//3)*3  # noqa E741
     return np.array([
-        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],
-        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],
+        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],  # type: ignore
+        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],  # type: ignore
     ], dtype=np.intp)
 
 
@@ -26,7 +27,7 @@ _neighbors = np.array(
 ).transpose(2, 0, 1, 3)
 
 
-def propagate(possible: np.array, count: ma.array, where=ma.array) -> int:
+def propagate(possible: npt.NDArray[np.intp], count: ma.MaskedArray, where=ma.MaskedArray) -> int:
     while np.equal(count, 1, out=where).any():
         k = np.invert(possible[where])
         # ufunc.at performs *unbuffered* in place operation
@@ -83,7 +84,7 @@ if __name__ == "__main__":
 0 0 8 5 0 0 0 1 0
 0 9 0 0 0 0 4 0 0
 """), dtype=np.uint16)
-    t = np.loadtxt(io.StringIO("""
+    s = np.loadtxt(io.StringIO("""
 5 3 0 0 7 0 0 0 0
 6 0 0 1 9 5 0 0 0
 0 9 8 0 0 0 0 6 0

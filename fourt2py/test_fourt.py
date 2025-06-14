@@ -1,6 +1,6 @@
 import numpy as np
 
-from fourt2py import fourt
+from fourt2py import fourt  # type: ignore
 
 
 def test_fourt():

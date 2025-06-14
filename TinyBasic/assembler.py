@@ -1,3 +1,5 @@
+# type: ignore
+
 import struct
 from enum import IntEnum
 from typing import cast
