@@ -28,7 +28,8 @@ packages = ["fun", "sudoku"]
 dev-dependencies = [
     "meson>=1.8.2",
     "ninja>=1.11.1.4",
-    "pytest",
+    "pytest>=8.4.0",
+    "ruff>=0.11.13",
 ]
 
 [tool.pytest.ini_options]
