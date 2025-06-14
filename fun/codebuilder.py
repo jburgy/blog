@@ -1,3 +1,5 @@
+# type: ignore
+
 import dis
 from enum import IntFlag
 from functools import partialmethod

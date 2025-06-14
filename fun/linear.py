@@ -3,12 +3,13 @@ from operator import le
 from typing import Callable, Union
 
 import numpy as np
+import numpy.typing as npt
 from scipy import optimize, sparse
 
 
 def canonical_maximization(
     objective: "Expression", *constraints: "Constraint"
-) -> sparse.csr_matrix:
+) -> tuple[sparse.csr_matrix, npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     data = [1.0]
     indices = [0]
     indptr = [0]

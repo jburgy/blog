@@ -5,14 +5,10 @@
 
 from sqlalchemy import Column, ForeignKey, Integer, JSON
 from sqlalchemy import create_engine, func, literal_column, select
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 # define models
-Base = declarative_base()
-
-
-class Patch(Base):
+class Patch(DeclarativeBase):
     __tablename__ = "patch"
     id = Column(Integer, primary_key=True, autoincrement=True)
     inserted_at = Column(Integer, nullable=False, server_default=func.strftime('%s', 'now'))
@@ -25,7 +21,6 @@ class Patch(Base):
 
 # 2.0-style, requires sqlalchemy>=1.4
 engine = create_engine("sqlite://", echo=True, future=True)
-Base.metadata.create_all(bind=engine)
 Session = sessionmaker(bind=engine, future=True)
 session = Session()
 

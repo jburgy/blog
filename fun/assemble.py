@@ -1,3 +1,5 @@
+# type: ignore
+
 #!/usr/bin/env python3.9
 # ~*~ conding: utf8; ~*~
 from ast import literal_eval

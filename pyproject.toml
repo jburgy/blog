@@ -29,9 +29,12 @@ dev-dependencies = [
     "meson>=1.8.2",
     "mypy>=1.16.0",
     "ninja>=1.11.1.4",
+    "pandas-stubs>=2.2.3.250527",
     "pytest>=8.4.0",
     "ruff>=0.11.13",
     "scipy-stubs>=1.15.3.0",
+    "sqlalchemy[mypy]>=2.0.41",
+    "sympy[mypy]>=1.14.0",
     "types-networkx>=3.5.0.20250610",
 ]
 

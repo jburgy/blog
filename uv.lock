@@ -47,9 +47,12 @@ dev = [
     { name = "meson" },
     { name = "mypy" },
     { name = "ninja" },
+    { name = "pandas-stubs" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "scipy-stubs" },
+    { name = "sqlalchemy", extra = ["mypy"] },
+    { name = "sympy" },
     { name = "types-networkx" },
 ]
 
@@ -72,9 +75,12 @@ dev = [
     { name = "meson", specifier = ">=1.8.2" },
     { name = "mypy", specifier = ">=1.16.0" },
     { name = "ninja", specifier = ">=1.11.1.4" },
+    { name = "pandas-stubs", specifier = ">=2.2.3.250527" },
     { name = "pytest", specifier = ">=8.4.0" },
     { name = "ruff", specifier = ">=0.11.13" },
     { name = "scipy-stubs", specifier = ">=1.15.3.0" },
+    { name = "sqlalchemy", extras = ["mypy"], specifier = ">=2.0.41" },
+    { name = "sympy", extras = ["mypy"], specifier = ">=1.14.0" },
     { name = "types-networkx", specifier = ">=3.5.0.20250610" },
 ]
 
@@ -341,6 +347,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/15/aa/3fc3181d12b95da71f5c2537c3e3b3af6ab3a8c392ab41ebb766e0929bc6/pandas-2.3.0-cp313-cp313t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1a881bc1309f3fce34696d07b00f13335c41f5f5a8770a33b09ebe23261cfc67", size = 11966182, upload-time = "2025-06-05T03:27:47.652Z" },
     { url = "https://files.pythonhosted.org/packages/37/e7/e12f2d9b0a2c4a2cc86e2aabff7ccfd24f03e597d770abfa2acd313ee46b/pandas-2.3.0-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:e1991bbb96f4050b09b5f811253c4f3cf05ee89a589379aa36cd623f21a31d6f", size = 12547686, upload-time = "2025-06-06T00:00:26.142Z" },
     { url = "https://files.pythonhosted.org/packages/39/c2/646d2e93e0af70f4e5359d870a63584dacbc324b54d73e6b3267920ff117/pandas-2.3.0-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:bb3be958022198531eb7ec2008cfc78c5b1eed51af8600c6c5d9160d89d8d249", size = 13231847, upload-time = "2025-06-05T03:27:51.465Z" },
+]
+
+[[package]]
+name = "pandas-stubs"
+version = "2.2.3.250527"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "types-pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5f/0d/5fe7f7f3596eb1c2526fea151e9470f86b379183d8b9debe44b2098651ca/pandas_stubs-2.2.3.250527.tar.gz", hash = "sha256:e2d694c4e72106055295ad143664e5c99e5815b07190d1ff85b73b13ff019e63", size = 106312, upload-time = "2025-05-27T15:24:29.716Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/f8/46141ba8c9d7064dc5008bfb4a6ae5bd3c30e4c61c28b5c5ed485bf358ba/pandas_stubs-2.2.3.250527-py3-none-any.whl", hash = "sha256:cd0a49a95b8c5f944e605be711042a4dd8550e2c559b43d70ba2c4b524b66163", size = 159683, upload-time = "2025-05-27T15:24:28.4Z" },
 ]
 
 [[package]]
@@ -644,6 +663,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1c/fc/9ba22f01b5cdacc8f5ed0d22304718d2c758fce3fd49a5372b886a86f37c/sqlalchemy-2.0.41-py3-none-any.whl", hash = "sha256:57df5dc6fdb5ed1a88a1ed2195fd31927e705cad62dedd86b46972752a80f576", size = 1911224, upload-time = "2025-05-14T17:39:42.154Z" },
 ]
 
+[package.optional-dependencies]
+mypy = [
+    { name = "mypy" },
+]
+
 [[package]]
 name = "starlette"
 version = "0.46.2"
@@ -678,6 +702,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/67/25/2c101319d0e7e715a31f0fcaf1080b70c113166edf76c6a88010f2959968/types_networkx-3.5.0.20250610.tar.gz", hash = "sha256:874196bef3f116f57ca86818a576274def24c5a66cb00ff77d3e1f376ab57157", size = 64416, upload-time = "2025-06-10T03:12:45.3Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/06/7a/3658f84cfc20500a231d2aae1c98c284f61e5e366aabccda38c9ab6095dc/types_networkx-3.5.0.20250610-py3-none-any.whl", hash = "sha256:c428b96c544f28fe955bfc2253581ed5d3389a59c03997b79da5188be0191c56", size = 150419, upload-time = "2025-06-10T03:12:43.799Z" },
+]
+
+[[package]]
+name = "types-pytz"
+version = "2025.2.0.20250516"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/72/b0e711fd90409f5a76c75349055d3eb19992c110f0d2d6aabbd6cfbc14bf/types_pytz-2025.2.0.20250516.tar.gz", hash = "sha256:e1216306f8c0d5da6dafd6492e72eb080c9a166171fa80dd7a1990fd8be7a7b3", size = 10940, upload-time = "2025-05-16T03:07:01.91Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/ba/e205cd11c1c7183b23c97e4bcd1de7bc0633e2e867601c32ecfc6ad42675/types_pytz-2025.2.0.20250516-py3-none-any.whl", hash = "sha256:e0e0c8a57e2791c19f718ed99ab2ba623856b11620cb6b637e5f62ce285a7451", size = 10136, upload-time = "2025-05-16T03:07:01.075Z" },
 ]
 
 [[package]]

@@ -3,7 +3,7 @@
 
 import numpy as np
 from scipy.linalg import solve
-from scipy.linalg.blas import dcopy, dgemm, dgemv
+from scipy.linalg.blas import dcopy, dgemm, dgemv  # type: ignore
 
 
 def affine_scaling(A, b, c, x, eps=1e-8, beta=0.99):

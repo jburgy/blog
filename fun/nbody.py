@@ -6,7 +6,7 @@
 # modified by Maciej Fijalkowski
 
 from numpy import array, divide, empty, greater, multiply, pi, r_, sqrt, sum, take
-from scipy.linalg.blas import daxpy, dspr2, zhpmv, zhpr
+from scipy.linalg.blas import daxpy, dspr2, zhpmv, zhpr  # type: ignore
 
 
 # fmt: off

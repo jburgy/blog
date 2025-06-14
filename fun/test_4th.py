@@ -32,7 +32,7 @@ def mapping(target: str) -> Mapping[str, str]:
     }
     arch = "-m32" if target == "4th.32" else "-m64"
     # https://unix.stackexchange.com/a/254700
-    values = run(
+    rc = run(
         ["gcc", arch, "-include", "sys/syscall.h", "-include", "fcntl.h", "-E", "-"],
         input=" ".join(names.values()),
         capture_output=True,
@@ -41,7 +41,7 @@ def mapping(target: str) -> Mapping[str, str]:
     )
     values = (
         str(int(value, 8 if value.startswith("0") else 10))
-        for value in values.stdout.rstrip().rpartition("\n")[2].split()
+        for value in rc.stdout.rstrip().rpartition("\n")[2].split()
     )
     result = dict(zip(names.keys(), values))
 

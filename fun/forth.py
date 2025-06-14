@@ -40,7 +40,7 @@ def _gen_emitter(ops):
     return emitter
 
 
-class ForthCompilerMeta:
+class ForthCompilerMeta(type):
     def __new__(meta, name, bases, dct):
         ops = {
             "+": "INPLACE_ADD",

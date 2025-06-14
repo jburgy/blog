@@ -1,3 +1,5 @@
+# type: ignore
+
 import ast
 import base64
 import bz2
