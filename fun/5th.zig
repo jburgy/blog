@@ -929,9 +929,9 @@ var memory: [0x800000]u8 linksection(".bss") = undefined;
 
 pub fn main() callconv(conv) void {
     const N = 0x20;
-    const stack = [_]isize{undefined} ** N;
+    var stack = [_]isize{undefined} ** N;
     const sp = stack[N..];
-    const return_stack = [_][*]const Instr{undefined} ** N;
+    var return_stack = [_][*]const Instr{undefined} ** N;
     const rsp = return_stack[N..];
     var fba = std.heap.FixedBufferAllocator.init(&memory);
     const m = std.ArrayListAligned(u8, @alignOf(Instr)).init(fba.allocator());
