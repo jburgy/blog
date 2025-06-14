@@ -1,8 +1,8 @@
 import re
 from operator import itemgetter
 
-with open("aoc2024/day4input.txt") as lines:
-    lines = list(map(str.rstrip, lines))
+with open("aoc2024/day4input.txt") as io:
+    lines = list(map(str.rstrip, io))
 
 choices = {"XMAS", "SAMX"}
 
@@ -26,14 +26,14 @@ for i, line in enumerate(lines):
 
 print(count)
 
-choices = re.compile(r"M.S.A.M.S|M.M.A.S.S|S.S.A.M.M|S.M.A.S.M")
+choice = re.compile(r"M.S.A.M.S|M.M.A.S.S|S.S.A.M.M|S.M.A.S.M")
 
 count = 0
 for i, line in enumerate(lines[:-2]):
     for j in range(len(line) - 2):
-        k = itemgetter(slice(j, j + 3))
+        h = itemgetter(slice(j, j + 3))
         count += (
-            choices.match("".join((k(line), k(lines[i + 1]), k(lines[i + 2]))))
+            choice.match("".join((h(line), h(lines[i + 1]), h(lines[i + 2]))))
             is not None
         )
 

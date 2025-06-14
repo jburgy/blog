@@ -1,5 +1,6 @@
 import struct
 from enum import IntEnum
+from typing import cast
 
 REPLACEMENTS = {
     "@^": "\0",
@@ -315,7 +316,8 @@ interpreter = """
 
 offsets = {}
 
-for _ in range(2):  # noqa: max-complexity: 15 first pass to compute offsets
+out = ()
+for _ in range(2):
     out = bytearray()
     for j, line in enumerate(interpreter[1:].splitlines()):
         if line.index(";") > 10:
@@ -341,13 +343,13 @@ for _ in range(2):  # noqa: max-complexity: 15 first pass to compute offsets
             word = word.replace(old, new)
 
         if op is OpCode.SX:
-            out.append(int(op) + int(arg))
+            out.append(int(op) + int(cast(str, arg)))
         elif op is OpCode.LB:
             out.append(int(op))
-            out.append(int(arg))
+            out.append(int(cast(str, arg)))
         elif op is OpCode.LN:
             out.append(int(op))
-            out.extend(struct.pack(">H", eval(arg)))
+            out.extend(struct.pack(">H", eval(cast(str, arg))))
         elif op >= OpCode.BR:
             offset = offsets.get(arg, here + 1) - (here + 1)
             if op is OpCode.BR:

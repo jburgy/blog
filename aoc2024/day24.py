@@ -1,3 +1,5 @@
+# type: ignore
+
 import operator
 import re
 from graphlib import TopologicalSorter

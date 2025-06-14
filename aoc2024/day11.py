@@ -24,7 +24,7 @@ from itertools import chain, compress, repeat
 from operator import not_
 
 stones = tuple("965842 9159 3372473 311 0 6 86213 48".split())
-caches = [defaultdict(int) for _ in range(76)]
+caches: list[defaultdict[str, int]] = [defaultdict(int) for _ in range(76)]
 q = list(chain(zip(repeat(75), stones), zip(repeat(25), stones)))
 
 while q:
@@ -44,7 +44,7 @@ while q:
     n = m - 1
     counts = tuple(map(caches[n].get, stones))
     if all(counts):
-        cache[stone] = sum(counts)
+        cache[stone] = sum(counts)  # type: ignore
     else:
         q.append(t)
         q.extend(zip(repeat(n), compress(stones, map(not_, counts))))

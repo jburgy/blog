@@ -2,10 +2,9 @@ from collections import defaultdict
 from collections.abc import Iterable
 
 import numpy as np
-import numpy.typing as npt
 
 
-def random(secret: npt.NDArray[np.int_]) -> npt.NDArray[np.int_]:
+def random(secret: int) -> int:
     secret ^= secret << 6
     secret &= 0xFFFFFF
     secret ^= secret >> 5
@@ -27,7 +26,7 @@ with open("aoc2024/day22input.txt", "rt") as lines:
 
 
 total = 0
-bananas = defaultdict(int)
+bananas: defaultdict[tuple[int, ...], int] = defaultdict(int)
 for secret in initial:
     prices = np.fromiter(ntimes(2000, secret), dtype=int, count=2001)
     total += prices[-1]

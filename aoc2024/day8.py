@@ -1,6 +1,6 @@
 from itertools import combinations
 
-antennae = {}
+antennae: dict[str, list[complex]] = {}
 with open("aoc2024/day8input.txt", "rt") as lines:
     for i, line in enumerate(lines):
         for j, char in enumerate(line):

@@ -10,7 +10,7 @@ def possible(head: int, *rest: int, base: int = 2) -> Iterable[int]:
     for i in range(base**n):
         res = head
         for op, num in zip(map(ops, np.base_repr(i, base=base).zfill(n)), rest):
-            res = int(op(res, num))
+            res = int(op(res, num))  # type: ignore
         yield res
 
 
@@ -18,11 +18,11 @@ total2 = total3 = 0
 with open("aoc2024/day7input.txt", "rt") as lines:
     for line in lines:
         head, _, rest = line.partition(": ")
-        head = int(head)
-        rest = tuple(map(int, rest.split()))
-        if any(head == x for x in possible(*rest, base=2)):
-            total2 += head
-        if any(head == x for x in possible(*rest, base=3)):
-            total3 += head
+        first = int(head)
+        last = tuple(map(int, rest.split()))
+        if any(first == x for x in possible(*last, base=2)):
+            total2 += first
+        if any(first == x for x in possible(*last, base=3)):
+            total3 += first
 
 print(total2, total3)

@@ -1,33 +1,34 @@
 DIRECTIONS = -1, 1j, 1, -1j
 
 
-def mark(lines: list[list[str]], guard: complex) -> list[list[str]] | None:
+def mark(lines: list[str], guard: complex) -> list[list[str]] | None:
     m = len(lines)
     n = min(map(len, lines))
 
     k = 0
-    seen = set(), set(), set(), set()
+    seen: tuple[set, ...] = set(), set(), set(), set()
 
-    lines = list(map(list, lines))
+    grid = list(map(list, lines))
     while 0 <= (i := int(guard.real)) < m and 0 <= (j := int(guard.imag)) < n:
-        if lines[i][j] == "#":
+        if grid[i][j] == "#":
             guard -= DIRECTIONS[k]
             k = (k + 1) % len(DIRECTIONS)
         else:
-            lines[i][j] = "X"
+            grid[i][j] = "X"
         if guard in seen[k]:
             return None
         seen[k].add(guard)
         guard += DIRECTIONS[k]
-    return lines
+    return grid
 
 
-with open("aoc2024/day6input.txt", "rt") as lines:
-    lines = list(map(str.rstrip, lines))
+with open("aoc2024/day6input.txt", "rt") as io:
+    lines = list(map(str.rstrip, io))
 
 guard = next(complex(i, j) for i, line in enumerate(lines) if (j := line.find("^")) > 0)
 
 marked = mark(lines, guard)
+assert isinstance(marked, list)
 count = sum("".join(line).count("X") for line in marked)
 print(count)
 

@@ -1,3 +1,5 @@
+# type: ignore
+
 from collections.abc import Iterable
 
 import numpy as np

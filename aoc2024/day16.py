@@ -1,3 +1,5 @@
+# type: ignore
+
 from heapq import heappop, heappush
 from typing import NamedTuple
 

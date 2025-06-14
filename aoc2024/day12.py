@@ -10,14 +10,14 @@ class Side(IntFlag):
     RIGHT = auto()
 
 
-with open("aoc2024/day12input.txt", "rt") as lines:
-    lines = list(map(str.rstrip, lines))
+with open("aoc2024/day12input.txt", "rt") as io:
+    lines = list(map(str.rstrip, io))
 
 m = len(lines)
 n = max(map(len, lines))
-regions = [[None] * len(line) for line in lines]
+regions: list[list[int | None]] = [[None] * len(line) for line in lines]
 
-areas = []
+areas: list[int] = []
 
 k = 0
 for i, (line, region) in enumerate(zip(lines, regions)):
@@ -39,12 +39,13 @@ for i, (line, region) in enumerate(zip(lines, regions)):
                     q.extend(((s + 1, t), (s - 1, t), (s, t + 1), (s, t - 1)))
             areas.append(area)
 
-perimeters = [0] * len(areas)
+perimeters: list[int] = [0] * len(areas)
 discounts = [0] * len(areas)
 previous_cell = [-1] * len(areas)
 previous_side = [Side(0)] * len(areas)
 for i, region in enumerate(regions):
     for j, cell in enumerate(region):
+        assert isinstance(cell, int)
         side = Side(15)
         if i > 0 and regions[i - 1][j] == cell:
             side &= ~Side.TOP

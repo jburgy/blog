@@ -16,7 +16,7 @@ def rules_to_key(precedes: dict[str, set[str]]):
 
 
 ordering = re.compile(r"^(\d+)\|(\d+)$")
-precedes = {}
+precedes: dict[str, set[str]] = {}
 correct = 0
 incorrect = 0
 with open("aoc2024/day5input.txt", "rt") as lines:

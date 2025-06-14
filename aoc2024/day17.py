@@ -1,7 +1,7 @@
 from collections.abc import Callable, Iterable
 
 
-def compile(code: tuple[int]) -> Callable[[int], Iterable[int]]:
+def compile(code: tuple[int, ...]) -> Callable[[int], Iterable[int]]:
     combo = "0123abc"
     instrs = (
         lambda op: f"a >>= {combo[op]}",
@@ -15,15 +15,15 @@ def compile(code: tuple[int]) -> Callable[[int], Iterable[int]]:
     )
 
     lines = ["def func(a: int):", "    while True:"]
-    for instr, op in zip(code[::2], code[1::2]):
+    for instr, op in zip(code[::2], code[1::2]):  # type: ignore
         lines.append(f"        {instrs[instr](op)}")
 
-    g = {}
+    g: dict[str, Callable[[int], Iterable[int]]] = {}
     exec("\n".join(lines), g)
     return g["func"]
 
 
-def findquine(code: tuple[int]) -> None:
+def findquine(code: tuple[int, ...]) -> None:
     combo = "0123abc"
     instrs = (
         lambda op: f"a >>= {combo[op]}",
@@ -42,7 +42,7 @@ def findquine(code: tuple[int]) -> None:
         "a = BitVec('A', 51)",
         "for byte in prog:",
     ]
-    for instr, op in zip(code[::2], code[1::2]):
+    for instr, op in zip(code[::2], code[1::2]):  # type: ignore
         lines.append(f"    {instrs[instr](op)}")
     lines.append("constraints.append(a == 0)")
     lines.append("solve(*constraints)")

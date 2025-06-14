@@ -1,7 +1,7 @@
 from collections import Counter
 
 
-def distances(grid: str, n: int, s: int, e: int) -> tuple[int | None]:
+def distances(grid: str, n: int, s: int, e: int) -> list[int]:
     d = [len(grid)] * len(grid)
 
     q = [(0, s)]
@@ -28,7 +28,7 @@ def count_cheats(grid: str, n: int, k: int) -> Counter:
 
     m = len(grid) // n
 
-    c = Counter()
+    c: Counter[int] = Counter()
     for i in p:
         ai = a[i]
         x, y = divmod(i, n)
@@ -42,8 +42,8 @@ def count_cheats(grid: str, n: int, k: int) -> Counter:
     return c
 
 
-with open("aoc2024/day20input.txt", "rt") as lines:
-    lines = "".join(lines)
+with open("aoc2024/day20input.txt", "rt") as io:
+    lines = "".join(io)
 
 cheats = count_cheats(grid=lines.replace("\n", ""), n=lines.index("\n"), k=2)
 print(sum(n for k, n in cheats.items() if k >= 100))

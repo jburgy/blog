@@ -12,6 +12,7 @@ v = np.empty((500, 2), dtype=int)
 with open("aoc2024/day14input.txt", "rt") as lines:
     for i, line in enumerate(lines):
         match = pattern.match(line)
+        assert match is not None
         p[i] = int(match["px"]), int(match["py"])
         v[i] = int(match["vx"]), int(match["vy"])
 

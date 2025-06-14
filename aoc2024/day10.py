@@ -1,4 +1,4 @@
-def visit(grid: tuple[tuple[int]], start: complex) -> complex:
+def visit(grid: tuple[tuple[int, ...], ...], start: complex) -> complex:
     m = len(grid)
     n = max(map(len, grid))
 

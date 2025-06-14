@@ -1,8 +1,8 @@
 import networkx as nx
 
-g = nx.Graph()
+g: nx.Graph = nx.Graph()
 with open("aoc2024/day23input.txt", "rt") as lines:
-    g.add_edges_from(line.rstrip().split("-") for line in lines)
+    g.add_edges_from(line.rstrip().split("-") for line in lines)  # type: ignore
 
 cycles = sum(
     any(str(node).startswith("t") for node in cycle)

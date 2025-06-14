@@ -1,3 +1,5 @@
+# type: ignore
+
 with open("aoc2024/day9input.txt") as lines:
     lens = [*map(int, next(lines).rstrip()), 0]
 
