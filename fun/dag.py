@@ -1,11 +1,12 @@
 from functools import _NOT_FOUND  # type: ignore
 from functools import cached_property, lru_cache, partial, wraps
 from timeit import timeit
+from typing import Self
 from weakref import WeakSet
 
 
 class _BaseEntry:
-    callers: list[_BaseEntry] = []
+    callers: list[Self] = []
 
     def __enter__(self):
         callers = self.callers

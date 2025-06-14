@@ -34,5 +34,8 @@ jobs:
       - name: Lint with ruff
         run: uv run ruff check
 
+      - name: Check with mypy
+        run: uv run mypy .
+
       - name: Test with pytest
         run: uv run pytest
