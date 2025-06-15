@@ -4,6 +4,7 @@ project('fourt2py', 'c',
         'optimization=3',
         'warning_level=1',
         'fortran_std=legacy',
+        'python.install_env=venv',
     ]
 )
 
