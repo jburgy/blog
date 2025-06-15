@@ -1,5 +1,3 @@
-# type: ignore
-
 import operator
 import re
 from graphlib import TopologicalSorter
@@ -43,6 +41,7 @@ def check(n: int, exprs: dict[str, str]) -> dict[str, str]:
 
     def get(*key: str) -> str:
         val = exprs.get(" ".join(key), exprs.get(" ".join(reversed(key))))
+        assert isinstance(val, str)
         return fixes.get(val, val)
 
     carry = ""
@@ -69,9 +68,9 @@ def check(n: int, exprs: dict[str, str]) -> dict[str, str]:
 init = re.compile(r"^(?P<key>\w{3}): (?P<val>[01])$")
 expr = re.compile(r"^(?P<lhs>\w{3}) (?P<op>AND|OR|XOR) (?P<rhs>\w{3}) -> (?P<key>\w{3})$")
 
-state = {}
+state: dict[str, tuple[str, str, str] | int] = {}
 exprs = {}
-ts = TopologicalSorter()
+ts: TopologicalSorter = TopologicalSorter()
 with open("aoc2024/day24input.txt", "rt") as lines:
     for line in lines:
         if matches := init.match(line):
@@ -85,15 +84,18 @@ with open("aoc2024/day24input.txt", "rt") as lines:
 
 ops = {"AND": operator.and_, "OR": operator.or_, "XOR": operator.xor}
 for node in ts.static_order():
-    val = state[node]
-    if isinstance(val, int):
+    tmp = state[node]
+    if isinstance(tmp, int):
         continue
-    lhs, op, rhs = val
+    assert isinstance(tmp, tuple)
+    lhs, op, rhs = tmp
     state[node] = ops[op](state[lhs], state[rhs])
 
 num = 0
-for bit in reversed(range(46)):
-    num = (num << 1) | state[f"z{bit:02d}"]
+for i in reversed(range(46)):
+    bit = state[f"z{i:02d}"]
+    assert isinstance(bit, int)
+    num = (num << 1) | bit
 
 print(num)
 print(*sorted(check(45, exprs)), sep=",")

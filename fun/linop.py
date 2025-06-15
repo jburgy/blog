@@ -1,14 +1,11 @@
-# type: ignore
-
 from bisect import bisect_left
-from typing import Union
+from typing import cast
 
 import numpy as np
-import numpy.typing as npt
 from scipy import sparse
 
 
-def scatter(indices: npt.ArrayLike, m: int, n: int) -> sparse.csr_array:
+def scatter(indices: list[int], m: int, n: int) -> sparse.csr_array:
     """Scatter consecutive indices of x into (larger) result vector y.
 
     Roughly equivalent to::
@@ -32,7 +29,7 @@ def scatter(indices: npt.ArrayLike, m: int, n: int) -> sparse.csr_array:
     )
 
 
-def gather(indices: npt.ArrayLike, n: int = -1) -> sparse.csr_array:
+def gather(indices: list[int], n: int = -1) -> sparse.csr_array:
     """Gather subset of x into (smaller) consecutive result vector y.
 
     Roughly equivalent to::
@@ -54,7 +51,7 @@ def gather(indices: npt.ArrayLike, n: int = -1) -> sparse.csr_array:
     )
 
 
-def sumby(by: npt.ArrayLike):
+def sumby(by: list[tuple[int, ...]]):
     """Compute partial sums defined by unique tuples.
 
     Roughly equivalent to::
@@ -68,13 +65,13 @@ def sumby(by: npt.ArrayLike):
     """
     keys, inverse = np.unique(by, axis=0, return_inverse=True)
     return sparse.csr_array(
-        (np.ones(shape=len(by)), (inverse, range(len(by)))),
+        (np.ones(shape=len(by)), (inverse, np.arange(len(by), dtype=int))),
         shape=(len(keys), len(by)),
     )
 
 
 def matmul(
-    a: sparse.csr_array, b: Union[sparse.csc_array, sparse.csr_array]
+    a: sparse.csr_array, b: sparse.csc_array | sparse.csr_array
 ) -> sparse.csr_array:
     r""" Sparse multiplication of CSR with CSC or CSR.
 
@@ -90,11 +87,11 @@ def matmul(
     """
     assert isinstance(a, sparse.csr_array)
     if isinstance(b, sparse.csr_array):
-        return a @ b  # see _csr_matrix._matmul_sparse
+        return a @ b  # type: ignore
 
     assert isinstance(b, sparse.csc_array)
 
-    n, k = a.shape
+    n, k = cast(tuple[int, int], a.shape)
     l, m = b.shape  # noqa: E741
     assert k == l
 

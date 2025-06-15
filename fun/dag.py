@@ -1,11 +1,12 @@
+from abc import ABC, abstractmethod
 from functools import _NOT_FOUND  # type: ignore
 from functools import cached_property, lru_cache, partial, wraps
 from timeit import timeit
-from typing import Self
+from typing import Any, Iterator, Self
 from weakref import WeakSet
 
 
-class _BaseEntry:
+class _BaseEntry(ABC):
     callers: list[Self] = []
 
     def __enter__(self):
@@ -16,6 +17,22 @@ class _BaseEntry:
 
     def __exit__(self, exc_type, exc_value, traceback):
         assert self.callers.pop() is self
+
+    @abstractmethod
+    def __iter__(self) -> Iterator[Any]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __call__(self) -> Any:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __hash__(self) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def update(self, other) -> None:
+        raise NotImplementedError()
 
     @cached_property
     def value(self):
@@ -32,6 +49,8 @@ class _BaseEntry:
 
 
 class PartialEntry(partial, _BaseEntry):
+    children: WeakSet
+
     def __new__(cls, func, *args, **keywords):
         self = super().__new__(cls, func, *args, **keywords)
         self.children = WeakSet()
@@ -50,7 +69,7 @@ class WeakSetEntry(WeakSet, _BaseEntry):
         self.partial = partial(user_function, *args, **keywords)
         self.hashvalue = hash(self.partial)
 
-    def __hash__(self):
+    def __hash__(self):  # type: ignore
         return self.hashvalue
 
     def __call__(self):

@@ -1,5 +1,3 @@
-# type: ignore
-
 import ast
 import base64
 import bz2
@@ -48,8 +46,8 @@ class CommentCollector(HTMLParser, list):
 def ocr(page: str) -> str:
     """expect: equality"""
     comments = CommentCollector()
-    with request.urlopen(asurl(page)) as response:
-        comments.feed(cast(HTTPResponse, response).read().decode())
+    with cast(HTTPResponse, request.urlopen(asurl(page))) as response:
+        comments.feed(response.read().decode())
 
     return "".join(c for c in cast(list[str], comments[-1]) if c.isalpha())
 
@@ -57,24 +55,24 @@ def ocr(page: str) -> str:
 def equality(page: str) -> str:
     """expect: linked.html"""
     comments = CommentCollector()
-    with request.urlopen(asurl(page)) as response:
-        comments.feed(cast(HTTPResponse, response).read().decode())
+    with cast(HTTPResponse, request.urlopen(asurl(page))) as response:
+        comments.feed(response.read().decode())
 
     pattern = re.compile("(?<=[a-z][A-Z]{3})([a-z])(?=[A-Z]{3}[a-z])")
     return "".join(pattern.findall(comments[-1]))
 
 
-def linkedlist(nothing: int) -> str:
+def linkedlist(nothing: int) -> tuple[str, bytes]:
     """expected: peak.html (at 66831)"""
     bits = []
     while True:
-        with request.urlopen(
+        with cast(HTTPResponse, request.urlopen(
             asurl("linkedlist", f"php?busynothing={nothing}")
-        ) as response:
-            parts = cast(HTTPResponse, response).getheader("Set-Cookie").partition(";")
+        )) as response:
+            parts = cast(str, response.getheader("Set-Cookie")).partition(";")
             if parts[1] == ";" and parts[0].startswith("info="):
                 bits.append(parts[0][len("info="):])
-            parts = cast(HTTPResponse, response).read().decode().rpartition(" ")
+            parts = response.read().decode().rpartition(" ")
             if parts[1] == " " and parts[0].endswith("and the next busynothing is"):
                 nothing = int(parts[2])
             elif parts[0] == "Yes. Divide by two and keep" and parts[2] == "going.":
@@ -185,7 +183,7 @@ def disproportional(name: str) -> str:
     with client.ServerProxy(
         "http://www.pythonchallenge.com/pc/phonebook.php", transport=transport()
     ) as proxy:
-        return proxy.phone(name)
+        return cast(str, proxy.phone(name))
 
 
 def italy(name: str, opener: request.OpenerDirector) -> Image.Image:
@@ -216,6 +214,8 @@ def italy(name: str, opener: request.OpenerDirector) -> Image.Image:
             count = bottom - top
             y[bottom - 1: top - 1: -1, left, :] = x[0, index: index + count, :]
             left += 1
+        else:
+            continue
         direction = (direction + 1) % 4
         index += count
     return Image.fromarray(y)
@@ -261,8 +261,8 @@ def brightness(name: str, opener: request.OpenerDirector) -> dict[str, Image.Ima
     b = []
     with opener.open(asurl(name, ext="gz", parent="return")) as response:
         with gzip.open(response) as lines:
-            for line in lines:
-                line = line.decode()
+            for buf in lines:
+                line = buf.decode()
                 a.append(line[:52] + "\n")
                 b.append(line[56:])
     acc = {prefix: bytearray() for prefix in "-+ "}
@@ -272,14 +272,14 @@ def brightness(name: str, opener: request.OpenerDirector) -> dict[str, Image.Ima
     return {prefix: Image.open(io.BytesIO(buf)) for prefix, buf in acc.items()}
 
 
-def butterfly(name: str, opener: request.OpenerDirector) -> wave.Wave_read:
+def butterfly(name: str, opener: request.OpenerDirector) -> None:
     comments = CommentCollector()
     with opener.open(asurl(name, parent="hex")) as response:
         comments.feed(cast(HTTPResponse, response).read().decode())
 
     message = email.message_from_string(comments[-1][1:-2])
     payload = next(
-        part.get_payload()
+        cast(bytes, part.get_payload())
         for part in message.walk()
         if part.get_filename() == "indian.wav"
     )
@@ -289,7 +289,7 @@ def butterfly(name: str, opener: request.OpenerDirector) -> wave.Wave_read:
             result.setsampwidth(indian.getsampwidth() // 2)
             result.setframerate(indian.getframerate() * 2)
             frames = indian.readframes(indian.getnframes())
-            wave.big_endian = 1
+            wave.big_endian = 1  # type: ignore
             result.writeframes(frames)
 
 
@@ -297,34 +297,37 @@ def idiot(name: str, opener: request.OpenerDirector) -> None:
     url = asurl(name, ext="jpg", parent="hex")
     with opener.open(url) as response:
         content_range = cast(HTTPResponse, response).getheader("Content-Range")
+    assert content_range is not None
     pattern = re.compile(r"bytes (?P<start>\d+)-(?P<end>\d+)/(?P<length>\d+)")
+    match = None
     for _ in range(5):
         match = pattern.search(content_range)
-        with opener.open(request.Request(
+        assert match is not None
+        with cast(HTTPResponse, opener.open(request.Request(
             url=url, headers={"Range": f"bytes={int(match['end']) + 1}-"}
-        )) as resp:
-            response: HTTPResponse = resp
+        ))) as response:
             content_range = response.getheader("Content-Range")
+            assert content_range is not None
             print(response.read().decode(), end="")
 
-    with opener.open(request.Request(
+    assert match is not None
+    with cast(HTTPResponse, opener.open(request.Request(
         url=url, headers={"Range": f"bytes={int(match['length']) + 1}-"}
-    )) as resp:
-        response: HTTPResponse = resp
+    ))) as response:
         content_range = response.getheader("Content-Range")
+        assert content_range is not None
         match = pattern.search(content_range)
+        assert match is not None
         print(response.read().decode(), end="")
 
-    with opener.open(request.Request(
+    with cast(HTTPResponse, opener.open(request.Request(
         url=url, headers={"Range": f"bytes={int(match['start']) - 1}-"}
-    )) as resp:
-        response: HTTPResponse = resp
+    ))) as response:
         print(response.read().decode(), end="")
 
-    with opener.open(request.Request(
+    with cast(HTTPResponse, opener.open(request.Request(
         url=url, headers={"Range": "bytes=1152983631-"}
-    )) as resp:
-        response: HTTPResponse = resp
+    ))) as response:
         with open("level21.zip", "wb") as file:
             file.write(response.read())
 

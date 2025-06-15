@@ -1,5 +1,3 @@
-# type: ignore
-
 from itertools import chain, product, repeat
 
 
@@ -15,11 +13,11 @@ arrows = {
 }
 
 
-def mincount(code: str, n: int) -> int:
-    prev = dict.fromkeys(product(arrows, arrows), 1)
+def mincount(code: str, n: int) -> int | float:
+    prev: dict[tuple[str, str], int] | dict[tuple[str, str], float | int] = dict.fromkeys(product(arrows, arrows), 1)
 
-    def length(keys: str) -> int:
-        return sum(map(prev.__getitem__, zip("A" + keys, keys)))
+    def length(keys: str) -> int | float:
+        return sum(prev[key] for key in zip("A" + keys, keys))
 
     for keyboard in chain(repeat(arrows, n), repeat(numbers, 1)):
         blank = keyboard[" "]

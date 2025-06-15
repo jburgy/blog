@@ -47,7 +47,7 @@ while q:
         cache[stone] = sum(counts)  # type: ignore
     else:
         q.append(t)
-        q.extend(zip(repeat(n), compress(stones, map(not_, counts))))
+        q.extend(zip(repeat(n), compress(stones, map(not_, counts))))  # type: ignore
 
 print(sum(caches[25].values()))
 print(sum(caches[75].values()))

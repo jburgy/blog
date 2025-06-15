@@ -1,5 +1,3 @@
-# type: ignore
-
 import struct
 from enum import IntEnum
 from typing import cast
@@ -318,7 +316,7 @@ interpreter = """
 
 offsets = {}
 
-out = ()
+out = bytearray()
 for _ in range(2):
     out = bytearray()
     for j, line in enumerate(interpreter[1:].splitlines()):
@@ -336,7 +334,7 @@ for _ in range(2):
         op = OpCode[line[6:8].rstrip()]
 
         arg, _, rest = (
-            (None, None, line[8:].lstrip())
+            ("", "", line[8:].lstrip())  # type: ignore
             if op is OpCode.PC
             else line[8:].lstrip().partition(" ")
         )
@@ -365,9 +363,9 @@ for _ in range(2):
             out.append(int(op))
 
         if word:
-            word = struct.pack(f"@{len(word)}s", word.encode())
-            out.extend(word[:-1])
-            out.append(word[-1] | 0x80)
+            buf = struct.pack(f"@{len(word)}s", word.encode())
+            out.extend(buf[:-1])
+            out.append(buf[-1] | 0x80)
 
 
 test = "".join(map("{:02X}".format, out))
