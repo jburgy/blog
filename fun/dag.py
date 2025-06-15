@@ -27,10 +27,6 @@ class _BaseEntry(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def __hash__(self) -> int:
-        raise NotImplementedError()
-
-    @abstractmethod
     def update(self, other) -> None:
         raise NotImplementedError()
 
