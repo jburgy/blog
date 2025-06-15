@@ -33,10 +33,8 @@ jobs:
 
       - name: Install native dependency
         run: |
-          pushd fourt2py
-          uv run meson setup builddir
+          uv run meson setup fourt2py builddir
           uv run meson install -C builddir
-          popd
 
       - name: Lint with ruff
         run: uv run ruff check
