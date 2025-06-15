@@ -34,7 +34,7 @@ jobs:
       - name: Install native dependency
         run: |
           pushd fourt2py
-          uv run meson setup builddir -Dpython.install_env=auto
+          uv run meson setup builddir
           uv run meson install -C builddir
           popd
 

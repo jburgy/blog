@@ -25,35 +25,21 @@ add_project_arguments(
     '-Wno-maybe-uninitialized',
     language : 'fortran')
 
-py_mod = import('python')
-py3 = py_mod.find_installation('python3')
-py3_dep = py3.dependency()
-message(py3.full_path())
-message(py3.get_install_dir())
-
-incdir_numpy = run_command(py3,
-    ['-c', 'import os; os.chdir(".."); import numpy; print(numpy.get_include())'],
-    check : true
-).stdout().strip()
-
-incdir_f2py = run_command(py3,
-    ['-c', 'import os; os.chdir(".."); import numpy.f2py; print(numpy.f2py.get_include())'],
-    check : true
-).stdout().strip()
+py = import('python').find_installation(pure : false)
 
 fourt2py_source = custom_target('fourt2pymodule.c',
     input : ['fourt.pyf'],
     output : ['fourt2pymodule.c'],
-    command: [py3, '-m', 'numpy.f2py', '@INPUT@'],
+    command: [py, '-m', 'numpy.f2py', '@INPUT@'],
 )
 
-inc_np = include_directories(incdir_numpy, incdir_f2py)
+incdir = py.get_path('platlib') / 'numpy' / 'f2py' / 'src'
 
-py3.extension_module('fourt2py',
+py.extension_module('fourt2py',
     'FOURT.F',
     fourt2py_source,
-    incdir_f2py + '/fortranobject.c',
-    include_directories : inc_np,
-    dependencies : py3_dep,
+    incdir / 'fortranobject.c',
+    include_directories : include_directories(incdir),
+    dependencies : [py.dependency(), dependency('numpy')],
     install : true,
 )
