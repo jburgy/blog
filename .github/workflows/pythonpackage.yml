@@ -14,11 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install GFortran
-        run: |
-          sudo apt-get update
-          sudo apt-get -y install gfortran
-
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
