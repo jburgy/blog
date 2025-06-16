@@ -26,7 +26,7 @@ add_project_arguments(
     '-Wno-maybe-uninitialized',
     language : 'fortran')
 
-py = import('python').find_installation(pure : false)
+py = import('python').find_installation(pure : true)
 
 fourt2py_source = custom_target('fourt2pymodule.c',
     input : ['fourt2py/fourt.pyf'],
@@ -34,7 +34,10 @@ fourt2py_source = custom_target('fourt2pymodule.c',
     command: [py, '-m', 'numpy.f2py', '@INPUT@'],
 )
 
-incdir = py.get_path('platlib') / 'numpy' / 'f2py' / 'src'
+incdir = run_command(py,
+    ['-c', 'import numpy.f2py; print(numpy.f2py.get_include())'],
+    check : true
+).stdout().strip()
 
 py.extension_module('fourt2py',
     'fourt2py/FOURT.F',
