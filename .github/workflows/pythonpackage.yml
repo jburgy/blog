@@ -2,6 +2,9 @@ name: Python package
 
 on: [push]
 
+env:
+  UV_NO_EDITABLE: 1
+
 jobs:
   build:
 
@@ -13,29 +16,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v6
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"        
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Install native dependency
-        run: |
-          uv run meson setup fourt2py builddir
-          uv run meson install -C builddir
-
-      - name: Lint with ruff
-        run: uv run ruff check
-
-      - name: Check with mypy
-        run: uv run mypy .
-
-      - name: Test with pytest
-        run: uv run pytest
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync
+      - run: uv run ruff check
+      - run: uv run mypy .
+      - run: uv run pytest

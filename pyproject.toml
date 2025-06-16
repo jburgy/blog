@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools", "numpy"]
-build-backend = "setuptools.build_meta"
+requires = ["meson-python", "ninja", "numpy"]
+build-backend = "mesonpy"
 
 [project]
 name = "blog"
