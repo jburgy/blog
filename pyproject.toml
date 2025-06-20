@@ -21,8 +21,8 @@ dependencies = [
     "z3-solver",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "mypy>=1.16.0",
     "pandas-stubs>=2.2.3.250527",
     "pytest>=8.4.0",
