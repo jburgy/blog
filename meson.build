@@ -4,11 +4,10 @@ project('fourt2py', 'c',
         'optimization=3',
         'warning_level=1',
         'fortran_std=legacy',
-        'python.install_env=venv',
     ]
 )
 
-py = import('python').find_installation(pure : true)
+py = import('python').find_installation()
 
 subdir('fourt2py')
 subdir('fun')
