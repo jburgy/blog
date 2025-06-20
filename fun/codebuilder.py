@@ -1,4 +1,10 @@
-# type: ignore
+#!/usr/bin/env -S uv run --script
+#
+# -*- coding: utf8 -*-
+# /// script
+# requires-python = "<=3.9"
+# dependencies = []
+# ///
 
 import dis
 from enum import IntFlag
@@ -18,12 +24,12 @@ from opcode import (
 from sys import version_info
 from types import CodeType
 
-CompilerFlags = IntFlag("CompilerFlags", " ".join(dis.COMPILER_FLAG_NAMES.values()))
-MakeFunctionFlags = IntFlag(
+CompilerFlags = IntFlag("CompilerFlags", " ".join(dis.COMPILER_FLAG_NAMES.values()))  # type: ignore[misc]
+MakeFunctionFlags = IntFlag(  # type: ignore[misc]
     "MakeFunctionFlags",
     " ".join(
         flag.upper()
-        for flag in getattr(dis, "MAKE_FUNCTION_FLAGS", None)
+        for flag in getattr(dis, "MAKE_FUNCTION_FLAGS", None)  # type: ignore[arg-type]
         or getattr(dis, "FUNCTION_ATTR_FLAGS", None)
     ),
 )
@@ -38,12 +44,12 @@ class CodeBuilderBase:
         self.freevars = {}
 
     def ascode(self, func_name: str, argcount: int) -> CodeType:
-        code = bytes(self)
+        code = bytes(self)  # type: ignore[call-overload]
         stacksize = max(
             accumulate(
-                dis.stack_effect(op, arg)
+                dis.stack_effect(op, arg)  # type: ignore[attr-defined]
                 if op >= HAVE_ARGUMENT
-                else dis.stack_effect(op)
+                else dis.stack_effect(op)  # type: ignore[attr-defined]
                 for op, arg in zip(code[::2], code[1::2])
             )
         )
@@ -54,17 +60,17 @@ class CodeBuilderBase:
             0,  # kwonlyargcount
             len(self.varnames),
             stacksize,  # stacksize
-            (CompilerFlags.OPTIMIZED | CompilerFlags.NEWLOCALS),
+            (CompilerFlags.OPTIMIZED | CompilerFlags.NEWLOCALS),  # type: ignore[attr-defined]
             code,
             tuple(self.consts),  # insertion order
             tuple(self.names),
             tuple(self.varnames),
             "",
             func_name,
-            0,
-            bytes(),
-            tuple(self.freevars),
-            tuple(self.cellvars),
+            0,  # type: ignore[arg-type]
+            bytes(),  # type: ignore[arg-type]
+            tuple(self.freevars),  # type: ignore[arg-type]
+            tuple(self.cellvars),  # type: ignore[arg-type]
         )
 
 
@@ -146,11 +152,11 @@ CodeBuilder = type(
 )
 
 if __name__ == "__main__" and version_info < (3, 10):
-    from dis import dis, show_code
+    from dis import dis, show_code  # type: ignore[no-redef]
 
     inner = (
         CodeBuilder()
-        .load_deref("y")
+        .load_deref("y")  # type: ignore[attr-defined]
         .load_fast("z")
         .inplace_add()
         .store_deref("y")
@@ -162,13 +168,13 @@ if __name__ == "__main__" and version_info < (3, 10):
 
     code = (
         CodeBuilder()
-        .load_fast("x")
+        .load_fast("x")  # type: ignore[attr-define]
         .store_deref("y")
         .load_closure("y")
         .build_tuple(1)
         .load_const(inner.ascode("inner", 1))
         .load_const("func.<locals>.inner")
-        .make_function(int(MakeFunctionFlags.CLOSURE))
+        .make_function(int(MakeFunctionFlags.CLOSURE))  # type: ignore[attr-defined]
         .store_fast("inner")
         .load_fast("inner")
         .return_value()
@@ -184,6 +190,6 @@ if __name__ == "__main__" and version_info < (3, 10):
 
         return inner
 
-    dis(func)
+    dis(func)  # type: ignore[operator]
     show_code(code.ascode("func", 1))
     show_code(func)

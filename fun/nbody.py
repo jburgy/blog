@@ -6,7 +6,7 @@
 # modified by Maciej Fijalkowski
 
 from numpy import array, divide, empty, greater, multiply, pi, r_, sqrt, sum, take
-from scipy.linalg.blas import daxpy, dspr2, zhpmv, zhpr  # type: ignore
+from scipy.linalg.blas import daxpy, dspr2, zhpmv, zhpr  # type: ignore[attr-defined]
 
 
 # fmt: off
@@ -53,11 +53,11 @@ dt = 0.01
 
 for _ in range(20_000):
     a.real = x
-    a.imag.fill(-1.0)
+    a.imag.fill(-1.0)  # type: ignore[attr-defined]
     ap.fill(0.0)
     for i in range(3):  # A += α z z*
         zhpr(n, alpha=-2.0, x=a[i], ap=ap[i], overwrite_ap=True)
-    sum(ap.real, axis=0, out=xxT)
+    sum(ap.real, axis=0, out=xxT)  # type: ignore[attr-define]
     xxT += 6
     take(xxT, trid, out=x2)
     # A += α (x yᵀ + y xᵀ)
@@ -66,12 +66,12 @@ for _ in range(20_000):
     sqrt(xxT, out=d)
     multiply(xxT, d, out=xxT)
     greater(xxT, 0.0, out=where)
-    divide(ap.imag, xxT, where=where, out=ap.imag)
+    divide(ap.imag, xxT, where=where, out=ap.imag)  # type: ignore[attr-defined]
 
     for i in range(3):  # y = α A x + β y
         zhpmv(n, alpha=0.5, ap=ap[i], x=jm, beta=0.0, y=a[i], overwrite_y=True)
 
-    daxpy(a=dt, x=a.real, y=v)  # v += a dt
+    daxpy(a=dt, x=a.real, y=v)  # v += a dt  # type: ignore[attr-defined]
     daxpy(a=dt, x=v, y=x)  # x += v dt
 
 print(x.T)

@@ -15,7 +15,7 @@ def compile(code: tuple[int, ...]) -> Callable[[int], Iterable[int]]:
     )
 
     lines = ["def func(a: int):", "    while True:"]
-    for instr, op in zip(code[::2], code[1::2]):  # type: ignore
+    for instr, op in zip(code[::2], code[1::2]):
         lines.append(f"        {instrs[instr](op)}")
 
     g: dict[str, Callable[[int], Iterable[int]]] = {}
@@ -42,7 +42,7 @@ def findquine(code: tuple[int, ...]) -> None:
         "a = BitVec('A', 51)",
         "for byte in prog:",
     ]
-    for instr, op in zip(code[::2], code[1::2]):  # type: ignore
+    for instr, op in zip(code[::2], code[1::2]):
         lines.append(f"    {instrs[instr](op)}")
     lines.append("constraints.append(a == 0)")
     lines.append("solve(*constraints)")

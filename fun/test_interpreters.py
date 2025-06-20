@@ -1,7 +1,7 @@
 try:
-    import _xxsubinterpreters as interpreters  # type: ignore
+    import _xxsubinterpreters as interpreters  # type: ignore[import-not-found]
 except ModuleNotFoundError:
-    from interpreters_backport import interpreters  # type: ignore
+    from interpreters_backport import interpreters  # type: ignore[import-untyped]
 
 from contextlib import closing
 

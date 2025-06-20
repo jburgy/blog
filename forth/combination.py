@@ -1,6 +1,13 @@
-# ~*~ coding: utf8; ~*~
+#!/usr/bin/env -S uv run --script
+#
+# -*- coding: utf8 -*-
+# /// script
+# requires-python = "<=3.9"
+# dependencies = []
+# ///
+
 from dis import dis
-from .forth import ForthCompiler
+from forth import ForthCompiler  # type: ignore[attr-defined]
 
 
 def index(mask: int) -> int:

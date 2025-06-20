@@ -12,8 +12,8 @@ def neighbors(i: int, j: int) -> npt.NDArray[np.uint8]:
     """
     k, l = (i//3)*3, (j//3)*3  # noqa E741
     return np.array([
-        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],  # type: ignore
-        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],  # type: ignore
+        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],  # type: ignore[misc]
+        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],  # type: ignore[misc]
     ], dtype=np.uint8)
 
 
@@ -77,20 +77,20 @@ def solve(given: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
            [2, 8, 7, 4, 1, 9, 6, 3, 5],
            [3, 4, 5, 2, 8, 6, 1, 7, 9]])
     """
-    possible = np.full((9, 9, 9), True)
+    node = np.full((9, 9, 9), True)
     mask = given > 0
-    possible[mask, :] = False
-    possible[mask, given[mask] - 1] = True
+    node[mask, :] = False
+    node[mask, given[mask] - 1] = True
 
     # number of possibilities at each site, masking those already propagated
     # to avoid repetitive work.  All masked == problem solved
-    count = ma.array(possible.sum(axis=2), fill_value=1)
+    count = ma.array(node.sum(axis=2), fill_value=1)
 
     # allocate upfront to as out parameter to np.equal
     # (ma.array because count is ma.array)
     where = ma.array(np.empty((9, 9), dtype=bool), fill_value=False)
 
-    stack = [(possible, count)]
+    stack = [(node, count)]
     while stack:
         node, count = stack.pop()
         unsolved = propagate(node, count, where)
@@ -107,7 +107,7 @@ def solve(given: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
             count_copy[i, j] = 1
             stack.append((node_copy, count_copy))
 
-    i, j, k = node.nonzero()  # type: ignore
+    i, j, k = node.nonzero()  # type: ignore[assignment]
     count[i, j] = k + 1
     return np.array(count)
 

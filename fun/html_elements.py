@@ -9,7 +9,7 @@ Generate https://developer.mozilla.org/en-US/docs/Web/HTML/Element/output
 from json import dumps
 from typing import cast
 
-from sympy import Expr, Symbol, abc, jscode  # type: ignore
+from sympy import Expr, Symbol, abc, jscode  # type: ignore[import-untyped]
 
 # OK, this looks very much like jinja2 but it's boilerplate to guarantee
 # the DOM exists before we attempt defining interactions between its nodes.

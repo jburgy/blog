@@ -1,7 +1,11 @@
-# type: ignore
+#!/usr/bin/env -S uv run --script
+#
+# -*- coding: utf8 -*-
+# /// script
+# requires-python = "<=3.9"
+# dependencies = []
+# ///
 
-#!/usr/bin/env python3.9
-# ~*~ conding: utf8; ~*~
 from ast import literal_eval
 from dis import COMPILER_FLAG_NAMES, dis, show_code
 from opcode import opmap
@@ -9,6 +13,7 @@ import re
 from sys import argv
 from timeit import timeit
 from types import CodeType, FunctionType
+from typing import Callable
 
 COMPILER_FLAGS = {k: v for v, k in COMPILER_FLAG_NAMES.items()}
 DIS = re.compile(
@@ -27,15 +32,15 @@ def _tuple_from_dict(d):
     return tuple(d.get(i) for i in range(n))
 
 
-def assemble(func: callable):
+def assemble(func: Callable):
     """invert dis.Instruction._disassemble"""
-    code = bytearray()
+    codestring = bytearray()
     lnotab = bytearray()
     consts = {}
     names = {}
     varnames = {}
     plineno, poffset = None, None
-    for line in func.__doc__.splitlines():
+    for line in str(func.__doc__).splitlines():
         m = DIS.fullmatch(line)
         if not m:
             continue
@@ -49,10 +54,10 @@ def assemble(func: callable):
             lnotab.append(lineno if plineno is None else lineno - plineno)
             plineno = lineno
             poffset = offset
-        code.append(opmap[opname])
+        codestring.append(opmap[opname])
         if oparg:
             oparg = int(oparg)
-            code.append(oparg)
+            codestring.append(oparg)
             argrepr = m.group("argrepr")
             if opname == "LOAD_CONST":
                 consts[oparg] = literal_eval(argrepr)
@@ -61,8 +66,8 @@ def assemble(func: callable):
             elif opname in {"LOAD_FAST", "STORE_FAST"}:
                 varnames[oparg] = argrepr
         else:
-            code.append(0)
-    code = CodeType(
+            codestring.append(0)
+    code = CodeType(  # type: ignore[call-arg]
         func.__code__.co_argcount,
         func.__code__.co_posonlyargcount,
         func.__code__.co_kwonlyargcount,
@@ -71,14 +76,14 @@ def assemble(func: callable):
         COMPILER_FLAGS["OPTIMIZED"]
         | COMPILER_FLAGS["NEWLOCALS"]
         | COMPILER_FLAGS["NOFREE"],
-        bytes(code),
+        bytes(codestring),
         _tuple_from_dict(consts),
         _tuple_from_dict(names),
         _tuple_from_dict(varnames),
         func.__code__.co_filename,
-        func.__code__.co_name,
-        func.__code__.co_firstlineno,
-        bytes(lnotab),
+        func.__code__.co_name,  
+        func.__code__.co_firstlineno,  # type: ignore[arg-type]
+        bytes(lnotab),  # type: ignore[arg-type]
     )
     return FunctionType(code, func.__globals__)
 

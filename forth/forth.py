@@ -1,5 +1,11 @@
-#!/usr/bin/env python3.9
-# ~*~ encoding: utf8; ~*~
+#!/usr/bin/env -S uv run --script
+#
+# -*- coding: utf8 -*-
+# /// script
+# requires-python = "<=3.9"
+# dependencies = []
+# ///
+
 """ Compiling forth to python bytecode for fun micro-optimizations
 
 Python performs only the most minimal optimizations before generating
@@ -22,12 +28,15 @@ http://git.annexia.org/?p=jonesforth.git;a=blob;f=jonesforth.S
 https://towardsdatascience.com/understanding-python-bytecode-e7edaae8734d
 http://cubbi.com/fibonacci/forth.html
 """
+import sys
 from argparse import ArgumentParser
 from ast import literal_eval
 from dis import COMPILER_FLAG_NAMES, dis, show_code
 from opcode import cmp_op, hasjrel, opmap
 from timeit import timeit
 from types import CodeType, FunctionType
+
+print(sys.version_info)
 
 COMPILER_FLAGS = {v: k for k, v in COMPILER_FLAG_NAMES.items()}
 
@@ -41,7 +50,7 @@ def _gen_emitter(ops):
 
 
 class ForthCompilerMeta(type):
-    def __new__(meta, name, bases, dct):
+    def __new__(meta, name, bases, dct):  # type: ignore[override]
         ops = {
             "+": "INPLACE_ADD",
             "-": "INPLACE_SUBTRACT",
@@ -190,13 +199,13 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
         for i, line in enumerate(func.__doc__.splitlines()):
             for word in line.split():
                 code.extend(
-                    getattr(self, "emit_" + word, self.emit_default)(word)
+                    getattr(self, "emit_" + word, self.emit_default)(word)  # type: ignore[call-arg]
                 )
             n = len(code)
             lnotab.extend((n - offset, i - lineno))
             offset, lineno = n, i
 
-        code = CodeType(
+        code = CodeType(  # type: ignore[call-arg]
             func.__code__.co_argcount,
             0,  # posonlyargcount
             0,  # kwonlyargcount

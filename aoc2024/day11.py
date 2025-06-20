@@ -44,10 +44,10 @@ while q:
     n = m - 1
     counts = tuple(map(caches[n].get, stones))
     if all(counts):
-        cache[stone] = sum(counts)  # type: ignore
+        cache[stone] = sum(counts)  # type: ignore[arg-type]
     else:
         q.append(t)
-        q.extend(zip(repeat(n), compress(stones, map(not_, counts))))  # type: ignore
+        q.extend(zip(repeat(n), compress(stones, map(not_, counts))))  # type: ignore[arg-type]
 
 print(sum(caches[25].values()))
 print(sum(caches[75].values()))

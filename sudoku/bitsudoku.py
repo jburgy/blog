@@ -16,8 +16,8 @@ def bitcount(x):
 def neighbors(i: int, j: int) -> npt.NDArray[np.intp]:
     k, l = (i//3)*3, (j//3)*3  # noqa E741
     return np.array([
-        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],  # type: ignore
-        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],  # type: ignore
+        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],  # type: ignore[misc]
+        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],  # type: ignore[misc]
     ], dtype=np.intp)
 
 
@@ -28,10 +28,10 @@ _neighbors = np.array(
 
 
 def propagate(possible: npt.NDArray[np.intp], count: ma.MaskedArray, where=ma.MaskedArray) -> int:
-    while np.equal(count, 1, out=where).any():
-        k = np.invert(possible[where])
+    while np.equal(count, 1, out=where).any():  # type: ignore[overload]
+        k = np.invert(possible[where])  # type: ignore[overload]
         # ufunc.at performs *unbuffered* in place operation
-        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),
+        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),  # type: ignore[overload]
                           k[:, np.newaxis])
         if not _counts.take(possible, out=count).all():  # stay in sync
             return -1
@@ -40,22 +40,22 @@ def propagate(possible: npt.NDArray[np.intp], count: ma.MaskedArray, where=ma.Ma
 
 
 def solve(given):
-    possible = np.full((9, 9), 0b111111111, dtype=np.uint16)
+    node = np.full((9, 9), 0b111111111, dtype=np.uint16)
     mask = given > 0
-    possible[mask] = 1 << (given[mask] - 1)
+    node[mask] = 1 << (given[mask] - 1)
 
     # number of possibilities at each site, masking those already propagated
     # to avoid repetitive work.  All masked == problem solved!
-    count = ma.array(_counts.take(possible))
+    count = ma.array(_counts.take(node))
 
     # allocate upfront to pass as out parameter to np.equal
     # (ma.array because count is ma.array)
     where = ma.array(np.empty((9, 9), dtype=bool), fill_value=False)
 
-    stack = [(possible, count)]
+    stack = [(node, count)]
     while stack:
         node, count = stack.pop()
-        unsolved = propagate(node, count, where)
+        unsolved = propagate(node, count, where)  # type: ignore[arg-type]
         if unsolved == -1:  # dead end
             continue
         if unsolved == 0:  # all solved!

@@ -15,6 +15,6 @@ class CORSRequestHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    from http.server import test  # type: ignore
+    from http.server import test  # type: ignore[attr-defined]
 
     test(HandlerClass=CORSRequestHandler, ServerClass=HTTPServer)

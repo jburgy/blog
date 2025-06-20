@@ -32,15 +32,15 @@ for k, block in enumerate(reversed(blocks[1:]), start=1):
     except StopIteration:
         block.insert(1, t)
     else:
-        blocks[-k - (len(block) > 1)][0] += size  # type: ignore
-        to[0] -= size  # type: ignore
+        blocks[-k - (len(block) > 1)][0] += size  # type: ignore[operator]
+        to[0] -= size  # type: ignore[operator]
         to.append(t)
 
 index = checksum = 0
-for space, *sizes in blocks:  # type: ignore
+for space, *sizes in blocks:  # type: ignore[assignment]
     for file, size in cast(list[tuple[int, int]], sizes):
         end = index + size
         checksum += file * (index + end - 1) * size // 2
         index = end
-    index += space  # type: ignore
+    index += space  # type: ignore[operator]
 print(checksum)
