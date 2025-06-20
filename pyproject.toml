@@ -21,9 +21,6 @@ dependencies = [
     "z3-solver",
 ]
 
-[tool.setuptools]
-packages = ["fun", "sudoku"]
-
 [tool.uv]
 dev-dependencies = [
     "mypy>=1.16.0",

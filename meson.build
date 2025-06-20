@@ -28,6 +28,10 @@ add_project_arguments(
 
 py = import('python').find_installation(pure : true)
 
+subdir('fun')
+subdir('linear_programming')
+subdir('sudoku')
+
 fourt2py_source = custom_target('fourt2pymodule.c',
     input : ['fourt2py/fourt.pyf'],
     output : ['fourt2pymodule.c'],
