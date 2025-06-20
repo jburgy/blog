@@ -1,4 +1,5 @@
 py.install_sources([
+    '__init__.py',
     'anagram.py',
     'api_from.py',
     'challenge.py',
