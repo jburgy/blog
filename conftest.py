@@ -3,10 +3,10 @@ import pytest
 
 collect_ignore = [
     "aoc2024",
+    "forth/combination.py",
+    "forth/forth.py",
     "fun/api_from.py",
     "fun/assemble.py",
-    "fun/combination.py",
-    "fun/forth.py",
     "fun/store_sa.py"
 ]
 

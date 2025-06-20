@@ -51,25 +51,25 @@ def mapping(target: str) -> Mapping[str, str]:
         if target == "4th.32"
         else "{:d}".format(syscall0)
     )
-    filename = "fun/4th.32.fs" if target == "4th.32" else "fun/4th.fs"
+    filename = "forth/4th.32.fs" if target == "4th.32" else "forth/4th.fs"
     result["forth"] = ": TEST-MODE ;\n" + Path(filename).read_text()
     return result
 
 
 @pytest.fixture(scope="module")
 def cmd(target: str) -> Iterable[partial]:
-    run(["make", target], cwd="fun", check=True)
+    run(["make", target], cwd="forth", check=True)
     yield partial(
         run,
-        args=["fun/" + target, "foo", "bar"],
+        args=["forth/" + target, "foo", "bar"],
         capture_output=True,
         check=True,
         env={"SHELL": "/bin/bash"},
         text=True,
     )
     if target == "4th.gcov":
-        run(["gcov", "4th.c"], cwd="fun", check=True)
-    run(["make", "clean"], cwd="fun", check=True)
+        run(["gcov", "4th.c"], cwd="forth", check=True)
+    run(["make", "clean"], cwd="forth", check=True)
 
 
 def test_error(cmd: partial):
@@ -137,7 +137,7 @@ FOO EMIT
         ("{forth}3 4 5 WITHIN .\n", "0 "),
         ("{forth}: GETPPID {getppid} SYSCALL0 ; GETPPID .\n", f"{os.getpid():d} "),
         ("{forth}18 {umask} SYSCALL1 .\n", "18 "),
-        ('{forth}O_RDONLY Z" fun/4th.c" {access} SYSCALL2 .\n', "0 "),
+        ('{forth}O_RDONLY Z" forth/4th.c" {access} SYSCALL2 .\n', "0 "),
         ('{forth}S" test" SWAP 1 SYS_WRITE SYSCALL3\n', "test"),
         ("{forth}ARGC .\n", "3 "),
         ("{forth}ENVIRON @ DUP STRLEN TELL\n", "SHELL=/bin/bash"),
