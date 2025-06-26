@@ -21,7 +21,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync
       - uses: astral-sh/ruff-action@v3
-      - uses: uv run pyright
+      - run: uv run pyright
       - run: uv run pytest
         env:
           pytest_github_report: true
