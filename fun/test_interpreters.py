@@ -1,7 +1,7 @@
 try:
-    import _xxsubinterpreters as interpreters  # type: ignore[import-not-found]
+    import _xxsubinterpreters as interpreters  # pyright: ignore[reportMissingImports]
 except ModuleNotFoundError:
-    from interpreters_backport import interpreters  # type: ignore[import-untyped]
+    from interpreters_backport import interpreters
 
 from contextlib import closing
 

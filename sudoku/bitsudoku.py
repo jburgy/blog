@@ -16,8 +16,8 @@ def bitcount(x):
 def neighbors(i: int, j: int) -> npt.NDArray[np.intp]:
     k, l = (i//3)*3, (j//3)*3  # noqa E741
     return np.array([
-        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],  # type: ignore[misc]
-        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],  # type: ignore[misc]
+        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],
+        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],
     ], dtype=np.intp)
 
 
@@ -28,10 +28,10 @@ _neighbors = np.array(
 
 
 def propagate(possible: npt.NDArray[np.intp], count: ma.MaskedArray, where=ma.MaskedArray) -> int:
-    while np.equal(count, 1, out=where).any():  # type: ignore[overload]
-        k = np.invert(possible[where])  # type: ignore[overload]
+    while np.equal(count, 1, out=where).any():  # pyright: ignore[reportArgumentType, reportCallIssue]
+        k = np.invert(possible[where])  # pyright: ignore[reportArgumentType, reportCallIssue]
         # ufunc.at performs *unbuffered* in place operation
-        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),  # type: ignore[overload]
+        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),  # pyright: ignore[reportArgumentType, reportCallIssue]
                           k[:, np.newaxis])
         if not _counts.take(possible, out=count).all():  # stay in sync
             return -1
@@ -55,7 +55,7 @@ def solve(given):
     stack = [(node, count)]
     while stack:
         node, count = stack.pop()
-        unsolved = propagate(node, count, where)  # type: ignore[arg-type]
+        unsolved = propagate(node, count, where)  # pyright: ignore[reportArgumentType]
         if unsolved == -1:  # dead end
             continue
         if unsolved == 0:  # all solved!

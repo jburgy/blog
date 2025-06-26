@@ -7,7 +7,7 @@
 # ///
 
 from dis import dis
-from forth import ForthCompiler  # type: ignore[attr-defined]
+from forth import ForthCompiler  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def index(mask: int) -> int:

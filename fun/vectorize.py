@@ -30,7 +30,7 @@ class Vectorizer(ast.NodeTransformer):
             node.elt
         ]
 
-    def generic_visit(self, node):
+    def generic_visit(self, node):  # pyright: ignore[reportIncompatibleMethodOverride]
         result = node  # new
         for field, old_value in ast.iter_fields(node):
             if isinstance(old_value, list):
@@ -74,4 +74,4 @@ if __name__ == "__main__":
 
     print(f([1, 2, 3]))
     g = numpify(f)
-    print(g([1, 2, 3]))
+    print(g([1, 2, 3]))  # pyright: ignore[reportCallIssue]

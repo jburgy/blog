@@ -50,7 +50,7 @@ def _gen_emitter(ops):
 
 
 class ForthCompilerMeta(type):
-    def __new__(meta, name, bases, dct):  # type: ignore[override]
+    def __new__(meta, name, bases, dct):  # pyright: ignore[reportSelfClsParameterName]
         ops = {
             "+": "INPLACE_ADD",
             "-": "INPLACE_SUBTRACT",
@@ -199,13 +199,13 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
         for i, line in enumerate(func.__doc__.splitlines()):
             for word in line.split():
                 code.extend(
-                    getattr(self, "emit_" + word, self.emit_default)(word)  # type: ignore[call-arg]
+                    getattr(self, "emit_" + word, self.emit_default)(word)  # pyright: ignore[reportCallIssue]
                 )
             n = len(code)
             lnotab.extend((n - offset, i - lineno))
             offset, lineno = n, i
 
-        code = CodeType(  # type: ignore[call-arg]
+        code = CodeType(  # pyright: ignore[reportCallIssue]
             func.__code__.co_argcount,
             0,  # posonlyargcount
             0,  # kwonlyargcount

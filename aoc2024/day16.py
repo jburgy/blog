@@ -7,7 +7,7 @@ class Reindeer(NamedTuple):
     x: complex
     v: complex
 
-    def __lt__(self, other: Self) -> bool:  # type: ignore[override]
+    def __lt__(self, other: Self) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
         return self.score < other.score
 
 
@@ -78,7 +78,7 @@ for path in paths:
     for reindeer in path:
         x = reindeer.x
         tiles.add(x)
-        lines[int(x.real)][int(x.imag)] = "O"  # type: ignore[index]
+        lines[int(x.real)][int(x.imag)] = "O"
 
 for line in lines:
     print(*line, sep="")

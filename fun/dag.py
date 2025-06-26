@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from functools import _NOT_FOUND  # type: ignore[attr-defined]
+from functools import _NOT_FOUND  # pyright: ignore[reportAttributeAccessIssue]
 from functools import cached_property, lru_cache, partial, wraps
 from timeit import timeit
 from typing import Any, Iterator, Self
@@ -65,7 +65,7 @@ class WeakSetEntry(WeakSet, _BaseEntry):
         self.partial = partial(user_function, *args, **keywords)
         self.hashvalue = hash(self.partial)
 
-    def __hash__(self):  # type: ignore[overload]
+    def __hash__(self):  # pyright: ignore[reportIncompatibleVariableOverride]
         return self.hashvalue
 
     def __call__(self):

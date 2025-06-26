@@ -5,6 +5,8 @@ pattern = re.compile(r"^(?P<type>[^:]+): X[+=](?P<x>\d+), Y[+=](?P<y>\d+)$")
 
 cost = 0
 add = 10_000_000_000_000  # or 0 for part 1
+a00 = a10 = a01 = a11 = 0
+pivot = Fraction()
 with open("aoc2024/day13input.txt", "rt") as lines:
     for line in lines:
         matches = pattern.match(line)

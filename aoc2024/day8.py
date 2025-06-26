@@ -8,8 +8,8 @@ with open("aoc2024/day8input.txt", "rt") as lines:
                 this: list[complex] = antennae.setdefault(char, [])
                 this.append(complex(i, j))
     else:
-        m = i + 1
-        n = len(line.rstrip())
+        m = i + 1  # pyright: ignore[reportPossiblyUnboundVariable]
+        n = len(line.rstrip())  # pyright: ignore[reportPossiblyUnboundVariable]
 
 antinodes = set()
 for positions in antennae.values():

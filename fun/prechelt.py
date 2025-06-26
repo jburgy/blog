@@ -48,11 +48,11 @@ def aho_corasick(*words):
         for digit in map(int, word.translate(MAP)):
             next = node[digit]
             if next is None:
-                node[digit] = next = [None] * WORD
+                node[digit] = next = [None] * WORD  # pyright: ignore[reportArgumentType, reportCallIssue]
             node = next
         node.append(word)
 
-    root[FAIL] = root
+    root[FAIL] = root  # pyright: ignore[reportArgumentType, reportCallIssue]
     stack = []
     append = stack.append
     for node in root[:FAIL]:
@@ -83,23 +83,23 @@ def replaceal1(haystack: str, *needles: str) -> Iterator[str]:
     for j, num in enumerate(haystack, 1):
         digit = int(num)
         while True:
-            temp = node[digit]
+            temp = node[digit]  # pyright: ignore[reportOptionalSubscript]
             if temp:
                 node = temp
                 break
             if node is root:
                 break
-            node = node[FAIL]
+            node = node[FAIL]  # pyright: ignore[reportOptionalSubscript]
         this: list[str] = []
         extend = this.extend
-        for suf in node[WORD:]:
-            i = j - len(suf)
-            extend(pre + suf for pre in seen[i])
+        for suf in node[WORD:]:  # pyright: ignore[reportOptionalSubscript]
+            i = j - len(suf)  # pyright: ignore[reportArgumentType]
+            extend(pre + suf for pre in seen[i])  # pyright: ignore[reportOperatorIssue]
             if i == 0:
                 continue
-            suf = num + suf
+            suf = num + suf  # pyright: ignore[reportOperatorIssue]
             extend(pre + suf for pre in seen[i - 1] if not count_digits(pre))
         append(this)
 
-    yield from this
-    yield from (pre + num for pre in seen[-2] if not count_digits(pre))
+    yield from this  # pyright: ignore[reportGeneralTypeIssues, reportPossiblyUnboundVariable]
+    yield from (pre + num for pre in seen[-2] if not count_digits(pre))  # pyright: ignore[reportPossiblyUnboundVariable]

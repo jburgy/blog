@@ -12,8 +12,8 @@ def neighbors(i: int, j: int) -> npt.NDArray[np.uint8]:
     """
     k, l = (i//3)*3, (j//3)*3  # noqa E741
     return np.array([
-        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],  # type: ignore[misc]
-        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],  # type: ignore[misc]
+        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],
+        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],
     ], dtype=np.uint8)
 
 
@@ -107,7 +107,7 @@ def solve(given: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
             count_copy[i, j] = 1
             stack.append((node_copy, count_copy))
 
-    i, j, k = node.nonzero()  # type: ignore[assignment]
+    i, j, k = node.nonzero()
     count[i, j] = k + 1
     return np.array(count)
 

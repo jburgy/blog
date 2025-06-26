@@ -10,7 +10,7 @@ def possible(head: int, *rest: int, base: int = 2) -> Iterable[int]:
     for i in range(base**n):
         res = head
         for op, num in zip(map(ops, np.base_repr(i, base=base).zfill(n)), rest):
-            res = int(op(res, num))  # type: ignore[operator]
+            res = int(op(res, num))
         yield res
 
 

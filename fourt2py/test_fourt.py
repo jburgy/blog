@@ -1,6 +1,6 @@
 import numpy as np
 
-from fourt2py import fourt  # type: ignore[attr-defined]
+from fourt2py import fourt
 
 
 def test_fourt():

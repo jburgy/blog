@@ -34,7 +34,7 @@ def _pairs_from_package(package):
             prefix=package.__name__ + ".",
             onerror=lambda _: None,
         ) if not name.rpartition(".")[-1].startswith("_") and not ispkg
-        for pair in _pairs_from_spec(finder.find_spec(name))
+        for pair in _pairs_from_spec(finder.find_spec(name))  # pyright: ignore[reportCallIssue]
     )
 
 

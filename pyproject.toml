@@ -23,8 +23,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "mypy>=1.16.0",
     "pandas-stubs>=2.2.3.250527",
+    "pyright>=1.1.402",
     "pytest>=8.4.0",
     "scipy-stubs>=1.15.3.0",
     "sqlalchemy[mypy]>=2.0.41",

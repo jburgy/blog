@@ -334,7 +334,7 @@ for _ in range(2):
         op = OpCode[line[6:8].rstrip()]
 
         arg, _, rest = (
-            ("", "", line[8:].lstrip())  # type: ignore[assignment]
+            ("", "", line[8:].lstrip())
             if op is OpCode.PC
             else line[8:].lstrip().partition(" ")
         )

@@ -87,7 +87,7 @@ def matmul(
     """
     assert isinstance(a, sparse.csr_array)
     if isinstance(b, sparse.csr_array):
-        return a @ b  # type: ignore[return-value]
+        return a @ b  # pyright: ignore[reportReturnType]
 
     assert isinstance(b, sparse.csc_array)
 

@@ -67,7 +67,7 @@ def assemble(func: Callable):
                 varnames[oparg] = argrepr
         else:
             codestring.append(0)
-    code = CodeType(  # type: ignore[call-arg]
+    code = CodeType(  # pyright: ignore[reportCallIssue]
         func.__code__.co_argcount,
         func.__code__.co_posonlyargcount,
         func.__code__.co_kwonlyargcount,
@@ -82,8 +82,8 @@ def assemble(func: Callable):
         _tuple_from_dict(varnames),
         func.__code__.co_filename,
         func.__code__.co_name,  
-        func.__code__.co_firstlineno,  # type: ignore[arg-type]
-        bytes(lnotab),  # type: ignore[arg-type]
+        func.__code__.co_firstlineno,
+        bytes(lnotab),
     )
     return FunctionType(code, func.__globals__)
 
