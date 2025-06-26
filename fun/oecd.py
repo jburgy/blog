@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "pandas",
+# ]
+# ///
+
 from json import load
 from urllib.parse import urlencode
 from urllib.request import urlopen

@@ -1,3 +1,9 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "numpy",
+# ]
+# ///
 import ast
 from inspect import getsource
 from textwrap import dedent

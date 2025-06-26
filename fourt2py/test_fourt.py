@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "numpy",
+# ]
+# ///
+
 import numpy as np
 
 from fourt2py import fourt

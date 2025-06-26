@@ -29,20 +29,18 @@ wheels = [
 name = "blog"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "pandas" },
-    { name = "scipy" },
-]
 
 [package.dev-dependencies]
 dev = [
+    { name = "fastapi" },
     { name = "interpreters-pep-734" },
     { name = "networkx" },
+    { name = "pandas" },
     { name = "pandas-stubs" },
     { name = "pillow" },
     { name = "pyright" },
     { name = "pytest" },
+    { name = "scipy" },
     { name = "scipy-stubs" },
     { name = "sqlalchemy", extra = ["mypy"] },
     { name = "sympy" },
@@ -51,20 +49,18 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "fastapi" },
-    { name = "pandas" },
-    { name = "scipy" },
-]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "fastapi" },
     { name = "interpreters-pep-734" },
     { name = "networkx" },
+    { name = "pandas" },
     { name = "pandas-stubs" },
     { name = "pillow" },
     { name = "pyright" },
     { name = "pytest" },
+    { name = "scipy" },
     { name = "scipy-stubs" },
     { name = "sqlalchemy" },
     { name = "sqlalchemy", extras = ["mypy"] },
