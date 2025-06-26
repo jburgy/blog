@@ -19,6 +19,7 @@ dev = [
     "pillow",
     "pyright",
     "pytest",
+    "pytest-github-report",
     "scipy",
     "scipy-stubs",
     "sqlalchemy",
