@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "z3-solver",
+# ]
+# ///
+
 from collections.abc import Callable, Iterable
 
 
@@ -53,3 +60,4 @@ def findquine(code: tuple[int, ...]) -> None:
 prog = 2, 4, 1, 6, 7, 5, 4, 6, 1, 4, 5, 5, 0, 3, 3, 0
 print(*compile(prog)(66171486), sep=",")
 findquine(prog)
+

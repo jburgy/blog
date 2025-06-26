@@ -1,3 +1,11 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "pillow",
+#     "scipy",
+# ]
+# ///
+
 import re
 
 import numpy as np

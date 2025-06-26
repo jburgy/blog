@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "sympy",
+# ]
+# ///
+
 """ Proof of concept HTML generator in pure python
 
 You don't need jinja2 to generate HTML from python, higher-order

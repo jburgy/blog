@@ -1,5 +1,9 @@
-# -*- coding: utf-8 -*-
-# flake8: noqa E501
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "sqlalchemy>=1.4",
+# ]
+# ///
 
 """ SQLAlchemy version of store.py """
 
@@ -19,7 +23,6 @@ class Patch(DeclarativeBase):
         return f"<Patch(id={self.id}, inserted_at={self.inserted_at}, previous_id={self.previous_id}, patch={self.patch})>"
 
 
-# 2.0-style, requires sqlalchemy>=1.4
 engine = create_engine("sqlite://", echo=True, future=True)
 Session = sessionmaker(bind=engine, future=True)
 session = Session()

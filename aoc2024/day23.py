@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "networkx",
+# ]
+# ///
+
 import networkx as nx
 
 g: nx.Graph = nx.Graph()
@@ -12,3 +19,4 @@ print(cycles)
 
 clique = nx.approximation.max_clique(g)
 print(*sorted(clique), sep=",")
+

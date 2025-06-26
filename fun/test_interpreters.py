@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "pillow",
+# ]
+# ///
+
 try:
     import _xxsubinterpreters as interpreters  # pyright: ignore[reportMissingImports]
 except ModuleNotFoundError:

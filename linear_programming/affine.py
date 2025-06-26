@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "scipy",
+# ]
+# ///
+
 # https://en.wikipedia.org/wiki/Affine_scaling
 # this version does not exploit A's sparseness
 

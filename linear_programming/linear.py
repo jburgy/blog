@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "scipy",
+# ]
+# ///
+
 from dataclasses import dataclass
 from operator import le
 from typing import Callable, Union

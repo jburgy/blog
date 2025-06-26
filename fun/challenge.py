@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "pillow",
+# ]
+# ///
+
 import ast
 import base64
 import bz2
@@ -358,3 +365,4 @@ if __name__ == "__main__":
     #     image.show()
     # butterfly("bin", opener=integrity("butter", "fly"))
     idiot("unreal", opener=integrity("butter", "fly"))
+

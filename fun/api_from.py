@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "fastapi",
+# ]
+# ///
+
 """
 Use introspection to auto-generate a FastAPI from a python package
 which defines functions that return pandas DataFrames.  Sample use

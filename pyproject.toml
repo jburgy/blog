@@ -9,26 +9,25 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = {file = "LICENSE"}
 dependencies = [
-    "fastapi",
-    "interpreters-pep-734",
-    "networkx",
     "pandas",
-    "pillow",
-    "qrcode[pil]",
-    "scipy",
-    "sqlalchemy",
-    "sympy",
-    "z3-solver",
 ]
 
 [dependency-groups]
 dev = [
-    "pandas-stubs>=2.2.3.250527",
-    "pyright>=1.1.402",
-    "pytest>=8.4.0",
-    "scipy-stubs>=1.15.3.0",
-    "sqlalchemy[mypy]>=2.0.41",
-    "types-networkx>=3.5.0.20250610",
+    "fastapi",
+    "interpreters-pep-734",
+    "networkx",
+    "pandas-stubs",
+    "pillow",
+    "pyright",
+    "pytest",
+    "scipy",
+    "scipy-stubs",
+    "sqlalchemy",
+    "sqlalchemy[mypy]",
+    "sympy",
+    "types-networkx",
+    "z3-solver",
 ]
 
 [tool.pytest.ini_options]

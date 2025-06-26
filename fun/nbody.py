@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "scipy",
+# ]
+# ///
+
 # The Computer Language Benchmarks Game
 # http://benchmarksgame.alioth.debian.org/
 #

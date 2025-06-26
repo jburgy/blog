@@ -1,3 +1,10 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "scipy",
+# ]
+# ///
+
 from bisect import bisect_left
 from typing import cast
 
