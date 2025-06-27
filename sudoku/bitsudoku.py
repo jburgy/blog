@@ -1,10 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "numpy",
-# ]
-# ///
-
 import io
 import numpy as np
 import numpy.ma as ma

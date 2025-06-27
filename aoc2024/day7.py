@@ -1,10 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "numpy",
-# ]
-# ///
-
 from operator import add, mul
 from typing import Iterable
 

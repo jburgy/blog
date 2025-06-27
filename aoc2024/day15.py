@@ -1,10 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "numpy",
-# ]
-# ///
-
 from collections.abc import Iterable
 from typing import cast
 
