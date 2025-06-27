@@ -183,14 +183,11 @@ fn defword(
     comptime name: []const u8,
     comptime data: []const []const Instr,
 ) [offset + data.len + 1]Instr {
-    const code = [_]Instr{.{ .code = docol_ }} ++ comptime init: {
-        var code: [data.len]Instr = undefined;
-        for (&code, data) |*d, s| {
-            d.* = .{ .word = codeFieldAddress(s.ptr) };
-        }
-        break :init &code;
-    };
-    return defword_(last, flag, name, code);
+    var code: [data.len + 1]Instr = undefined;
+    code[0].code = docol_;
+    inline for (code[1..], data) |*d, s|
+        d.word = codeFieldAddress(s.ptr);
+    return defword_(last, flag, name, code[0..]);
 }
 
 inline fn _drop(sp: [*]isize) [*]isize {
@@ -812,7 +809,7 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const 
     self.next(s, rsp, ip, target);
 }
 const interpret = defcode_(&tell, "INTERPRET", _interpret);
-const _quit = [_]Instr{
+const _quit: [7]Instr = .{
     .{ .code = docol_ },
     .{ .word = codeFieldAddress(&rz) },
     .{ .word = codeFieldAddress(&rspstore) },
@@ -856,14 +853,14 @@ inline fn _syscall3(sp: [*]isize) [*]isize {
             })) |file| @intCast(file.handle) else |_| -1;
         },
         .read => {
-            const file = fs.File{ .handle = @intCast(sp[1]) };
+            const file: fs.File = .{ .handle = @intCast(sp[1]) };
             const p: usize = @intCast(sp[2]);
             const buf: [*]u8 = @ptrFromInt(p);
             const n: usize = @intCast(sp[3]);
             sp[3] = if (file.read(buf[0..n])) |m| @intCast(m) else |_| -1;
         },
         .write => {
-            const file = fs.File{ .handle = @intCast(sp[1]) };
+            const file: fs.File = .{ .handle = @intCast(sp[1]) };
             const p: usize = @intCast(sp[2]);
             const buf: [*]u8 = @ptrFromInt(p);
             const n: usize = @intCast(sp[3]);
@@ -903,7 +900,7 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
             std.process.exit(status);
         },
         .close => {
-            const file = fs.File{ .handle = @intCast(sp[1]) };
+            const file: fs.File = .{ .handle = @intCast(sp[1]) };
             file.close();
         },
         .brk => {
@@ -929,16 +926,16 @@ var memory: [0x800000]u8 linksection(".bss") = undefined;
 
 pub fn main() callconv(conv) void {
     const N = 0x20;
-    var stack = [_]isize{undefined} ** N;
+    var stack: [N]isize = undefined;
     const sp = stack[N..];
-    var return_stack = [_][*]const Instr{undefined} ** N;
+    var return_stack: [N][*]const Instr = undefined;
     const rsp = return_stack[N..];
-    var fba = std.heap.FixedBufferAllocator.init(&memory);
-    const m = std.ArrayListAligned(u8, @alignOf(Instr)).init(fba.allocator());
+    var fba: std.heap.FixedBufferAllocator = .init(&memory);
+    const m: std.ArrayListAligned(u8, @alignOf(Instr)) = .init(fba.allocator());
     defer m.deinit();
-    var env = Interp.init(sp, rsp, m);
+    var env: Interp = .init(sp, rsp, m);
     const target = &_quit;
-    const cold_start = [_]Instr{.{ .word = target }};
+    const cold_start: [1]Instr = .{.{ .word = target }};
     const ip: [*]const Instr = &cold_start;
 
     target[0].code(&env, sp, rsp, ip, target);
