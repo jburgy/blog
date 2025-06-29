@@ -26,7 +26,9 @@ _neighbors = np.array(
 ).transpose(2, 0, 1, 3)
 
 
-def propagate(possible: npt.NDArray[np.intp], count: ma.MaskedArray, where=ma.MaskedArray) -> int:
+def propagate(
+    possible: npt.NDArray[np.intp], count: ma.MaskedArray, where=ma.MaskedArray
+) -> int:
     while np.equal(count, 1, out=where).any():  # pyright: ignore[reportArgumentType, reportCallIssue]
         k = np.invert(possible[where])  # pyright: ignore[reportArgumentType, reportCallIssue]
         # ufunc.at performs *unbuffered* in place operation

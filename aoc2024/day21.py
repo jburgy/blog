@@ -14,7 +14,9 @@ arrows = {
 
 
 def mincount(code: str, n: int) -> int | float:
-    prev: dict[tuple[str, str], int] | dict[tuple[str, str], float | int] = dict.fromkeys(product(arrows, arrows), 1)
+    prev: dict[tuple[str, str], int] | dict[tuple[str, str], float | int] = (
+        dict.fromkeys(product(arrows, arrows), 1)
+    )
 
     def length(keys: str) -> int | float:
         return sum(prev[key] for key in zip("A" + keys, keys))

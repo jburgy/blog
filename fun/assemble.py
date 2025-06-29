@@ -81,7 +81,7 @@ def assemble(func: Callable):
         _tuple_from_dict(names),
         _tuple_from_dict(varnames),
         func.__code__.co_filename,
-        func.__code__.co_name,  
+        func.__code__.co_name,
         func.__code__.co_firstlineno,
         bytes(lnotab),
     )

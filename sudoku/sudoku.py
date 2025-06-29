@@ -21,7 +21,9 @@ _neighbors = np.array(
 ).transpose(2, 0, 1, 3)
 
 
-def propagate(possible: npt.NDArray[np.uint8], count: ma.MaskedArray, where: ma.MaskedArray) -> int:
+def propagate(
+    possible: npt.NDArray[np.uint8], count: ma.MaskedArray, where: ma.MaskedArray
+) -> int:
     """ Enforce consistency by removing solved values from neighboring sites.
 
     Iterate as long as sites accept a single value.  Note that removing solved

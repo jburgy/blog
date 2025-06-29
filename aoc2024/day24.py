@@ -66,7 +66,9 @@ def check(n: int, exprs: dict[str, str]) -> dict[str, str]:
 
 
 init = re.compile(r"^(?P<key>\w{3}): (?P<val>[01])$")
-expr = re.compile(r"^(?P<lhs>\w{3}) (?P<op>AND|OR|XOR) (?P<rhs>\w{3}) -> (?P<key>\w{3})$")
+expr = re.compile(
+    r"^(?P<lhs>\w{3}) (?P<op>AND|OR|XOR) (?P<rhs>\w{3}) -> (?P<key>\w{3})$"
+)
 
 state: dict[str, tuple[str, str, str] | int] = {}
 exprs = {}

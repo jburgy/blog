@@ -99,7 +99,7 @@ def matmul(
     assert isinstance(b, sparse.csc_array)
 
     n, k = cast(tuple[int, int], a.shape)
-    l, m = b.shape  # noqa: E741
+    l, m = b.shape  # noqa E741
     assert k == l
 
     indptr = np.copy(a.indptr)

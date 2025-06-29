@@ -39,7 +39,7 @@ second implementation uses dictionaries to match the current character against a
 possible branches at once. That difference is best understood by looking at how each
 implementation compiles :code:`"a|b|c"`
 
-.. _Regular Expression Search Algorithm: http://www.oilshell.org/archive/Thompson-1968.pdf  # noqa E501
+.. _Regular Expression Search Algorithm: https://tinyurl.com/2vyu5en2
 .. _Thompson's construction: https://en.wikipedia.org/wiki/Thompson%27s_construction
 .. _C: https://swtch.com/~rsc/regexp/regexp-bytecode.c.txt
 .. _x86: https://swtch.com/~rsc/regexp/regexp-x86.c.txt

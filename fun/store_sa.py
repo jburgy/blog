@@ -15,12 +15,20 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 class Patch(DeclarativeBase):
     __tablename__ = "patch"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    inserted_at = Column(Integer, nullable=False, server_default=func.strftime('%s', 'now'))
-    previous_id = Column(Integer, ForeignKey("patch.id", ondelete="SET DEFAULT"), nullable=False, server_default="0")
+    inserted_at = Column(
+        Integer, nullable=False, server_default=func.strftime('%s', 'now')
+    )
+    previous_id = Column(
+        Integer,
+        ForeignKey("patch.id", ondelete="SET DEFAULT"),
+        nullable=False,
+        server_default="0",
+    )
     patch = Column(JSON)
 
     def __repr__(self) -> str:
-        return f"<Patch(id={self.id}, inserted_at={self.inserted_at}, previous_id={self.previous_id}, patch={self.patch})>"
+        return f"<Patch(id={self.id}, inserted_at={self.inserted_at}, previous_id={
+            self.previous_id}, patch={self.patch})>"
 
 
 engine = create_engine("sqlite://", echo=True, future=True)

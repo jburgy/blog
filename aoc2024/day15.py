@@ -101,7 +101,9 @@ for move in map(dirs.__getitem__, "".join(moves)):
         expanded[cast(tuple[int, int], divmod(new, 100))] = "@"
         while temp in "[]":
             push += move
-            expanded[cast(tuple[int, int], divmod(push, 100))], temp = temp, expanded[cast(tuple[int, int], divmod(push, 100))]
+            expanded[cast(tuple[int, int], divmod(push, 100))], temp = (
+                temp, expanded[cast(tuple[int, int], divmod(push, 100))]
+            )
         expanded[cast(tuple[int, int], divmod(robot, 100))] = "."
     else:  # vertical
         pushd = {int(new - 1): ".@"} if temp == "]" else {int(new): "@."}

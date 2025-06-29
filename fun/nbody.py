@@ -51,7 +51,7 @@ ap = empty((3, n * (n + 1) // 2), dtype=complex)
 xxT = empty(ap.shape[1], dtype=float)
 where = empty(ap.shape, dtype=bool)
 d = empty(ap.shape[1], dtype=float)
-trid = r_[0, 2 : n + 1].cumsum()  # noqa: E203 triangular diagonal
+trid = r_[0, 2 : n + 1].cumsum()  # noqa E203 triangular diagonal
 x2 = empty(n, dtype=float)
 ones = empty(n, dtype=float)
 ones.fill(1.0)
@@ -78,7 +78,7 @@ for _ in range(20_000):
     for i in range(3):  # y = α A x + β y
         zhpmv(n, alpha=0.5, ap=ap[i], x=jm, beta=0.0, y=a[i], overwrite_y=True)
 
-    daxpy(a=dt, x=a.real, y=v)  # v += a dt  # pyright: ignore[reportAttributeAccessIssue]
+    daxpy(a=dt, x=a.real, y=v)  # v += a dt  # noqa E501  # pyright: ignore[reportAttributeAccessIssue]
     daxpy(a=dt, x=v, y=x)  # x += v dt
 
 print(x.T)

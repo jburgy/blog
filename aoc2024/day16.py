@@ -44,7 +44,9 @@ while q:
 
 shortest = min(scores[goal, z] for z in [-1, 1j])
 
-r: list[tuple[Reindeer, ...]] = [(Reindeer(score=0, x=complex(len(lines) - 2, 1), v=1j),)]
+r: list[tuple[Reindeer, ...]] = [
+    (Reindeer(score=0, x=complex(len(lines) - 2, 1), v=1j),)
+]
 paths = set()
 while r:
     p = r.pop()
