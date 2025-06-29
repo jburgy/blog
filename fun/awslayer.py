@@ -21,27 +21,47 @@ See https://docs.aws.amazon.com/lambda/latest/dg/python-layers.html#python-layer
 import sysconfig
 from argparse import ArgumentParser
 from collections import deque
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable
+from shutil import get_terminal_size
+from signal import SIGWINCH, SIG_DFL, signal
+from types import FrameType
+from typing import Any, Callable
 from zipfile import ZipFile
 
 platlib = Path(sysconfig.get_path("platlib"))
 
-def tail(max_lines: int) -> Callable[[str], None]:
+
+@contextmanager
+def tail(max_lines: int) -> Generator[Callable[[str], None], None, None]:
     lines = deque(maxlen=max_lines)
     escape = "\N{ESC}"
     clrscr = f"{escape}[{max_lines}F{escape}[J"
+    columns = -1
+
+    def onwinch(signum: int, frame: FrameType | None) -> Any:
+        nonlocal columns
+        columns, _lines = get_terminal_size()
 
     def inner(line: str) -> None:
         full = len(lines) >= max_lines
+        line = line[:columns]
         lines.append(line)
         if full:
             print(clrscr, end="")
-            print(*lines, sep="\n", flush=True)
+            print(*lines, sep="\n")
         else:
             print(line)
 
-    return inner
+    signal(SIGWINCH, onwinch)
+    onwinch(SIGWINCH, None)
+
+    try:
+        yield inner
+    finally:
+        signal(SIGWINCH, SIG_DFL)
+        print(clrscr, end="")
 
 
 def main():
@@ -49,8 +69,7 @@ def main():
     parser.add_argument("zipfile", nargs="?", default="layer.zip")
     args = parser.parse_args()
 
-    taylor = tail(max_lines=5)
-    with ZipFile(args.zipfile, "w") as zf:
+    with tail(max_lines=5) as taylor, ZipFile(args.zipfile, "w") as zf:
         for root, dirs, files in platlib.walk():
             taylor(str(root))
             for file in files:
