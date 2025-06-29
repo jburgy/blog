@@ -34,11 +34,6 @@ dev = [
     "z3-solver",
 ]
 
-[tool.pyright]
-exclude = ["**/node_modules", "**/__pycache__"]
-venvPath = "."
-venv = ".venv"
-
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
 
