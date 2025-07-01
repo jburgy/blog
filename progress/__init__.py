@@ -1,3 +1,3 @@
-from .progress import Progress
+from .binding import Progress
 
 __all__ = ["Progress"]
