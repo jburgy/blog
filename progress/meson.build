@@ -1,7 +1,7 @@
 custom_target('progress',
     input : 'build.zig',
     output : ['binding.abi3.so'],
-    command: [py, '-m', 'ziglang', 'build', '--build-file', '@INPUT@', '--prefix', '@OUTDIR@'],
+    command: [py, '-m', 'pydust', 'build', '--build-file', '@INPUT@', '--prefix', '@OUTDIR@'],
     install : true,
     install_dir : py.get_install_dir() / 'progress',
 )
