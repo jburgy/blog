@@ -10,7 +10,7 @@ project('fourt2py', 'c',
 py = import('python').find_installation()
 
 custom_target(
-    input : 'progress/binding.zig',
+    input : 'progress/src/binding.zig',
     output : 'binding.abi3.so',
     command: [py, '-m', 'pydust', 'build', 'binding=@INPUT@'],
     install : true,
