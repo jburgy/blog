@@ -11,10 +11,10 @@ py = import('python').find_installation()
 
 custom_target(
     input : 'progress/binding.zig',
-    output : '_progress.abi3.so',
-    command: [py, '-m', 'pydust', 'build', '_progress=@INPUT@'],
+    output : 'binding.abi3.so',
+    command: [py, '-m', 'pydust', 'build', 'binding=@INPUT@'],
     install : true,
-    install_dir : py.get_install_dir(),
+    install_dir : py.get_install_dir() / 'progress',
 )
 
 subdir('fourt2py')
