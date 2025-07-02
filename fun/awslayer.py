@@ -19,8 +19,9 @@ See https://docs.aws.amazon.com/lambda/latest/dg/python-layers.html#python-layer
 """
 
 import sysconfig
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
+from typing import cast
 from zipfile import ZipFile
 
 from progress import Progress
@@ -28,16 +29,24 @@ from progress import Progress
 platlib = Path(sysconfig.get_path("platlib"))
 
 
+class Args(Namespace):
+    zipfile = str
+
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("zipfile", nargs="?", default="layer.zip")
-    args = parser.parse_args()
+    args = cast("Args", parser.parse_args(namespace=Args))
 
-    node = parent_node = Progress()
+    parent_node = Progress()
     parents: list[tuple[Path, Progress]] = []
 
-    with ZipFile(args.zipfile, "w") as zf:
+    with ZipFile(args.zipfile, "w") as zf:  # pyright: ignore[reportArgumentType, reportCallIssue]
         for root, dirs, files in platlib.walk():
+            try:
+                dirs.remove("__pycache__")
+            except ValueError:
+                pass
             for parent, node in reversed(parents):
                 try:
                     extra = root.relative_to(parent)
@@ -49,7 +58,7 @@ def main():
                     node.end()
                     parents.pop()
             else:
-                node = node.start(root.name, estimated_total_items=len(files))
+                node = parent_node.start(root.name, estimated_total_items=len(files))
                 parents.append((root, node))
             for file in files:
                 path = root / file
