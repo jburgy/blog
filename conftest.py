@@ -1,4 +1,4 @@
-import pytest
+import pytest  # pyright: ignore[reportMissingImports]
 
 
 collect_ignore = [
@@ -7,6 +7,7 @@ collect_ignore = [
     "forth/forth.py",
     "fun/api_from.py",
     "fun/assemble.py",
+    "fun/awslayer.py",
     "fun/store_sa.py",
     "progress/__init__.py",
 ]
