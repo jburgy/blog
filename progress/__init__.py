@@ -1,3 +1,3 @@
-from progress.binding import Progress
+from _progress import Progress  # pyright: ignore[reportMissingImports]
 
 __all__ = ["Progress"]
