@@ -13,11 +13,16 @@ pub const Progress = py.class(struct {
 
     pub fn start(
         self: *const Self,
-        args: struct { name: py.PyString(root), estimated_total_items: usize },
+        args: struct { name: py.PyString(root), estimated_total_items: usize = 0 },
     ) !*const Self {
         const parent: std.Progress.Node = .{ .index = self.index };
         const node = parent.start(try args.name.asSlice(), args.estimated_total_items);
         return py.init(root, Self, .{ .index = node.index });
+    }
+
+    pub fn increase_estimate(self: *const Self, args: struct { count: usize }) void {
+        const node: std.Progress.Node = .{ .index = self.index };
+        node.increaseEstimatedTotalItems(args.count);
     }
 
     pub fn end(self: *const Self) void {
