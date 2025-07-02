@@ -7,7 +7,8 @@ collect_ignore = [
     "forth/forth.py",
     "fun/api_from.py",
     "fun/assemble.py",
-    "fun/store_sa.py"
+    "fun/store_sa.py",
+    "progress/__init__.py",
 ]
 
 def pytest_addoption(parser: pytest.Parser):
