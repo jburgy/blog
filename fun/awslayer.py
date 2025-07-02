@@ -33,7 +33,7 @@ def main():
     parser.add_argument("zipfile", nargs="?", default="layer.zip")
     args = parser.parse_args()
 
-    node = Progress()
+    node = parent_node = Progress()
     parents: list[tuple[Path, Progress]] = []
 
     with ZipFile(args.zipfile, "w") as zf:
@@ -41,24 +41,26 @@ def main():
             for parent, node in reversed(parents):
                 try:
                     extra = root.relative_to(parent)
-                    node = node.start(str(extra), 0)
+                    node.increase_estimate(1)
+                    node = node.start(str(extra), estimated_total_items=len(files))
                     parents.append((root, node))
                     break
                 except ValueError:
                     node.end()
                     parents.pop()
             else:
-                node = node.start(root.name, 0)
+                node = node.start(root.name, estimated_total_items=len(files))
                 parents.append((root, node))
             for file in files:
-                node.completeOne()
                 path = root / file
                 zf.write(
                     filename=path, arcname=Path("python") / path.relative_to(platlib)
                 )
+                node.completeOne()
 
     for _, node in reversed(parents):
         node.end()
+    parent_node.end()
 
 
 if __name__ == "__main__":
