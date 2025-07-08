@@ -27,6 +27,7 @@ from zipfile import ZipFile
 from progress import Progress
 
 platlib = Path(sysconfig.get_path("platlib"))
+data = Path(sysconfig.get_path('data'))
 
 
 class Args(Namespace):
@@ -60,11 +61,9 @@ def main():
             else:
                 node = parent_node.start(root.name, estimated_total_items=len(files))
                 parents.append((root, node))
+            arcroot = Path("python") / root.relative_to(data)
             for file in files:
-                path = root / file
-                zf.write(
-                    filename=path, arcname=Path("python") / path.relative_to(platlib)
-                )
+                zf.write(filename=root / file, arcname=arcroot / file)
                 node.completeOne()
 
     for _, node in reversed(parents):
