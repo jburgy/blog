@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
             lib.addLibraryPath(.{ .cwd_relative = it.rest() });
             b.getInstallStep().dependOn(&b.addInstallFileWithDir(
                 lib.getEmittedBin(),
-                .{ .custom = ".." },
+                .prefix,
                 "binding.api3.so",
             ).step);
         } else {
