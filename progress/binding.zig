@@ -1,5 +1,8 @@
 const std = @import("std");
-const py = @import("py");
+const py = @cImport({
+    @cDefine("PY_SSIZE_T_CLEAN", {});
+    @cInclude("Python.h");
+});
 
 const ProgressObject = extern struct {
     ob_base: py.PyObject = .{},

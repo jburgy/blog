@@ -5,21 +5,12 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     if (b.option([]const u8, "include", "sysconfig.get_path('include')")) |include| {
-        const translate_c = b.addTranslateC(.{
-            .root_source_file = b.path("py.h"),
-            .target = target,
-            .optimize = optimize,
-        });
-        translate_c.addIncludePath(.{ .cwd_relative = include });
-
         const lib_mod = b.createModule(.{
             .root_source_file = b.path("binding.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "py", .module = translate_c.createModule() },
-            },
         });
+        lib_mod.addIncludePath(.{ .cwd_relative = include });
 
         if (b.option([]const u8, "stdlib", "sysconfig.get_path('stdlib')")) |stdlib| {
             var it = std.mem.splitBackwardsScalar(u8, stdlib, '/');
