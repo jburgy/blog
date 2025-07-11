@@ -8,6 +8,8 @@ custom_target(
         'build',
         '-Dinclude=' + py.get_path('include'),
         '-Dstdlib=' + py.get_path('stdlib'),
+        '--prefix',
+        '@OUTDIR@',
         '--verbose',
         '--build-file',
         '@INPUT@',
