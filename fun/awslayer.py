@@ -64,7 +64,7 @@ def main():
             arcroot = Path("python") / root.relative_to(data)
             for file in files:
                 zf.write(filename=root / file, arcname=arcroot / file)
-                node.completeOne()
+                node.complete_one()
 
     for _, node in reversed(parents):
         node.end()

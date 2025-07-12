@@ -1,5 +1,5 @@
 [build-system]
-requires = ["meson-python", "ninja", "numpy", "ziggy-pydust>=0.25.1"]
+requires = ["meson-python", "ninja", "numpy", "ziglang"]
 build-backend = "mesonpy"
 
 [project]
