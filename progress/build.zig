@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
             b.getInstallStep().dependOn(&b.addInstallFileWithDir(
                 lib.getEmittedBin(),
                 .prefix,
-                "binding.api3.so",
+                "binding.abi3.so",
             ).step);
         } else {
             b.getInstallStep().dependOn(&b.addFail("The -Dstdlib=... option is required for this step").step);
