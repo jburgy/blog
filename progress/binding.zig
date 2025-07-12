@@ -11,7 +11,7 @@ const ProgressObject = extern struct {
 
 fn tp_init(op: *py.PyObject, args: [*c]py.PyObject, kwds: [*c]py.PyObject) callconv(.C) c_int {
     const keywords: [1][*c]u8 = .{null};
-    if (py.PyArg_ParseTupleAndKeywords(args, kwds, ":__init__", &keywords) == 0)
+    if (py.PyArg_ParseTupleAndKeywords(args, kwds, ":__init__", @constCast(&keywords)) == 0)
         return -1;
 
     const self: *ProgressObject = @ptrCast(op);
@@ -94,10 +94,9 @@ fn progress_modexec(m: [*c]py.PyObject) callconv(.C) c_int {
 }
 
 var m_methods: [1]py.PyMethodDef = .{.{}};
-var m_slots: [4]py.PyModuleDef_Slot = .{
+var m_slots: [3]py.PyModuleDef_Slot = .{
     .{ .slot = py.Py_mod_exec, .value = @ptrCast(@constCast(&progress_modexec)) },
     .{ .slot = py.Py_mod_multiple_interpreters, .value = py.Py_MOD_PER_INTERPRETER_GIL_SUPPORTED },
-    .{ .slot = py.Py_mod_gil, .value = py.Py_MOD_GIL_NOT_USED },
     .{},
 };
 
