@@ -11,11 +11,11 @@ const conv: std.builtin.CallingConvention = switch (arch) {
     else => .auto,
 };
 var stdin_buffer: [2048]u8 = undefined;
-var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
+var stdin_reader = fs.File.stdin().reader(&stdin_buffer);
 const stdin = &stdin_reader.interface;
 
 var stdout_buffer: [2048]u8 = undefined;
-var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+var stdout_writer = fs.File.stdout().writer(&stdout_buffer);
 const stdout = &stdout_writer.interface;
 
 const O_RDONLY = 0o0;
