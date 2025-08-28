@@ -1,5 +1,4 @@
 const std = @import("std");
-const io = std.io;
 const fmt = std.fmt;
 const fs = std.fs;
 const mem = std.mem;
@@ -8,11 +7,16 @@ const syscalls = os.linux.syscalls;
 const arch = @import("builtin").cpu.arch;
 
 const conv: std.builtin.CallingConvention = switch (arch) {
-    .x86_64 => .SysV,
-    else => .Unspecified,
+    .x86_64 => .winapi,
+    else => .auto,
 };
-const stdin = io.getStdIn().reader();
-const stdout = io.getStdOut().writer();
+var stdin_buffer: [2048]u8 = undefined;
+var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
+const stdin = &stdin_reader.interface;
+
+var stdout_buffer: [2048]u8 = undefined;
+var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+const stdout = &stdout_writer.interface;
 
 const O_RDONLY = 0o0;
 const O_WRONLY = 0o1;
@@ -37,7 +41,7 @@ inline fn codeFieldAddress(w: [*]const Instr) [*]const Instr {
     return w + offset;
 }
 
-fn InterpAligned(comptime alignment: u29) type {
+fn InterpAligned(comptime alignment: mem.Alignment) type {
     return struct {
         const Self = @This();
 
@@ -47,10 +51,10 @@ fn InterpAligned(comptime alignment: u29) type {
         base: isize,
         r0: [*]const [*]const Instr,
         buffer: [32]u8,
-        memory: std.ArrayListAligned(u8, alignment),
+        memory: std.array_list.AlignedManaged(u8, alignment),
         here: [*]u8,
 
-        pub fn init(sp: []const isize, rsp: []const [*]const Instr, m: std.ArrayListAligned(u8, alignment)) Self {
+        pub fn init(sp: []const isize, rsp: []const [*]const Instr, m: std.array_list.AlignedManaged(u8, alignment)) Self {
             return .{
                 .state = 0,
                 .latest = @ptrCast(&syscall1),
@@ -104,7 +108,7 @@ fn InterpAligned(comptime alignment: u29) type {
     };
 }
 
-const Interp = InterpAligned(@alignOf(Instr));
+const Interp = InterpAligned(mem.Alignment.of(Instr));
 
 const Instr = packed union {
     code: *const fn (*Interp, [*]isize, [*][*]const Instr, [*]const Instr, [*]const Instr) callconv(conv) void,
@@ -118,7 +122,7 @@ const Source = union(enum) {
 };
 
 fn key() u8 {
-    const b = stdin.readByte() catch std.process.exit(0);
+    const b = stdin.takeByte() catch std.process.exit(0);
     return b;
 }
 
@@ -149,7 +153,7 @@ fn defcode_(
 fn defcode(
     comptime last: ?[]const Instr,
     comptime name: []const u8,
-    comptime stack: fn ([*]isize) callconv(.Inline) [*]isize,
+    comptime stack: fn ([*]isize) callconv(.@"inline") [*]isize,
 ) [offset + 1]Instr {
     const wrap = struct {
         pub fn code(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
@@ -618,6 +622,7 @@ const key_ = defcode(&dspstore, "KEY", _key);
 inline fn _emit(sp: [*]isize) [*]isize {
     const c: u8 = @truncate(@abs(sp[0]));
     stdout.print("{c}", .{c}) catch {};
+    stdout.flush() catch {};
     return sp[1..];
 }
 const emit = defcode(&key_, "EMIT", _emit);
@@ -780,6 +785,7 @@ const litstring = defcode_(&zbranch, "LITSTRING", _litstring);
 inline fn _tell(sp: [*]isize) [*]isize {
     const p: [*]u8 = @ptrFromInt(@abs(sp[1]));
     _ = stdout.write(p[0..@abs(sp[0])]) catch -1;
+    stdout.flush() catch {};
     return sp[2..];
 }
 const tell = defcode(&litstring, "TELL", _tell);
@@ -931,7 +937,7 @@ pub fn main() callconv(conv) void {
     var return_stack: [N][*]const Instr = undefined;
     const rsp = return_stack[N..];
     var fba: std.heap.FixedBufferAllocator = .init(&memory);
-    const m: std.ArrayListAligned(u8, @alignOf(Instr)) = .init(fba.allocator());
+    const m: std.array_list.AlignedManaged(u8, mem.Alignment.of(Instr)) = .init(fba.allocator());
     defer m.deinit();
     var env: Interp = .init(sp, rsp, m);
     const target = &_quit;
@@ -941,7 +947,7 @@ pub fn main() callconv(conv) void {
     target[0].code(&env, sp, rsp, ip, target);
 }
 
-fn mainWithoutEnv(c_argc: c_int, c_argv: [*][*:0]c_char) callconv(.C) c_int {
+fn mainWithoutEnv(c_argc: c_int, c_argv: [*][*:0]c_char) callconv(.c) c_int {
     _ = @as([*][*:0]u8, @ptrCast(c_argv))[0..@as(usize, @intCast(c_argc))];
     @call(.always_inline, main, .{});
     return 0;

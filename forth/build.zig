@@ -16,11 +16,14 @@ pub fn build(b: *Build) void {
 /// Invoke using
 /// zig build -Dtarget=wasm32-emscripten -Dcpu=baseline+atomics+bulk_memory+tail_call
 fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
-    const lib = b.addStaticLibrary(.{
+    const lib = b.addLibrary(.{
         .name = "zorth",
-        .root_source_file = b.path("5th.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("5th.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+        .linkage = .static,
     });
     lib.rdynamic = true;
     lib.linkLibC();
@@ -50,9 +53,12 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
 fn buildNative(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
     const exe = b.addExecutable(.{
         .name = "5th",
-        .root_source_file = b.path("5th.zig"),
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("5th.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+        .use_llvm = true,
     });
     b.installArtifact(exe);
 }
