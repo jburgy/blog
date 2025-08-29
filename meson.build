@@ -11,6 +11,6 @@ py = import('python').find_installation()
 
 subdir('fourt2py')
 subdir('fun')
-subdir('linear_programming')
+subdir('linprog')
 subdir('progress')
 subdir('sudoku')
