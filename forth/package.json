@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "xterm-pty": "^0.11.1"
+  }
+}
