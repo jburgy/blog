@@ -49,6 +49,9 @@ cosmopolitan-amalgamation-2.2.zip :
 %.gcov : %.c
 	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
+zig-out/bin/5th : 5th.zig
+	zig build
+
 clean :
 	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.ll *.wasm* *th.*mjs 4th.32 4th.gcov *.gcda *.gcno
 

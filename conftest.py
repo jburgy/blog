@@ -15,7 +15,7 @@ collect_ignore = [
 def pytest_addoption(parser: pytest.Parser):
     parser.addoption(
         "--target",
-        choices=["4th", "4th.gcov", "4th.32", "4th.ll", "5th.ll"],
+        choices=["4th", "4th.gcov", "4th.32", "4th.ll", "5th.ll", "zig-out/bin/5th"],
         default="4th",
         help="Pick a target to test",
     )

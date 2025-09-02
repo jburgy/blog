@@ -51,13 +51,14 @@ fn InterpAligned(comptime alignment: mem.Alignment) type {
         base: isize,
         r0: [*]const [*]const Instr,
         buffer: [32]u8,
-        memory: std.array_list.AlignedManaged(u8, alignment),
+        memory: *std.array_list.AlignedManaged(u8, alignment),
         here: [*]u8,
 
-        pub fn init(sp: []const isize, rsp: []const [*]const Instr, m: std.array_list.AlignedManaged(u8, alignment)) Self {
+        pub fn init(sp: []const isize, rsp: []const [*]const Instr, m: *std.array_list.AlignedManaged(u8, alignment)) Self {
+            m.ensureUnusedCapacity(@sizeOf(Instr)) catch @panic("init cannot ensureUnusedCapacity");
             return .{
                 .state = 0,
-                .latest = @ptrCast(&syscall1),
+                .latest = @ptrCast(&syscall0),
                 .s0 = sp.ptr,
                 .base = 10,
                 .r0 = rsp.ptr,
@@ -553,7 +554,8 @@ const sys_open = defconst(&sys_exit, "SYS_OPEN", .{ .literal = @intFromEnum(sysc
 const sys_close = defconst(&sys_open, "SYS_CLOSE", .{ .literal = @intFromEnum(syscalls.X64.close) });
 const sys_read = defconst(&sys_close, "SYS_READ", .{ .literal = @intFromEnum(syscalls.X64.read) });
 const sys_write = defconst(&sys_read, "SYS_WRITE", .{ .literal = @intFromEnum(syscalls.X64.write) });
-const sys_brk = defconst(&sys_write, "SYS_BRK", .{ .literal = @intFromEnum(syscalls.X64.brk) });
+const sys_creat = defconst(&sys_write, "SYS_CREAT", .{ .literal = @intFromEnum(syscalls.X64.creat) });
+const sys_brk = defconst(&sys_creat, "SYS_BRK", .{ .literal = @intFromEnum(syscalls.X64.brk) });
 const o_rdonly = defconst(&sys_brk, "O_RDONLY", .{ .literal = O_RDONLY });
 const o_wronly = defconst(&o_rdonly, "O_WRONLY", .{ .literal = O_WRONLY });
 const o_rdwr = defconst(&o_wronly, "O_RDWR", .{ .literal = O_RDWR });
@@ -573,14 +575,14 @@ const tor = defcode_(&o_nonblock, ">R", _tor);
 
 fn _fromr(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
-    sp[0] = @intCast(@intFromPtr(&rsp[0]));
+    s[0] = @intCast(@intFromPtr(&rsp[0]));
     self.next(s, rsp[1..], ip, target);
 }
 const fromr = defcode_(&tor, "R>", _fromr);
 
 fn _rspfetch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
-    sp[0] = @intCast(@intFromPtr(rsp));
+    s[0] = @intCast(@intFromPtr(rsp));
     self.next(s, rsp, ip, target);
 }
 const rspfetch = defcode_(&fromr, "RSP@", _rspfetch);
@@ -641,8 +643,8 @@ fn _number(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Ins
         const s: [*]u8 = @ptrFromInt(@abs(sp[1]));
         break :buf s[0..@abs(sp[0])];
     }, @truncate(@abs(self.base)))) |num| {
-        sp[0] = num;
-        sp[1] = 0;
+        sp[1] = num;
+        sp[0] = 0;
     } else |_| {}
     self.next(sp, rsp, ip, target);
 }
@@ -810,7 +812,8 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const 
             s[0] = a;
         }
     } else |_| {
-        std.debug.panic("PARSE ERROR: {s}\n", .{self.buffer[0..c]});
+        std.debug.print("PARSE ERROR: {s}\n", .{self.buffer[0..c]});
+        std.process.exit(0);
     }
     self.next(s, rsp, ip, target);
 }
@@ -927,7 +930,20 @@ fn _syscall1(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const I
     }
     self.next(sp[1..], rsp, ip, target);
 }
-var syscall1 = defcode_(&syscall2, "SYSCALL1", _syscall1);
+const syscall1 = defcode_(&syscall2, "SYSCALL1", _syscall1);
+
+inline fn _syscall0(sp: [*]isize) [*]isize {
+    const number_: syscalls.X64 = @enumFromInt(sp[0]);
+    switch (number_) {
+        .getppid => {
+            sp[0] = @intCast(os.linux.getppid());
+        },
+        else => {},
+    }
+    return sp;
+}
+var syscall0 = defcode(&syscall1, "SYSCALL0", _syscall0);
+
 var memory: [0x800000]u8 linksection(".bss") = undefined;
 
 pub fn main() callconv(conv) void {
@@ -937,9 +953,9 @@ pub fn main() callconv(conv) void {
     var return_stack: [N][*]const Instr = undefined;
     const rsp = return_stack[N..];
     var fba: std.heap.FixedBufferAllocator = .init(&memory);
-    const m: std.array_list.AlignedManaged(u8, mem.Alignment.of(Instr)) = .init(fba.allocator());
+    var m: std.array_list.AlignedManaged(u8, mem.Alignment.of(Instr)) = .init(fba.allocator());
     defer m.deinit();
-    var env: Interp = .init(sp, rsp, m);
+    var env: Interp = .init(sp, rsp, &m);
     const target = &_quit;
     const cold_start: [1]Instr = .{.{ .word = target }};
     const ip: [*]const Instr = &cold_start;

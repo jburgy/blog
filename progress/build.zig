@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) void {
         if (b.option([]const u8, "stdlib", "sysconfig.get_path('stdlib')")) |stdlib| {
             var it = std.mem.splitBackwardsScalar(u8, stdlib, '/');
 
-            const lib = b.addSharedLibrary(.{
+            const lib = b.addLibrary(.{
                 .name = "binding",
                 .root_module = lib_mod,
             });
