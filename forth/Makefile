@@ -31,7 +31,7 @@ run: 4th
 	$(CC) $(CFLAGS) $(ARFLAGS) -o $@ $^
 
 %.ll : %.c
-	clang $(CFLAGS) -fblocks -lBlocksRuntime -o $@ $^
+	clang $(CFLAGS) -fblocks -o $@ $^
 
 %.ll.32 : %.c
 	clang $(CFLAGS) -g -m32 -o $@ $^

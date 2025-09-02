@@ -567,15 +567,15 @@ const o_nonblock = defconst(&o_append, "O_NONBLOCK", .{ .literal = O_NONBLOCK })
 
 fn _tor(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const r = rsp - 1;
-    const t: *[*]const Instr = @ptrFromInt(@abs(sp[0]));
-    r[0] = t.*;
+    const t: [*]Instr = @ptrFromInt(@abs(sp[0]));
+    r[0] = t;
     self.next(sp[1..], r, ip, target);
 }
 const tor = defcode_(&o_nonblock, ">R", _tor);
 
 fn _fromr(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
-    s[0] = @intCast(@intFromPtr(&rsp[0]));
+    s[0] = @intCast(@intFromPtr(rsp[0]));
     self.next(s, rsp[1..], ip, target);
 }
 const fromr = defcode_(&tor, "R>", _fromr);

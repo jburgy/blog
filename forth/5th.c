@@ -11,7 +11,7 @@
 #include <stdarg.h>
 
 /* https://github.com/emscripten-core/emscripten/issues/6708 */
-enum SYS {SYS_exit, SYS_openat, SYS_close, SYS_read, SYS_write, SYS_brk};
+enum SYS {SYS_exit, SYS_openat, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk};
 #endif
 
 #define NEXT __attribute__((musttail)) return ip->word->code(env, sp, rsp, ip + 1, ip->word)
@@ -388,11 +388,12 @@ DEFCONST(_DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED)
 DEFCONST(__F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN)
 DEFCONST(__F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK)
 DEFCONST(__F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, SYS_exit)
-DEFCONST(SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, SYS_openat)
+DEFCONST(SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, SYS_open)
 DEFCONST(SYS_OPEN, 0, "SYS_CLOSE", SYS_CLOSE, SYS_close)
 DEFCONST(SYS_CLOSE, 0, "SYS_READ", SYS_READ, SYS_read)
 DEFCONST(SYS_READ, 0, "SYS_WRITE", SYS_WRITE, SYS_write)
-DEFCONST(SYS_WRITE, 0, "SYS_BRK", SYS_BRK, SYS_brk)
+DEFCONST(SYS_WRITE, 0, "SYS_CREAT", SYS_CREAT, SYS_creat)
+DEFCONST(SYS_CREAT, 0, "SYS_BRK", SYS_BRK, SYS_brk)
 DEFCONST(SYS_BRK, 0, "O_RDONLY", __O_RDONLY, O_RDONLY)
 DEFCONST(__O_RDONLY, 0, "O_WRONLY", __O_WRONLY, O_WRONLY)
 DEFCONST(__O_WRONLY, 0, "O_RDWR", __O_RDWR, O_RDWR)
@@ -628,6 +629,16 @@ DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
     ++sp;
     NEXT;
 }
+DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
+{
+    switch (sp[0])
+    {
+        case SYS_getppid:
+            sp[0] = getppid();
+            break;
+    }
+    NEXT;
+}
 
 #ifdef EMSCRIPTEN
 int main(void)
@@ -641,7 +652,7 @@ int main(int argc __attribute__((unused)), char *argv[])
     char *memory = sbrk(0x10000);
     struct interp_t env = {
         .state = 0,
-        .latest = &name_SYSCALL1,
+        .latest = &name_SYSCALL0,
 #ifndef EMSCRIPTEN
         .argc = (intptr_t *)&argv[-1],
 #endif
