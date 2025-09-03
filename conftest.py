@@ -12,15 +12,16 @@ collect_ignore = [
     "progress/__init__.py",
 ]
 
-def pytest_addoption(parser: pytest.Parser):
+def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--target",
-        choices=["4th", "4th.gcov", "4th.32", "4th.ll", "5th.ll", "zig-out/bin/5th"],
-        default="4th",
+        choices=["", "4th", "4th.gcov", "4th.32", "4th.ll", "5th.ll", "zig-out/bin/5th"],
+        default="",
         help="Pick a target to test",
     )
 
 
-@pytest.fixture(scope="module")
-def target(request: pytest.FixtureRequest):
-    return request.config.getoption("--target")
+def pytest_generate_tests(metafunc) -> None:
+    if "target" in metafunc.fixturenames:
+        target = metafunc.config.getoption("target")
+        metafunc.parametrize("target", [target] if target else ["4th", "5th.ll", "zig-out/bin/5th"], scope="module")
