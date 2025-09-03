@@ -15,13 +15,19 @@ collect_ignore = [
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--target",
-        choices=["", "4th", "4th.gcov", "4th.32", "4th.ll", "5th.ll", "zig-out/bin/5th"],
+        choices=[
+            "", "4th", "4th.gcov", "4th.32", "4th.ll", "5th.ll", "zig-out/bin/5th"
+        ],
         default="",
         help="Pick a target to test",
     )
 
 
-def pytest_generate_tests(metafunc) -> None:
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     if "target" in metafunc.fixturenames:
         target = metafunc.config.getoption("target")
-        metafunc.parametrize("target", [target] if target else ["4th", "5th.ll", "zig-out/bin/5th"], scope="module")
+        metafunc.parametrize(
+            "target",
+            [target] if target else ["4th", "5th.ll", "zig-out/bin/5th"],
+            scope="module"
+        )
