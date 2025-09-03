@@ -9,7 +9,7 @@ const ProgressObject = extern struct {
     index: std.Progress.Node.OptionalIndex,
 };
 
-fn tp_init(op: *py.PyObject, args: [*c]py.PyObject, kwds: [*c]py.PyObject) callconv(.C) c_int {
+fn tp_init(op: *py.PyObject, args: [*c]py.PyObject, kwds: [*c]py.PyObject) callconv(.c) c_int {
     const keywords: [1][*c]u8 = .{null};
     if (py.PyArg_ParseTupleAndKeywords(args, kwds, ":__init__", @constCast(&keywords)) == 0)
         return -1;
@@ -38,14 +38,14 @@ fn start(op: [*c]py.PyObject, args: [*c]py.PyObject) callconv(.c) [*c]py.PyObjec
     return result;
 }
 
-fn end(op: [*c]py.PyObject, _: [*c]py.PyObject) callconv(.C) [*c]py.PyObject {
+fn end(op: [*c]py.PyObject, _: [*c]py.PyObject) callconv(.c) [*c]py.PyObject {
     const self: *ProgressObject = @ptrCast(op);
     const node: std.Progress.Node = .{ .index = self.index };
     node.end();
     return py.Py_None();
 }
 
-pub fn increase_estimate(op: [*c]py.PyObject, arg: [*c]py.PyObject) callconv(.C) [*c]py.PyObject {
+pub fn increase_estimate(op: [*c]py.PyObject, arg: [*c]py.PyObject) callconv(.c) [*c]py.PyObject {
     const count = py.PyLong_AsUnsignedLong(arg);
     if (count == std.math.maxInt(@TypeOf(count)) and py.PyErr_Occurred() != null)
         return null;
@@ -55,7 +55,7 @@ pub fn increase_estimate(op: [*c]py.PyObject, arg: [*c]py.PyObject) callconv(.C)
     return py.Py_None();
 }
 
-fn complete_one(op: [*c]py.PyObject, _: [*c]py.PyObject) callconv(.C) [*c]py.PyObject {
+fn complete_one(op: [*c]py.PyObject, _: [*c]py.PyObject) callconv(.c) [*c]py.PyObject {
     const self: *ProgressObject = @ptrCast(op);
     const node: std.Progress.Node = .{ .index = self.index };
     node.completeOne();
@@ -83,7 +83,7 @@ var Progress_TypeSpec: py.PyType_Spec = .{
     .slots = &slots,
 };
 
-fn progress_modexec(m: [*c]py.PyObject) callconv(.C) c_int {
+fn progress_modexec(m: [*c]py.PyObject) callconv(.c) c_int {
     const bases: ?*py.PyObject = null;
     const progress = py.PyType_FromModuleAndSpec(m, @ptrCast(&Progress_TypeSpec), bases) orelse return -1;
     const progress_type: [*c]py.PyTypeObject = @ptrCast(progress);

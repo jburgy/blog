@@ -93,7 +93,7 @@ def expected(request: fixtures.SubRequest, target: str):
 
 
 @pytest.mark.parametrize(
-    "test_input,expected",
+    ("test_input", "expected"),
     [
         ("65 EMIT\n", "A"),
         ("777 65 EMIT\n", "A"),
@@ -105,9 +105,9 @@ def expected(request: fixtures.SubRequest, target: str):
         ("{syscall0} DSP@ 8 TELL\n", "SYSCALL0"),
         ("{syscall0} DSP@ HERE @ 8 CMOVE HERE @ 8 TELL\n", "SYSCALL0"),
         (f"{int.from_bytes('65'.encode(), 'little'):d} DSP@ 2 NUMBER DROP EMIT\n", "A"),
-        ("65 >R RSP@ 1 TELL RDROP\n", "A"),
-        ("65 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL\n", "A"),
-        ("65 >R 1 RSP@ -! RSP@ 1 TELL\n", "@"),
+        ("64 >R RSP@ 1 TELL RDROP\n", "@"),
+        ("64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL\n", "@"),
+        ("64 >R 1 RSP@ +! RSP@ 1 TELL\n", "A"),
         (
             """
 : <BUILDS WORD CREATE DODOES , 0 , ;
@@ -117,7 +117,7 @@ def expected(request: fixtures.SubRequest, target: str):
 65 CONST FOO
 FOO EMIT
 """,
-            "A",
+            "A"
         ),
         ("{forth}VERSION .\n", "47 "),
         ("{forth}CR\n", "\n"),
