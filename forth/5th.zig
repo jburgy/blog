@@ -546,7 +546,22 @@ inline fn _docol(sp: [*]isize) [*]isize {
     return s;
 }
 const docol = defcode(&rz, "DOCOL", _docol);
-const f_immed = defconst(&docol, "F_IMMED", .{ .literal = @intFromEnum(Flag.IMMED) });
+
+fn dodoes_(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
+    const r = rsp - 1;
+    const s = sp - 1;
+    r[0] = ip;
+    s[0] = @intCast(@intFromPtr(&target[2]));
+    self.next(s, r, target[1].word, target);
+}
+
+inline fn _dodoes(sp: [*]isize) [*]isize {
+    const s = sp - 1;
+    s[0] = @intCast(@intFromPtr(&dodoes_));
+    return s;
+}
+const dodoes = defcode(&docol, "DODOES", _dodoes);
+const f_immed = defconst(&dodoes, "F_IMMED", .{ .literal = @intFromEnum(Flag.IMMED) });
 const f_hidden = defconst(&f_immed, "F_HIDDEN", .{ .literal = @intFromEnum(Flag.HIDDEN) });
 const f_lenmask = defconst(&f_hidden, "F_LENMASK", .{ .literal = F_LENMASK });
 const sys_exit = defconst(&f_lenmask, "SYS_EXIT", .{ .literal = @intFromEnum(syscalls.X64.exit) });

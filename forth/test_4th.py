@@ -108,7 +108,7 @@ def expected(request: fixtures.SubRequest, target: str):
         ("64 >R RSP@ 1 TELL RDROP\n", "@"),
         ("64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL\n", "@"),
         ("64 >R 1 RSP@ +! RSP@ 1 TELL\n", "A"),
-        pytest.param(
+        (
             """
 : <BUILDS WORD CREATE DODOES , 0 , ;
 : DOES> R> LATEST @ >DFA ! ;
@@ -117,10 +117,7 @@ def expected(request: fixtures.SubRequest, target: str):
 65 CONST FOO
 FOO EMIT
 """,
-            "A",
-            marks=pytest.mark.skipif(
-                lambda target: "5th" in target, reason="5th does not support DODOES"
-            ),
+            "A"
         ),
         ("{forth}VERSION .\n", "47 "),
         ("{forth}CR\n", "\n"),

@@ -117,6 +117,14 @@ intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union i
     ip = target + 1;
     NEXT;
 }
+
+intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+{
+    *--rsp = ip;
+    ip = target[1].word;
+    *--sp = (intptr_t)&target[2];
+    NEXT;
+}
 DEFCODE_(NULL, 0, "DROP", DROP)
 {
     ++sp;
@@ -384,7 +392,8 @@ DEFCONST(ARGC, 0, "VERSION", VERSION, 47)
 #endif
 DEFCONST(VERSION, 0, "R0", RZ, env->r0)
 DEFCONST(RZ, 0, "DOCOL", _DOCOL, DOCOL)
-DEFCONST(_DOCOL, 0, "F_IMMED", __F_IMMED, F_IMMED)
+DEFCONST(_DOCOL, 0, "DODOES", _DODOES, DODOES)
+DEFCONST(_DODOES, 0, "F_IMMED", __F_IMMED, F_IMMED)
 DEFCONST(__F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN)
 DEFCONST(__F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK)
 DEFCONST(__F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, SYS_exit)
