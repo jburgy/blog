@@ -25,6 +25,7 @@ jobs:
         with:
           version: "latest"
       - run: uv run pyright
+      - run: uv run playwright install-deps
       - run: uv run pytest
         env:
           pytest_github_report: true
