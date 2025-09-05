@@ -1,5 +1,7 @@
+import io
 import re
 import subprocess
+from typing import cast
 
 import pytest
 from playwright.async_api import Page, expect
@@ -13,7 +15,7 @@ def emrun(target: str = "4th.html"):
         cwd="forth",
         text=True
     )
-    for line in proc.stdout:
+    for line in cast("io.TextIOWrapper", proc.stdout):
         if line.startswith("Now listening at"):
             break
 
