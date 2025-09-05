@@ -21,6 +21,9 @@ run: 4th
 %.mjs : %.c
 	$(EC) $(EFLAGS) -fblocks -mtail-call -pthread -sPROXY_TO_PTHREAD -sEXPORTED_FUNCTIONS=_malloc,_main --js-library=node_modules/xterm-pty/emscripten-pty.js -o $@ $^
 
+%.html : %.c
+	$(EC) -Wall -Wextra -fblocks -mtail-call -sEXIT_RUNTIME=1 --emrun -o $@ $^
+
 % : %.c
 	$(CC) $(CFLAGS) -mstackrealign -o $@ $^
 
@@ -53,7 +56,7 @@ zig-out/bin/5th : 5th.zig
 	uv run --with ziglang python -m ziglang build
 
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.ll *.wasm* *th.*mjs 4th.32 4th.gcov *.gcda *.gcno
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.ll *.wasm* *th.*mjs *.html 4th.32 4th.gcov *.gcda *.gcno
 
 define allbutlast
 $(wordlist 2, $(words $(1)), x $(1))

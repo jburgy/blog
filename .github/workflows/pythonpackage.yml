@@ -16,6 +16,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: mymindstorm/setup-emsdk@v14
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
@@ -24,6 +25,7 @@ jobs:
         with:
           version: "latest"
       - run: uv run pyright
+      - run: uv run python -m playwright install chromium --with-deps
       - run: uv run pytest
         env:
           pytest_github_report: true
