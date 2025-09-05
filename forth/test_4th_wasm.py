@@ -10,7 +10,7 @@ from playwright.async_api import Page, expect
 def emrun(target: str = "4th.html"):
     subprocess.run(["make", target], cwd="forth", check=True)
     proc = subprocess.Popen(
-        ["emrun", "--no_browser", "--serve_after_exit", target],
+        ["uv", "run", "emrun", "--no_browser", "--serve_after_exit", target],
         stdout=subprocess.PIPE,
         cwd="forth",
         text=True
