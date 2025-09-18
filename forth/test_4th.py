@@ -155,6 +155,7 @@ FOO EMIT
     indirect=["test_input", "expected"],
 )
 def test_advanced(cmd: partial, test_input: str, expected: str):
+    os.umask(0o22)
     assert cmd(input=test_input).stdout == expected
 
 
