@@ -25,6 +25,7 @@ dev = [
     "pyright",
     "pytest",
     "pytest-github-report",
+    "pytest-playwright-asyncio",
     "scipy",
     "scipy-stubs",
     "sqlalchemy",
@@ -36,6 +37,7 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
+asyncio_default_test_loop_scope = "session"
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]

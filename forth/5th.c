@@ -11,7 +11,7 @@
 #include <stdarg.h>
 
 /* https://github.com/emscripten-core/emscripten/issues/6708 */
-enum SYS {SYS_exit, SYS_openat, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk};
+enum SYS {SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk, SYS_getppid};
 #endif
 
 #define NEXT __attribute__((musttail)) return ip->word->code(env, sp, rsp, ip + 1, ip->word)
@@ -598,7 +598,7 @@ DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
 {
     switch (sp[0])
     {
-        case SYS_openat:
+        case SYS_open:
             sp[3] = openat(AT_FDCWD, (const char *)sp[1], sp[2], sp[3]);
             break;
         case SYS_read:
@@ -615,7 +615,7 @@ DEFCODE(SYSCALL3, 0, "SYSCALL2", SYSCALL2)
 {
     switch (sp[0])
     {
-        case SYS_openat:
+        case SYS_open:
             sp[2] = openat(AT_FDCWD, (const char *)sp[1], sp[2]);
             break;
     }

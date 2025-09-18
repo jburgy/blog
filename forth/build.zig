@@ -19,7 +19,7 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
     const lib = b.addLibrary(.{
         .name = "zorth",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("5th.zig"),
+            .root_source_file = b.path("6th.zig"),
             .target = target,
             .optimize = optimize,
         }),
@@ -37,7 +37,7 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
     emcc.addArg("-sASSERTIONS=2");
     emcc.addArg("--js-library=node_modules/xterm-pty/emscripten-pty.js");
     emcc.addArg("-o");
-    const out_file = emcc.addOutputFileArg("zorth.mjs");
+    const out_file = emcc.addOutputFileArg("6th.mjs");
     emcc.addArtifactArg(lib);
 
     const install = b.addInstallDirectory(.{
@@ -52,9 +52,9 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
 
 fn buildNative(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
     const exe = b.addExecutable(.{
-        .name = "5th",
+        .name = "6th",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("5th.zig"),
+            .root_source_file = b.path("6th.zig"),
             .target = target,
             .optimize = optimize,
         }),

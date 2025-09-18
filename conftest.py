@@ -16,7 +16,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--target",
         choices=[
-            "", "4th", "4th.gcov", "4th.32", "4th.ll", "5th.ll", "zig-out/bin/5th"
+            "", "4th", "4th.gcov", "4th.32", "4th.ll", "5th.ll", "zig-out/bin/6th"
         ],
         default="",
         help="Pick a target to test",
@@ -28,6 +28,6 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         target = metafunc.config.getoption("target")
         metafunc.parametrize(
             "target",
-            [target] if target else ["4th", "5th.ll", "zig-out/bin/5th"],
+            [target] if target else ["4th", "5th.ll", "zig-out/bin/6th"],
             scope="module"
         )
