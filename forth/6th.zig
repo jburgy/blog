@@ -951,7 +951,10 @@ inline fn _syscall0(sp: [*]isize) [*]isize {
     const number_: syscalls.X64 = @enumFromInt(sp[0]);
     switch (number_) {
         .getppid => {
-            sp[0] = @intCast(os.linux.getppid());
+            sp[0] = if (arch.isWasm())
+                @panic("getppid not supported")
+            else
+                @intCast(os.linux.getppid());
         },
         else => {},
     }
