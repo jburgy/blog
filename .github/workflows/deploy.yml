@@ -26,11 +26,7 @@ jobs:
           make 4th.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: |
-            assets
-            !assets/*.a
-            !assets/*.o
-            !assets/**/*.ts
+          path: assets
 
   deploy:
     needs: build
