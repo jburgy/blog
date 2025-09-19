@@ -27,8 +27,10 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: |
-            ./assets/*.mjs
-            ./assets/*.wasm
+            assets
+            !assets/*.a
+            !assets/*.o
+            !assets/**/*.ts
 
   deploy:
     needs: build

@@ -1,7 +1,7 @@
 CC = emcc
-CFLAGS = -Wall -Wextra -Os -fblocks -mtail-call -pthread
+CFLAGS = -Wall -Wextra -Os -fblocks -mtail-call
 ZFLAGS = -ODebug -target wasm32-emscripten -mcpu baseline+atomics+bulk_memory+tail_call
-LDFLAGS = -sPROXY_TO_PTHREAD -sEXPORTED_FUNCTIONS=_malloc,_main
+LDFLAGS = -sASYNCIFY -sEXPORTED_FUNCTIONS=_malloc,_main
 VPATH = ../forth
 
 all : 4th.mjs 5th.mjs 6th.mjs
@@ -22,7 +22,7 @@ lib%.a : %.zig
 lib6th.a : 6th.zig
 
 node_modules/xterm-pty/emscripten-pty.js :
-	npm install xterm-pty
+	npm install @xterm/xterm xterm-pty
 
 clean :
 	rm -f *.o *.a *.mjs *.wasm *.mjs
