@@ -1,7 +1,7 @@
 CC = emcc
-CFLAGS = -Wall -Wextra -Os -fblocks -mtail-call
+CFLAGS = -Wall -Wextra -Os -fblocks -mtail-call -pthread
 ZFLAGS = -ODebug -target wasm32-emscripten -mcpu baseline+atomics+bulk_memory+tail_call
-LDFLAGS = -sASYNCIFY -sEXPORTED_FUNCTIONS=_malloc,_main
+LDFLAGS = -sPROXY_TO_PTHREAD -sEXPORTED_FUNCTIONS=_malloc,_main
 VPATH = ../forth
 
 all : 4th.mjs 5th.mjs 6th.mjs
