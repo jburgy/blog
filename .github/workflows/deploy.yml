@@ -23,7 +23,7 @@ jobs:
       - run: uv sync
       - run: |
           cd assets
-          make
+          make 4th.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: |

@@ -25,4 +25,4 @@ node_modules/xterm-pty/emscripten-pty.js :
 	npm install @xterm/xterm xterm-pty
 
 clean :
-	rm -f *.o *.a *.mjs *.wasm *.mjs
+	rm -f *.o *.a *.mjs *.wasm *.mjs *.json

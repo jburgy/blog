@@ -4,15 +4,15 @@
 
 <head>
     <title>demo</title>
-    <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css">
+    <link rel="stylesheet" href="/assets/node_modules/@xterm/xterm/css/xterm.css">
 </head>
 
 <body>
     <div id="terminal"></div>
     <script type="module">
-        import "./node_modules/@xterm/xterm/lib/xterm.js";
-        import "./node_modules/xterm-pty/index.js";
-        import initEmscripten from "./4th.mjs";
+        import "/assets/node_modules/@xterm/xterm/lib/xterm.js";
+        import { openpty } from "/assets/node_modules/xterm-pty/index.mjs";
+        import initEmscripten from "/assets/4th.mjs";
 
         const xterm = new Terminal();
         xterm.open(document.getElementById("terminal"));
@@ -20,7 +20,7 @@
         const { master, slave } = openpty();
         xterm.loadAddon(master);
 
-        const response = await fetch("./jonesforth.f");
+        const response = await fetch("/forth/jonesforth.f");
         const preamble = new Uint8Array(await response.arrayBuffer());
         slave.ldisc.toUpperBuf.push(...preamble);
 
