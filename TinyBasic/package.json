@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "coi-serviceworker": "^0.1.6",
-    "node": "^19.6.1"
+    "node": "^22.19.0"
   },
   "name": "tinybasic",
   "version": "1.0.0",

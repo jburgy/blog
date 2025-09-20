@@ -1,0 +1,16 @@
+{
+  "name": "lisp",
+  "version": "1.0.0",
+  "description": "https://justine.lol/sectorlisp/ in https://www.assemblyscript.org/",
+  "scripts": {
+    "asbuild:lisp": "asc --config ../lisp/asconfig.json ../lisp/assembly/index.ts -o lisp.wasm --target release",
+    "asbuild:TinyBasic": "asc --config ../TinyBasic/asconfig.json ../TinyBasic/assembly/index.ts -o TinyBasic.wasm --target release"
+  },
+  "author": "Jan Burgy",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@xterm/xterm": "^5.5.0",
+    "xterm-pty": "^0.11.1"
+  }
+}
