@@ -4,7 +4,8 @@ ZFLAGS = -ODebug -target wasm32-emscripten -mcpu baseline+atomics+bulk_memory+ta
 LDFLAGS = -sPROXY_TO_PTHREAD -sEXPORTED_FUNCTIONS=_malloc,_main
 VPATH = ../forth
 
-all : 4th.mjs 5th.mjs 6th.mjs
+all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic
+	rm -rf *.a *.o node_modules/@xterm/xterm/src
 
 %.mjs : %.o node_modules/xterm-pty/emscripten-pty.js
 	$(CC) $(CFLAGS) $(LDFLAGS) --js-library=$(lastword $^) -o $@ $<
@@ -24,5 +25,11 @@ lib6th.a : 6th.zig
 node_modules/xterm-pty/emscripten-pty.js :
 	npm install @xterm/xterm xterm-pty
 
+lisp :
+	npm run asbuild:lisp
+
+TinyBasic :
+	npm run asbuild:TinyBasic
+
 clean :
-	rm -f *.o *.a *.mjs *.wasm *.mjs *.json
+	rm -rf *.o *.a *.js *.mjs *.d.ts *.wasm* *.mjs node_modules

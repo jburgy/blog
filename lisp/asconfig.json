@@ -7,7 +7,7 @@
       "debug": true
     },
     "release": {
-      "outFile": "build/release.wasm",
+      "outFile": "build/lisp.wasm",
       "textFile": "build/release.wat",
       "sourceMap": true,
       "optimizeLevel": 3,
