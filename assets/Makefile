@@ -25,11 +25,14 @@ lib6th.a : 6th.zig
 node_modules/xterm-pty/emscripten-pty.js :
 	npm install @xterm/xterm xterm-pty
 
-lisp :
+lisp : client-server
 	npm run asbuild:lisp
 
-TinyBasic :
+TinyBasic : client-server
 	npm run asbuild:TinyBasic
 
+client-server:
+	npm run build
+
 clean :
-	rm -rf *.o *.a *.js *.mjs *.d.ts *.wasm* *.mjs node_modules
+	rm -rf *.o *.a *.js *.mjs *.d.ts *.wasm* *.mjs node_modules dist

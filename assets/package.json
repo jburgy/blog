@@ -4,7 +4,8 @@
   "description": "https://justine.lol/sectorlisp/ in https://www.assemblyscript.org/",
   "scripts": {
     "asbuild:lisp": "asc --config ../lisp/asconfig.json ../lisp/assembly/index.ts -o lisp.wasm --target release",
-    "asbuild:TinyBasic": "asc --config ../TinyBasic/asconfig.json ../TinyBasic/assembly/index.ts -o TinyBasic.wasm --target release"
+    "asbuild:TinyBasic": "asc --config ../TinyBasic/asconfig.json ../TinyBasic/assembly/index.ts -o TinyBasic.wasm --target release",
+    "build": "rolldown -c"
   },
   "author": "Jan Burgy",
   "license": "ISC",
