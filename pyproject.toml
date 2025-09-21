@@ -47,3 +47,9 @@ exclude = [
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
+
+[tool.pyright]
+exclude = [
+    ".venv",
+    "emsdk-cache",
+]
