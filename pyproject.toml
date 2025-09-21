@@ -39,5 +39,11 @@ dev = [
 addopts = ["--doctest-modules"]
 asyncio_default_test_loop_scope = "session"
 
+[tool.ruff]
+exclude = [
+    ".venv",
+    "emsdk-cache",
+]
+
 [tool.ruff.lint]
 select = ["E", "F", "W"]
