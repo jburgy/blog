@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "noImplicitAny": true,
+        "module": "commonjs",
+        "target": "es2017",
+        "strict": true,
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "declaration": true,
+        "sourceMap": true,
+        "outDir": "./xterm-pty/",
+        "rootDir": "../xterm-pty/src/",
+        "useDefineForClassFields": false,
+    },
+    "include": ["../xterm-pty/src/"],
+    "exclude": ["../xterm-pty/src/**/*.test.ts"],
+}
