@@ -20,7 +20,10 @@ jobs:
           submodules: true
       - uses: actions/setup-node@v5
       - run: npm ci 
-      - uses: mymindstorm/setup-emsdk@v14
+      - uses: pyodide/setup-emsdk@v15
+        with:
+          version: 4.0.15
+          actions-cache-folder: 'emsdk-cache'
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.13'
