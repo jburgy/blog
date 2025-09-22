@@ -3,6 +3,7 @@ import pytest  # pyright: ignore[reportMissingImports]
 
 collect_ignore = [
     "aoc2024",
+    "emsdk-cache",
     "forth/combination.py",
     "forth/forth.py",
     "fun/api_from.py",
