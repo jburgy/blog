@@ -16,7 +16,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: mymindstorm/setup-emsdk@v14
+      - uses: pyodide/setup-emsdk@v15
+        with:
+          version: 4.0.15
+          actions-cache-folder: 'emsdk-cache'
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
