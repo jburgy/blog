@@ -27,6 +27,7 @@ jobs:
       - uses: astral-sh/ruff-action@v3
         with:
           version: "latest"
+      - run: uvx ruff check
       - run: uv run pyright
       - uses: actions/cache@v4
         id: cache-playwright

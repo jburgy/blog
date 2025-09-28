@@ -6,7 +6,7 @@ import numpy as np
 
 def boxes(left: Iterable[int], move: int = 0) -> Iterable[tuple[int, int]]:
     for x in left:
-        i, j = divmod(x + move, 100)
+        i, j = (x + move).__divmod__(100)
         yield i, j
         yield i, j + 1
 
@@ -14,7 +14,7 @@ def boxes(left: Iterable[int], move: int = 0) -> Iterable[tuple[int, int]]:
 def shift(a: np.ndarray, b: dict[int, str], move: int) -> dict[int, str]:
     c = {}
     for x, y in b.items():
-        i, j = divmod(x, 100)
+        i, j = x.__divmod__(100)
         x1 = x + move
         if a[i, j] == "[":
             c[x1] = "[]"
@@ -59,22 +59,22 @@ state = np.array(statearg)
 (robot,) = np.argwhere(state == "@") @ [100, 1]
 for move in map(dirs.__getitem__, "".join(moves)):
     new = robot + move
-    temp = state[cast(tuple[int, int], divmod(new, 100))]
+    temp = state[cast(tuple[int, int], new.__divmod__(100))]
     if temp == "#":
         continue
     elif temp == ".":
-        state[cast(tuple[int, int], divmod(robot, 100))] = "."
-        state[cast(tuple[int, int], divmod(new, 100))] = "@"
+        state[cast(tuple[int, int], robot.__divmod__(100))] = "."
+        state[cast(tuple[int, int], new.__divmod__(100))] = "@"
     else:
         push = new
         while temp == "O":
             push += move
-            temp = state[cast(tuple[int, int], divmod(push, 100))]
+            temp = state[cast(tuple[int, int], push.__divmod__(100))]
         if temp == "#":
             continue
-        state[cast(tuple[int, int], divmod(robot, 100))] = "."
-        state[cast(tuple[int, int], divmod(new, 100))] = "@"
-        state[cast(tuple[int, int], divmod(push, 100))] = "O"
+        state[cast(tuple[int, int], robot.__divmod__(100))] = "."
+        state[cast(tuple[int, int], new.__divmod__(100))] = "@"
+        state[cast(tuple[int, int], push.__divmod__(100))] = "O"
     robot = new
 
 print(np.sum(np.argwhere(state == "O") @ [100, 1]))
@@ -83,28 +83,28 @@ expanded = np.array(expandedarg)
 (robot,) = np.argwhere(expanded == "@") @ [100, 1]
 for move in map(dirs.__getitem__, "".join(moves)):
     new = robot + move
-    temp = expanded[cast(tuple[int, int], divmod(new, 100))]
+    temp = expanded[cast(tuple[int, int], new.__divmod__(100))]
     if temp == "#":
         continue
     elif temp == ".":
-        expanded[cast(tuple[int, int], divmod(robot, 100))] = "."
-        expanded[cast(tuple[int, int], divmod(new, 100))] = "@"
+        expanded[cast(tuple[int, int], robot.__divmod__(100))] = "."
+        expanded[cast(tuple[int, int], new.__divmod__(100))] = "@"
     elif move in (-1, 1):  # horizontal
         push = new
         while temp not in ".#":
             push += move
-            temp = expanded[cast(tuple[int, int], divmod(push, 100))]
+            temp = expanded[cast(tuple[int, int], push.__divmod__(100))]
         if temp == "#":
             continue
-        temp = expanded[cast(tuple[int, int], divmod(new, 100))]
+        temp = expanded[cast(tuple[int, int], new.__divmod__(100))]
         push = new
-        expanded[cast(tuple[int, int], divmod(new, 100))] = "@"
+        expanded[cast(tuple[int, int], new.__divmod__(100))] = "@"
         while temp in "[]":
             push += move
-            expanded[cast(tuple[int, int], divmod(push, 100))], temp = (
-                temp, expanded[cast(tuple[int, int], divmod(push, 100))]
+            expanded[cast(tuple[int, int], push.__divmod__(100))], temp = (
+                temp, expanded[cast(tuple[int, int], push.__divmod__(100))]
             )
-        expanded[cast(tuple[int, int], divmod(robot, 100))] = "."
+        expanded[cast(tuple[int, int], robot.__divmod__(100))] = "."
     else:  # vertical
         pushd = {int(new - 1): ".@"} if temp == "]" else {int(new): "@."}
         copy = np.copy(expanded)
@@ -118,7 +118,7 @@ for move in map(dirs.__getitem__, "".join(moves)):
             continue
         shift(copy, pushd, move)
         expanded = copy
-        expanded[cast(tuple[int, int], divmod(robot, 100))] = "."
+        expanded[cast(tuple[int, int], robot.__divmod__(100))] = "."
     robot = new
 
 print(np.sum(np.argwhere(expanded == "[") @ [100, 1]))
