@@ -1,11 +1,108 @@
 import os
 from functools import partial
-from pathlib import Path
 from subprocess import run
 from typing import Iterable, Mapping
 
 import pytest
 from _pytest import fixtures
+
+preamble = r""": TEST-MODE ;
+: / /MOD SWAP DROP ;
+: '\n' 10 ;
+: BL 32 ;
+: CR '\n' EMIT ;
+: SPACE BL EMIT ;
+: NEGATE 0 SWAP - ;
+: TRUE  1 ;
+: FALSE 0 ;
+: NOT   0= ;
+: LITERAL IMMEDIATE ' LIT , , ;
+: ':' [ CHAR : ] LITERAL ;
+: ';' [ CHAR ; ] LITERAL ;
+: '"' [ CHAR " ] LITERAL ;
+: 'A' [ CHAR A ] LITERAL ;
+: '0' [ CHAR 0 ] LITERAL ;
+: '-' [ CHAR - ] LITERAL ;
+: [COMPILE] IMMEDIATE WORD FIND >CFA , ;
+: RECURSE   IMMEDIATE LATEST @ >CFA , ;
+: IF        IMMEDIATE ' 0BRANCH , HERE @ 0 , ;
+: THEN      IMMEDIATE DUP HERE @ SWAP - SWAP ! ;
+: ELSE      IMMEDIATE ' BRANCH , HERE @ 0 , SWAP DUP HERE @ SWAP - SWAP ! ;
+: BEGIN     IMMEDIATE HERE @ ;
+: AGAIN     IMMEDIATE ' BRANCH , HERE @ - , ;
+: WHILE     IMMEDIATE ' 0BRANCH , HERE @ 0 , ;
+: REPEAT    IMMEDIATE ' BRANCH , SWAP HERE @ - , DUP HERE @ SWAP - SWAP ! ;
+: NIP SWAP DROP ;
+: PICK 1+ {w} * DSP@ + @ ;
+: SPACES BEGIN DUP 0> WHILE SPACE 1- REPEAT DROP ;
+: U. BASE @ /MOD ?DUP IF RECURSE THEN DUP 10 < IF '0' ELSE 10 - 'A' THEN + EMIT ;
+: .S DSP@ BEGIN DUP S0 @ < WHILE DUP @ U. {w}+ SPACE REPEAT DROP ;
+: UWIDTH BASE @ / ?DUP IF RECURSE 1+ ELSE 1 THEN ;
+: U.R SWAP DUP UWIDTH ROT SWAP - SPACES U. ;
+: .R SWAP DUP 0< IF NEGATE 1 SWAP ROT 1- ELSE 0 SWAP ROT THEN SWAP DUP
+  UWIDTH ROT SWAP - SPACES SWAP IF '-' EMIT THEN U. ;
+: . 0 .R SPACE ;
+: U. U. SPACE ;
+: WITHIN -ROT OVER <= IF > IF TRUE ELSE FALSE THEN ELSE 2DROP FALSE THEN ;
+: ALIGNED {v} + -{w} AND ;
+: ALIGN HERE @ ALIGNED HERE ! ;
+: C, HERE @ C! 1 HERE +! ;
+: S" IMMEDIATE STATE @ IF
+  ' LITSTRING , HERE @ 0 , BEGIN KEY DUP '"' <> WHILE
+  C, REPEAT DROP DUP HERE @ SWAP - {w}- SWAP ! ALIGN ELSE
+  HERE @ BEGIN KEY DUP '"' <> WHILE OVER C! 1+ REPEAT DROP HERE @ - HERE @ SWAP THEN ;
+: ." IMMEDIATE STATE @ IF [COMPILE] S" ' TELL , ELSE BEGIN KEY DUP '"' = IF
+  DROP EXIT THEN EMIT AGAIN THEN ;
+: CELLS {w} * ;
+: ID. {w}+ DUP C@ F_LENMASK AND BEGIN DUP 0> WHILE SWAP 1+ DUP C@ EMIT SWAP 1- REPEAT
+  2DROP ;
+: ?IMMEDIATE {w}+ C@ F_IMMED AND ;
+: CASE    IMMEDIATE 0 ;
+: OF      IMMEDIATE ' OVER , ' = , [COMPILE] IF ' DROP , ;
+: ENDOF   IMMEDIATE [COMPILE] ELSE ;
+: ENDCASE IMMEDIATE ' DROP , BEGIN ?DUP WHILE [COMPILE] THEN REPEAT ;
+: CFA> LATEST @ BEGIN ?DUP WHILE 2DUP >CFA = IF NIP EXIT THEN @ REPEAT DROP 0 ;
+: SEE WORD FIND HERE @ LATEST @ BEGIN 2 PICK OVER <> WHILE NIP DUP @ REPEAT DROP SWAP
+  ':' EMIT SPACE DUP ID. SPACE DUP ?IMMEDIATE IF ." IMMEDIATE " THEN >DFA
+  BEGIN 2DUP > WHILE DUP @
+      CASE
+          ' LIT OF {w}+ DUP @ . ENDOF
+          ' LITSTRING OF [ CHAR S ] LITERAL EMIT '"' EMIT SPACE {w}+ DUP @ SWAP {w}+
+            SWAP 2DUP TELL '"' EMIT SPACE + ALIGNED {w}- ENDOF
+          ' 0BRANCH OF ." 0BRANCH ( " {w}+ DUP @ . ." ) " ENDOF
+          '  BRANCH OF  ." BRANCH ( " {w}+ DUP @ . ." ) " ENDOF
+          ' ' OF [ CHAR ' ] LITERAL EMIT SPACE {w}+ DUP CFA> ID. SPACE ENDOF
+          ' EXIT OF 2DUP {w}+ <> IF ." EXIT " THEN ENDOF
+          DUP CFA> ID. SPACE
+      ENDCASE
+      {w}+
+  REPEAT
+ ';' EMIT CR 2DROP ;
+: ['] IMMEDIATE ' LIT , ;
+: EXCEPTION-MARKER RDROP 0 ;
+: CATCH DSP@ {w}+ >R ' EXCEPTION-MARKER {w}+ >R EXECUTE ;
+: THROW ?DUP IF RSP@ BEGIN DUP R0 {w}- < WHILE DUP @ ' EXCEPTION-MARKER {w}+ = IF
+  {w}+ RSP! DUP DUP DUP R> {w}- SWAP OVER ! DSP! EXIT THEN {w}+ REPEAT
+  DROP CASE 0 1- OF ." ABORTED" CR ENDOF ." UNCAUGHT THROW " DUP . CR ENDCASE QUIT THEN
+  ;
+: Z" IMMEDIATE STATE @ IF
+  ' LITSTRING , HERE @ 0 , BEGIN KEY DUP '"' <> WHILE
+  HERE @ C! 1 HERE +! REPEAT 0 HERE @ C! 1 HERE +! DROP DUP
+  HERE @ SWAP - {w}- SWAP ! ALIGN ' DROP , ELSE
+  HERE @ BEGIN KEY DUP '"' <> WHILE OVER C! 1+ REPEAT DROP 0 SWAP C! HERE @ THEN ;
+: STRLEN DUP BEGIN DUP C@ 0<> WHILE 1+ REPEAT SWAP - ;
+: ARGC (ARGC) @ ;
+: ARGV 1+ CELLS (ARGC) + @ DUP STRLEN ;
+: ENVIRON ARGC 2 + CELLS (ARGC) + ;
+: GET-BRK 0 SYS_BRK SYSCALL1 ;
+: UNUSED GET-BRK HERE @ - {w} / ;
+: WELCOME S" TEST-MODE" FIND NOT IF
+  ." JONESFORTH VERSION " VERSION . CR
+  UNUSED . ." CELLS REMAINING" CR
+  ." OK " THEN ;
+WELCOME
+HIDE WELCOME
+"""
 
 
 @pytest.fixture(scope="module")
@@ -51,8 +148,8 @@ def mapping(target: str) -> Mapping[str, str]:
         if target == "4th.32"
         else "{:d}".format(syscall0)
     )
-    filename = "forth/4th.32.fs" if target == "4th.32" else "forth/4th.fs"
-    result["forth"] = ": TEST-MODE ;\n" + Path(filename).read_text()
+    w = 4 if target == "4th.32" else 8
+    result["forth"] = preamble.format(v=w - 1, w=w)
     return result
 
 
@@ -145,7 +242,7 @@ FOO EMIT
         ("{forth}SEE HIDE\n", ": HIDE WORD FIND HIDDEN ;\n"),
         ("{forth}SEE QUIT\n", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
         (
-            "{forth}: FOO ( n -- ) THROW ;\n"
+            "{forth}: FOO THROW ;\n"
             ": TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF "
             '." FOO threw exception: " . CR DROP THEN ;\n'
             "TEST-EXCEPTIONS\n",
