@@ -14,9 +14,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "fastapi",
     "interpreters-pep-734",
-    "marimo",
     "matplotlib",
     "networkx",
     "pandas",
