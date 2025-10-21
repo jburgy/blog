@@ -30,8 +30,8 @@ def scatter(indices: list[int], m: int, n: int) -> sparse.csr_array:
     assert m >= max(indices) + 1
     assert n >= len(indices)
     assert m >= n
-    return sparse.csr_array(
-        (np.ones(shape=len(indices)), (indices, range(len(indices)))),
+    return sparse.csr_array(  # pyright: ignore[reportCallIssue]
+        (np.ones(shape=len(indices)), (indices, range(len(indices)))),  # pyright: ignore[reportArgumentType]
         shape=(m, n),
     )
 

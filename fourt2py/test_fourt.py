@@ -1,6 +1,6 @@
 import numpy as np
 
-from fourt2py import fourt
+from fourt2py import fourt  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def test_fourt():

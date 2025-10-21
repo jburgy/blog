@@ -18,8 +18,8 @@ from importlib.util import module_from_spec
 from inspect import getmembers, isfunction
 from pkgutil import walk_packages
 
-from fastapi import FastAPI
-from starlette.responses import JSONResponse
+from fastapi import FastAPI  # pyright: ignore[reportMissingImports]
+from starlette.responses import JSONResponse  # pyright: ignore[reportMissingImports]
 
 
 class _PandasJsonResponse(JSONResponse):

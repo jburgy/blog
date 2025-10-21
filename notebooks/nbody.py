@@ -1,6 +1,6 @@
 # pyright: reportAttributeAccessIssue=false, reportInvalidTypeForm=false, reportPrivateImportUsage=false
 
-import marimo
+import marimo  # pyright: ignore[reportMissingImports]
 
 __generated_with = "0.14.8"
 app = marimo.App(width="medium")
@@ -83,7 +83,7 @@ def _():
 
 @app.cell
 def _(m, np, xs):
-    import marimo as mo
+    import marimo as mo  # pyright: ignore[reportMissingImports]
     import numpy.typing as npt
     from matplotlib import animation, pyplot as plt
 
