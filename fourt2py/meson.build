@@ -1,4 +1,3 @@
-add_languages('fortran')
 add_project_arguments(
     '-pthread',
     '-Wno-unused-parameter',
@@ -31,7 +30,8 @@ py.extension_module('fourt2py',
     'FOURT.F',
     fourt2py_source,
     incdir / 'fortranobject.c',
-    include_directories : include_directories(incdir),
     dependencies : [py.dependency(), dependency('numpy')],
+    include_directories : include_directories(incdir),
     install : true,
+    link_language : 'fortran',
 )

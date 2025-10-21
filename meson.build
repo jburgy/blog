@@ -1,4 +1,4 @@
-project('blog', 'c',
+project('blog', 'c', 'fortran',
     version : '0.1',
     default_options : [
         'optimization=3',
