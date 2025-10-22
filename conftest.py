@@ -11,6 +11,8 @@ collect_ignore = [
     "fun/awslayer.py",
     "fun/store_sa.py",
     "progress/__init__.py",
+    "notebooks/dataframe_formatting.py",
+    "notebooks/nbody.py",
 ]
 
 def pytest_addoption(parser: pytest.Parser) -> None:
