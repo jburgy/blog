@@ -2,6 +2,9 @@ name: Python package
 
 on: [push]
 
+env:
+  UV_NO_EDITABLE: 1
+
 jobs:
   build:
 
