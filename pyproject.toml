@@ -14,7 +14,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "ampl-module-base>=20250901",
+    "ampl-module-highs>=20251015",
+    "amplpy>=0.15.2",
     "interpreters-pep-734",
+    "jupyter>=1.1.1",
     "matplotlib",
     "networkx",
     "pandas",
@@ -36,6 +40,9 @@ dev = [
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
 asyncio_default_test_loop_scope = "session"
+
+[[tool.uv.index]]
+url = "https://pypi.ampl.com/"
 
 [tool.ruff]
 exclude = [
