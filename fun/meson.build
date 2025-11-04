@@ -9,7 +9,6 @@ py.install_sources([
     'nbody.py',
     'oecd.py',
     'prechelt.py',
-    'regexp.py',
     'serve.py',
     'store_sa.py',
     'store.py',
