@@ -65,6 +65,7 @@ unsigned char *prepare (const char *src)
 			case '\\':
 				c = escape[(int)src[i + 1]];
 				c ? i++ : (c = '\\');
+                [[fallthrough]];
 			default:
 				if (concat)
 					dest[j++] = CONCAT;
@@ -130,10 +131,8 @@ struct	instr	{
 
 struct instr assemble (short operand, short address)
 {
-	struct	instr	this;
+	struct	instr	this = { .operand = operand, .address = address };
 
-	this.operand = operand;
-	this.address = address;
 	return	this;
 }
 
@@ -145,6 +144,9 @@ size_t memlen (const unsigned char *s)
 		p++;
 	return	p - s;
 }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsequence-point"
 
 struct instr *compile (const unsigned char *src)
 {
@@ -190,6 +192,8 @@ struct instr *compile (const unsigned char *src)
 
 	return	code;
 }
+
+#pragma GCC diagnostic pop
 
 struct instr *study (const char *re)
 {

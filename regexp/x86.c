@@ -65,6 +65,7 @@ unsigned char *prepare(const char *src)
 			case '\\':
 				c = escape[(int)src[i + 1]];
 				c ? i++ : (c = '\\');
+                                [[fallthrough]];
 			default:
 				if (concat)
 					dest[j++] = CONCAT;
@@ -262,6 +263,9 @@ function_t study(const char *re)
 	return	(function_t)q;
 }
 
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wfree-nonheap-object"
+
 int main(void)
 {
 	short	i;
@@ -290,13 +294,15 @@ int main(void)
 
 		printf("search %s %s\n", test[i].r, test[i].s);
 		t = (*search)(test[i].s);
-		if (t)	printf("match found after %d bytes\n", t - test[i].s);
+		if (t)	printf("match found after %ld bytes\n", t - test[i].s);
 		else	printf("match not found\n");
 		free((void *)search);
 	}
 
 	return	0;
 }
+
+# pragma clang diagnostic pop
 
 /*
  * Permission is hereby granted, free of charge, to any person
