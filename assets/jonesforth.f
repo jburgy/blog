@@ -992,8 +992,8 @@
 	BEGIN
 		?DUP		( while link pointer is not null )
 	WHILE
-		2DUP >CFA	( cfa curr curr cfa )
-		= IF		( current dictionary entry < cfa? )
+		2DUP SWAP	( cfa curr curr cfa )
+		< IF		( current dictionary entry < cfa? )
 			NIP		( leave curr dictionary entry on the stack )
 			EXIT
 		THEN
