@@ -20,7 +20,7 @@
         const { master, slave } = openpty();
         xterm.loadAddon(master);
 
-        const response = await fetch("/forth/jonesforth.f");
+        const response = await fetch("/assets/jonesforth.f");
         const preamble = new Uint8Array(await response.arrayBuffer());
         slave.ldisc.toUpperBuf.push(...preamble);
 
