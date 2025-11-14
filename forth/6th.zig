@@ -820,7 +820,7 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const 
         }
     } else if (fmt.parseInt(isize, self.buffer[0..c], @truncate(@abs(self.base)))) |a| {
         if (self.state == 1) {
-            self.append(.{ .word = codeFieldAddress(&lit) });
+            self.append(.{ .word = &.{.{ .code = _lit }} });
             self.append(.{ .literal = a });
         } else {
             s = sp - 1;
