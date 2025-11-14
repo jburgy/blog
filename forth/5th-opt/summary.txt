@@ -1,0 +1,39 @@
+PARAMETER ORDERING ANALYSIS FOR 5th.c
+=====================================
+
+Baseline (Original):
+  env, sp, rsp, ip, target  →  641 mov instructions
+
+Optimized orderings tested:
+  sp, rsp, ip, env, target  →  640 mov instructions ⭐ BEST
+  ip, sp, rsp, env, target  →  641 mov instructions
+  rsp, sp, ip, env, target  →  641 mov instructions
+  env, sp, ip, rsp, target  →  641 mov instructions
+  ip, env, sp, rsp, target  →  643 mov instructions
+  env, ip, sp, rsp, target  →  643 mov instructions
+  ip, sp, env, rsp, target  →  641 mov instructions
+  rsp, ip, sp, env, target  →  643 mov instructions
+
+WINNER: sp, rsp, ip, env, target
+Improvement: 1 fewer mov instruction (641 → 640)
+
+X86-64 ABI Register Mapping:
+  Current (env, sp, rsp, ip, target):
+    rdi = env (struct interp_t *)
+    rsi = sp (intptr_t *)
+    rdx = rsp (union instr_t **)
+    rcx = ip (union instr_t *)
+    r8 = target (union instr_t *)
+
+  Optimal (sp, rsp, ip, env, target):
+    rdi = sp (intptr_t *)         ← moved from rsi to rdi
+    rsi = rsp (union instr_t **)  ← moved from rdx to rsi
+    rdx = ip (union instr_t *)    ← moved from rcx to rdx
+    rcx = env (struct interp_t *) ← moved from rdi to rcx
+    r8 = target (union instr_t *) ← stays in r8
+
+KEY INSIGHT:
+sp and rsp are the most frequently accessed parameters in hot code paths
+(NEXT macro uses them heavily in every tail call). By placing them in 
+rdi/rsi (the first two parameter registers), the compiler can generate
+more efficient code with fewer register reallocation moves.

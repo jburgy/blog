@@ -1,0 +1,40 @@
+17c17
+< #define NEXT __attribute__((musttail)) return ip->word->code(env, sp, rsp, ip + 1, ip->word)
+---
+> #define NEXT __attribute__((musttail)) return ip->word->code(ip + 1, sp, rsp, env, ip->word)
+19c19
+< intptr_t *_label(struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *); \
+---
+> intptr_t *_label(union instr_t *, intptr_t *, union instr_t **, struct interp_t *, union instr_t *); \
+21c21
+< intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))
+---
+> intptr_t *_label(union instr_t *ip, intptr_t *sp, union instr_t **rsp, struct interp_t *env, union instr_t *target __attribute__((unused)))
+48c48
+<     intptr_t *(*code)(struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *);
+---
+>     intptr_t *(*code)(union instr_t *, intptr_t *, union instr_t **, struct interp_t *, union instr_t *);
+114c114
+< intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+---
+> intptr_t *DOCOL(union instr_t *ip, intptr_t *sp, union instr_t **rsp, struct interp_t *env, union instr_t *target)
+121c121
+< intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+---
+> intptr_t *DODOES(union instr_t *ip, intptr_t *sp, union instr_t **rsp, struct interp_t *env, union instr_t *target)
+532c532
+<         __attribute__((musttail)) return BRANCH(env, sp, rsp, ip, ip->word);
+---
+>         __attribute__((musttail)) return BRANCH(ip, sp, rsp, env, ip->word);
+564c564
+<             __attribute__((musttail)) return target->code(env, sp, rsp, ip, target);
+---
+>             __attribute__((musttail)) return target->code(ip, sp, rsp, env, target);
+595c595
+<     __attribute__((musttail)) return target->code(env, sp, rsp, ip, target);
+---
+>     __attribute__((musttail)) return target->code(ip, sp, rsp, env, target);
+676c676
+<     return (intptr_t)ip->word->code(&env, env.s0, env.r0, ip, ip->word);
+---
+>     return (intptr_t)ip->word->code(ip, env.s0, env.r0, &env, ip->word);
