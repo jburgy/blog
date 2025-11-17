@@ -509,7 +509,7 @@ DEFCODE(ZBRANCH, 0, "LITSTRING", LITSTRING):
 DEFCODE(LITSTRING, 0, "TELL", TELL):
     c = pop();
     s = (char *)pop();
-    write(STDOUT_FILENO, s, c);
+    (void)(write(STDOUT_FILENO, s, c) + 1);
     NEXT;
     static char errmsg[] = "PARSE ERROR: ";
 DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
@@ -527,9 +527,9 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
         a = strtol(word_buffer, &r, base);
         word_buffer[c] = b;
         if (r == word_buffer) {
-            write(STDERR_FILENO, errmsg, sizeof errmsg - 1);
-            write(STDERR_FILENO, word_buffer, c);
-            write(STDERR_FILENO, "\n", sizeof "\n" - 1);
+            (void)(write(STDERR_FILENO, errmsg, sizeof errmsg - 1) + 1);
+            (void)(write(STDERR_FILENO, word_buffer, c) + 1);
+            (void)(write(STDERR_FILENO, "\n", sizeof "\n" - 1) + 1);
         } else if (state) {
             *p++ = (intptr_t)CODE(LIT);
             *p++ = a;
