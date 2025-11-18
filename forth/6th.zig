@@ -94,9 +94,9 @@ fn InterpAligned(comptime alignment: mem.Alignment) type {
 
         pub fn find(self: Self, name: []u8) ?*const Word {
             const mask = @intFromEnum(Flag.HIDDEN) | F_LENMASK;
-            var node: ?*const Word = self.latest;
-            while (node != null and ((node.?.flag & mask) != name.len or !mem.eql(u8, node.?.name[0..name.len], name)))
-                node = node.?.link;
+            var node: *const Word = self.latest;
+            while (node.flag & mask != name.len or !mem.eql(u8, node.name[0..name.len], name))
+                node = node.link orelse return null;
 
             return node;
         }
@@ -124,7 +124,7 @@ fn key() u8 {
     return b;
 }
 
-fn defword_(
+fn defword(
     comptime last: ?[]const Instr,
     comptime flag: Flag,
     comptime name: []const u8,
@@ -132,7 +132,7 @@ fn defword_(
 ) [offset + code.len]Instr {
     var instrs: [offset + code.len]Instr = undefined;
     const p: *Word = @ptrCast(&instrs[0]);
-    p.link = if (last == null) null else @ptrCast(last.?.ptr);
+    p.link = if (last) |link| @ptrCast(link.ptr) else null;
     p.flag = name.len | @intFromEnum(flag);
     @memcpy(p.name[0..name.len], name);
     @memset(p.name[name.len..F_LENMASK], 0);
@@ -145,7 +145,7 @@ fn defcode(
     comptime name: []const u8,
     comptime code: Code,
 ) [offset + 1]Instr {
-    return defword_(last, Flag.ZERO, name, &.{.{ .code = code }});
+    return defword(last, Flag.ZERO, name, &.{.{ .code = code }});
 }
 
 fn wrap(comptime stack: fn ([*]isize) callconv(.@"inline") [*]isize) Code {
@@ -176,17 +176,8 @@ fn value(comptime literal: isize) Code {
     }.code;
 }
 
-fn defword(
-    comptime last: ?[]const Instr,
-    comptime flag: Flag,
-    comptime name: []const u8,
-    comptime data: []const []const Instr,
-) [offset + data.len + 1]Instr {
-    var code: [data.len + 1]Instr = undefined;
-    code[0].code = docol_;
-    inline for (code[1..], data) |*d, s|
-        d.word = codeFieldAddress(s.ptr);
-    return defword_(last, flag, name, code[0..]);
+fn word(comptime w: []const Instr) Instr {
+    return .{ .word = codeFieldAddress(w.ptr) };
 }
 
 inline fn _drop(sp: [*]isize) [*]isize {
@@ -678,7 +669,7 @@ const tdfa = defword(
     &tcfa,
     Flag.ZERO,
     ">DFA",
-    &.{ &tcfa, &incrp, &exit, &exit },
+    &.{ .{ .code = docol_ }, word(&tcfa), word(&incrp), word(&exit), word(&exit) },
 );
 
 fn _create(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
@@ -711,7 +702,7 @@ fn _lbrac(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Inst
     self.state = 0;
     self.next(sp, rsp, ip, target);
 }
-const lbrac = defword_(
+const lbrac = defword(
     &comma,
     Flag.IMMED,
     "[",
@@ -728,7 +719,7 @@ fn _immediate(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const 
     self.latest.flag ^= @intFromEnum(Flag.IMMED);
     self.next(sp, rsp, ip, target);
 }
-const immediate = defword_(
+const immediate = defword(
     &rbrac,
     Flag.IMMED,
     "IMMEDIATE",
@@ -745,13 +736,25 @@ const hide = defword(
     &hidden,
     Flag.ZERO,
     "HIDE",
-    &.{ &word_, &find_, &hidden, &exit },
+    &.{ .{ .code = docol_ }, word(&word_), word(&find_), word(&hidden), word(&exit) },
 );
 const colon = defword(
     &hide,
     Flag.ZERO,
     ":",
-    &.{ &word_, &create, &docol, &comma, &latest, &fetch, &hidden, &rbrac, &exit, &exit },
+    &.{
+        .{ .code = docol_ },
+        word(&word_),
+        word(&create),
+        word(&docol),
+        word(&comma),
+        word(&latest),
+        word(&fetch),
+        word(&hidden),
+        word(&rbrac),
+        word(&exit),
+        word(&exit),
+    },
 );
 
 fn _tick(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
@@ -765,7 +768,17 @@ const semicolon = defword(
     &tick,
     Flag.IMMED,
     ";",
-    &.{ &tick, &exit, &comma, &latest, &fetch, &hidden, &lbrac, &exit },
+    &.{
+        .{ .code = docol_ },
+        word(&tick),
+        word(&exit),
+        word(&comma),
+        word(&latest),
+        word(&fetch),
+        word(&hidden),
+        word(&lbrac),
+        word(&exit),
+    },
 );
 
 fn _branch(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
@@ -829,14 +842,14 @@ fn _interpret(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const 
 const interpret = defcode(&tell, "INTERPRET", _interpret);
 const _quit: [7]Instr = .{
     .{ .code = docol_ },
-    .{ .word = codeFieldAddress(&rz) },
-    .{ .word = codeFieldAddress(&rspstore) },
-    .{ .word = codeFieldAddress(&interpret) },
-    .{ .word = codeFieldAddress(&branch) },
+    word(&rz),
+    word(&rspstore),
+    word(&interpret),
+    word(&branch),
     .{ .literal = -2 * @sizeOf(Instr) },
-    .{ .word = codeFieldAddress(&exit) },
+    word(&exit),
 };
-const quit = defword_(&interpret, Flag.ZERO, "QUIT", &_quit);
+const quit = defword(&interpret, Flag.ZERO, "QUIT", &_quit);
 
 fn _char(self: *Interp, sp: [*]isize, rsp: [*][*]const Instr, ip: [*]const Instr, target: [*]const Instr) callconv(conv) void {
     const s = sp - 1;
