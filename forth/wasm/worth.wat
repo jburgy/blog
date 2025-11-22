@@ -58,7 +58,7 @@
     (memory (export "memory") 1)
     (table 80 funcref)
 
-    (global $ip      (mut i32) (i32.const 0x50e8))  ;; instruction pointer (initialized)
+    (global $ip      (mut i32) (i32.const 0x51f4))  ;; instruction pointer (initialized)
     (global $sp      (mut i32) (i32.const 0x2000))  ;; data stack pointer (grows downward)
     (global $rsp     (mut i32) (i32.const 0x4000))  ;; return stack pointer (grows downward)
     
@@ -69,7 +69,8 @@
     (global $buffer   i32      (i32.const 0x5020))  ;; word_buffer
 
     (data (i32.const 0x5000) "\00\00\00\00")        ;; STATE initialized to 0 (interpreting)
-    (data (i32.const 0x5008) "\d8\50\00\00")        ;; LATEST initialized to 0x50d8
+    (data (i32.const 0x5004) "\08\52\00\00")        ;; HERE initialized to 0x5208
+    (data (i32.const 0x5008) "\e4\51\00\00")        ;; LATEST initialized to 0x51e4
     (data (i32.const 0x500C) "\00\00\20\00")        ;; S0 initialized to top of data stack
     (data (i32.const 0x5010) "\0A\00\00\00")        ;; BASE initialized to 10
 
@@ -252,6 +253,8 @@
 
     (data (i32.const 0x506c) "\60\50\00\00\04EXIT\00\00\00\04\00\00\00")
     (func $exit (type 0)
+        unreachable
+        (return_call $next)
     )
     (elem (i32.const 0x4) $exit)
 
@@ -260,41 +263,152 @@
         (call $push (i32.load (global.get $ip)))
         (global.set $ip (i32.add (global.get $ip) (i32.const 4)))
         (return_call $next)
+        (return_call $next)
     )
     (elem (i32.const 0x5) $lit)
 
-    (data (i32.const 0x5088) "\7c\50\00\00\02R0\00\06\00\00\00")
+    (data (i32.const 0x5088) "\7c\50\00\00\01!\00\00\06\00\00\00")
+    (func $! (type 0)
+        (i32.store (call $pop) (call $pop))
+        (return_call $next)
+    )
+    (elem (i32.const 0x6) $!)
+
+    (data (i32.const 0x5094) "\88\50\00\00\01@\00\00\07\00\00\00")
+    (func $@ (type 0)
+        (call $push (i32.load (call $pop)))
+        (return_call $next)
+    )
+    (elem (i32.const 0x7) $@)
+
+    (data (i32.const 0x50a0) "\94\50\00\00\06LATEST\00\08\00\00\00")
+    (func $latest (type 0)
+        (call $push (i32.const 0x5008))
+        (return_call $next)
+    )
+    (elem (i32.const 0x8) $latest)
+
+    (data (i32.const 0x50b0) "\a0\50\00\00\02R0\00\09\00\00\00")
     (func $r0 (type 0)
         (call $push (global.get $r0))
         (return_call $next)
     )
-    (elem (i32.const 0x6) $r0)
+    (elem (i32.const 0x9) $r0)
 
-    (data (i32.const 0x5094) "\88\50\00\00\04RSP!\00\00\00\07\00\00\00")
+    (data (i32.const 0x50bc) "\b0\50\00\00\04RSP!\00\00\00\0a\00\00\00")
     (func $rsp! (type 0)
         (global.set $rsp (call $pop))
         (return_call $next)
     )
-    (elem (i32.const 0x7) $rsp!)
+    (elem (i32.const 0xa) $rsp!)
 
-    (data (i32.const 0x50a4) "\94\50\00\00\04EMIT\00\00\00\08\00\00\00")
+    (data (i32.const 0x50cc) "\bc\50\00\00\04EMIT\00\00\00\0b\00\00\00")
     (func $emit (type 0)
         (i32.store offset=0 (global.get $iovec) (global.get $sp))
-        (i32.store offset=4 (global.get $iovec) (i32.const 1))        
+        (i32.store offset=4 (global.get $iovec) (i32.const 1))
         (drop (call $fd_write (i32.const 1) (global.get $iovec) (i32.const 1) (global.get $nwritten)))
         (global.set $sp (i32.add (global.get $sp) (i32.const 4)))
         (return_call $next)
     )
-    (elem (i32.const 0x8) $emit)
+    (elem (i32.const 0xb) $emit)
 
-    (data (i32.const 0x50b4) "\a4\50\00\00\06BRANCH\00\09\00\00\00")
+    (data (i32.const 0x50dc) "\cc\50\00\00\04WORD\00\00\00\0c\00\00\00")
+    (func $word (type 0)
+        (call $push (global.get $buffer))
+        (call $push (call $_word (call $pop) (call $pop)))
+        (return_call $next)
+    )
+    (elem (i32.const 0xc) $word)
+
+    (data (i32.const 0x50ec) "\dc\50\00\00\06NUMBER\00\0d\00\00\00")
+    (func $number (type 0)
+        (call $push (call $_number (call $pop) (call $pop) (i32.load (i32.const 0x5010))))
+        (return_call $next)
+    )
+    (elem (i32.const 0xd) $number)
+
+    (data (i32.const 0x50fc) "\ec\50\00\00\04FIND\00\00\00\0e\00\00\00")
+    (func $find (type 0)
+        (call $push (call $_find (call $pop) (call $pop)))
+        (return_call $next)
+    )
+    (elem (i32.const 0xe) $find)
+
+    (data (i32.const 0x510c) "\fc\50\00\00\04>CFA\00\00\00\0f\00\00\00")
+    (func $>cfa (type 0)
+        (call $push (call $_>cfa (call $pop)))
+        (return_call $next)
+    )
+    (elem (i32.const 0xf) $>cfa)
+
+    (data (i32.const 0x511c) "\0c\51\00\00\06CREATE\00\10\00\00\00")
+    (func $create (type 0)
+        (local $c i32) ;; count (%ecx)
+        (local $d i32) ;; destination (%edi)
+        (local $s i32) ;; source (%esi)
+        (i32.store (local.tee $d (i32.load (i32.const 0x5004))) (i32.load (i32.const 0x5008))) ;; *HERE = *LATEST
+        (i32.store (i32.const 0x5008) (local.get $d)) ;; LATEST = HERE
+        (i32.store8 (local.tee $d (i32.add (local.get $d) (i32.const 4))) (local.tee $c (call $pop))) ;; set flags to len
+        (local.set $s (call $pop))
+        (loop $copy  ;; `rep movsb` would be nice here
+            (i32.store8 (local.get $d) (i32.load8_u (local.get $s)))
+            (local.set $d (i32.add (local.get $d) (i32.const 1)))
+            (local.set $s (i32.add (local.get $s) (i32.const 1)))
+            (br_if $copy (i32.gt_s (local.tee $c (i32.sub (local.get $c) (i32.const 1))) (i32.const 0)))
+        )
+        (i32.store (i32.const 0x5004) (i32.and (i32.add (local.get $d) (i32.const 3)) (i32.const -4))) ;; HERE = d (aligned)
+        (return_call $next)
+    )
+    (elem (i32.const 0x10) $create)
+
+    (data (i32.const 0x512c) "\1c\51\00\00\01\2C\00\00\11\00\00\00")
+    (func $comma (type 0)
+        (local $d i32)
+        (i32.store (local.tee $d (i32.const 0x5004)) (call $pop))
+        (i32.store (i32.const 0x5004) (i32.add (local.get $d) (i32.const 4)))
+        (return_call $next)
+    )
+    (elem (i32.const 0x11) $comma)
+
+    (data (i32.const 0x5138) "\2c\51\00\00\01[\00\00\12\00\00\00")
+    (func $lbrac (type 0)
+        (i32.store (i32.const 0x5010) (i32.const 0))
+        (return_call $next)
+    )
+    (elem (i32.const 0x12) $lbrac)
+
+    (data (i32.const 0x5144) "\38\51\00\00\01]\00\00\13\00\00\00")
+    (func $rbrac (type 0)
+        (i32.store (i32.const 0x5010) (i32.const 1))
+        (return_call $next)
+    )
+    (elem (i32.const 0x13) $rbrac)
+
+    (data (i32.const 0x5150) "\44\51\00\00\06HIDDEN\00\14\00\00\00")
+    (func $hidden (type 0)
+        (local $p i32)
+        (i32.store8 offset=4 (local.get $p)
+            (i32.xor
+                (i32.load8_u offset=4 (local.tee $p (call $pop)))
+                (global.get $f_hidden)
+            )
+        )
+        (return_call $next)
+    )
+    (elem (i32.const 0x14) $hidden)
+
+    (data (i32.const 0x5160) "\50\51\00\00\01:\00\00\00\00\00\00\0c\00\00\00\10\00\00\00\05\00\00\00\00\00\00\00\11\00\00\00\08\00\00\00\07\00\00\00\14\00\00\00\13\00\00\00\04\00\00\00")
+
+    (data (i32.const 0x5194) "\60\51\00\00\81;\00\00\00\00\00\00\05\00\00\00\04\00\00\00\11\00\00\00\08\00\00\00\07\00\00\00\14\00\00\00\12\00\00\00\04\00\00\00")
+
+    (data (i32.const 0x51c0) "\94\51\00\00\06BRANCH\00\15\00\00\00")
     (func $branch (type 0)
         (global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))
         (return_call $next)
     )
-    (elem (i32.const 0x9) $branch)
+    (elem (i32.const 0x15) $branch)
 
-    (data (i32.const 0x50c4) "\b4\50\00\00\09INTERPRET\00\00\0a\00\00\00")
+    (data (i32.const 0x51d0) "\c0\51\00\00\09INTERPRET\00\00\16\00\00\00")
     (func $interpret (type 0)
         (local $c i32)
         (local $w i32)
@@ -304,9 +418,9 @@
         )
         (return_call $next)
     )
-    (elem (i32.const 0xa) $interpret)
+    (elem (i32.const 0x16) $interpret)
 
-    (data (i32.const 0x50d8) "\c4\50\00\00\04QUIT\00\00\00\00\00\00\00\06\00\00\00\07\00\00\00\0a\00\00\00\09\00\00\00\f8\ff\ff\ff")
+    (data (i32.const 0x51e4) "\d0\51\00\00\04QUIT\00\00\00\00\00\00\00\09\00\00\00\0a\00\00\00\16\00\00\00\15\00\00\00\f8\ff\ff\ff")
 
     (start $next)
 )
