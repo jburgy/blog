@@ -69,6 +69,7 @@
     (global $buffer   i32      (i32.const 0x5020))  ;; word_buffer
 
     (data (i32.const 0x5000) "\00\00\00\00")        ;; STATE initialized to 0 (interpreting)
+    (data (i32.const 0x5008) "\d8\50\00\00")        ;; LATEST initialized to 0x50d8
     (data (i32.const 0x500C) "\00\00\20\00")        ;; S0 initialized to top of data stack
     (data (i32.const 0x5010) "\0A\00\00\00")        ;; BASE initialized to 10
 
@@ -103,7 +104,7 @@
         (local $c i32)
         (block $break
             (loop $while
-                (br_if $break (i32.ge_u (global.get $currkey) (global.get $buftop)))
+                (br_if $break (i32.lt_u (global.get $currkey) (global.get $buftop)))
                 (global.set $currkey (i32.const 0x4000))
                 (i32.store offset=0 (global.get $iovec) (global.get $currkey)) ;; TIB
                 (i32.store offset=4 (global.get $iovec) (i32.const 0x1000)) ;; BUFFER_SIZE
@@ -194,20 +195,35 @@
     (func $_find (param $n i32) (param $s i32) (result i32)
         (local $word i32)
         (local.set $word (i32.load (i32.const 0x5008))) ;; LATEST
-        (loop $while
-            (if (i32.eqz (local.get $word)) (then (return (local.get $word))))
-            (if (i32.eq (i32.and (i32.load offset=4 (local.get $word)) (i32.const 0x3F)) (local.get $n))
-                (then
-                    (if (i32.eqz (call $equal (local.get $n) (local.get $s) (i32.add (local.get $word) (i32.const 5))))
-                        (then
-                            (local.set $word (i32.load (local.get $word)))
-                            (br $while)
+        (block $break
+            (loop $while
+                (br_if $break (i32.eqz (local.get $word)))
+                (if (i32.eq (i32.and (i32.load8_u offset=4 (local.get $word)) (i32.const 0x3F)) (local.get $n))
+                    (then
+                        (if (i32.eqz (call $equal (local.get $n) (local.get $s) (i32.add (local.get $word) (i32.const 5))))
+                            (then nop)
+                            (else (br $break))
                         )
                     )
                 )
-            )            
-        )
+                (local.set $word (i32.load (local.get $word)))  ;; word = word->link
+                (br $while)
+            )
+        )    
         (local.get $word)
+    )
+
+    (func $_>cfa (param $word i32) (result i32)
+        (i32.add
+            (i32.and 
+                (i32.add 
+                    (i32.and (i32.load8_u offset=4 (local.get $word)) (i32.const 0x1F)) 
+                    (i32.const 8)  ;; link + flag + 3
+                ) 
+                (i32.const -4)  ;; align to 4 bytes
+            )
+            (local.get $word)
+        )
     )
 
     (data (i32.const 0x5040) "\00\00\00\00\04DROP\00\00\00\01\00\00\00")
@@ -284,7 +300,7 @@
         (local $w i32)
         (if (i32.eqz (local.tee $w (call $_find (local.tee $c (call $_word)) (global.get $buffer))))
             (then (call $push (call $_number (local.get $c) (global.get $buffer) (i32.load (i32.const 0x5010)))))
-            (else (return_call_indirect (type 0) (local.get $w)))
+            (else (return_call_indirect (type 0) (i32.load (call $_>cfa (local.get $w)))))
         )
         (return_call $next)
     )
