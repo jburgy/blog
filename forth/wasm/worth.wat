@@ -404,7 +404,12 @@
 
     (data (i32.const 0x5130) "\24\51\00\00\04/MOD\00\00\00\12\00\00\00")
     (func $/mod (type 0)
-        unreachable
+        (local $a i32)
+        (local $b i32)
+        (local.set $a (call $pop))
+        (local.set $b (call $pop))
+        (call $push (i32.rem_s (local.get $b) (local.get $a)))
+        (call $push (i32.div_s (local.get $b) (local.get $a)))
         (return_call $next)
     )
     (elem (i32.const 0x12) $/mod)
@@ -840,7 +845,12 @@
 
     (data (i32.const 0x5500) "\f0\54\00\00\09LITSTRING\00\00\4b\00\00\00")
     (func $litstring (type 0)
-        unreachable
+        (local $len i32)
+        (local.set $len (i32.load (global.get $ip)))
+        (global.set $ip (i32.add (global.get $ip) (i32.const 4)))
+        (call $push (global.get $sp))
+        (call $push (local.get $len))
+        (global.set $ip (i32.add (global.get $ip) (i32.and (i32.add (local.get $len) (i32.const 3)) (i32.const -4))))
         (return_call $next)
     )
     (elem (i32.const 0x4b) $litstring)
@@ -878,7 +888,7 @@
 
     (data (i32.const 0x556c) "\5c\55\00\00\07EXECUTE\4f\00\00\00")
     (func $execute (type 0)
-        unreachable
+        (return_call_indirect (type 0) (i32.load (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x4f) $execute)

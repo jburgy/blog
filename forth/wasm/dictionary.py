@@ -71,7 +71,14 @@ words = {
     "+": [binary("i32.add")],
     "-": [binary("i32.sub")],
     "*": [binary("i32.mul")],
-    "/MOD": [],
+    "/MOD": [
+        "(local $a i32)",
+        "(local $b i32)",
+        "(local.set $a (call $pop))",
+        "(local.set $b (call $pop))",
+        "(call $push (i32.rem_s (local.get $b) (local.get $a)))",
+        "(call $push (i32.div_s (local.get $b) (local.get $a)))",
+    ],
     "=": [binary("i32.eq")],
     "<>": [binary("i32.ne")],
     "<": [binary("i32.lt_s")],
@@ -179,7 +186,14 @@ words = {
         "   (else (global.set $ip (i32.add (global.get $ip) (i32.const 4))))",
         ")",
     ],
-    "LITSTRING": [],
+    "LITSTRING": [
+        "(local $len i32)",
+        "(local.set $len (i32.load (global.get $ip)))",
+        "(global.set $ip (i32.add (global.get $ip) (i32.const 4)))",
+        "(call $push (global.get $sp))",
+        "(call $push (local.get $len))",
+        "(global.set $ip (i32.add (global.get $ip) (i32.and (i32.add (local.get $len) (i32.const 3)) (i32.const -4))))",
+    ],
     "TELL": [
         "(i32.store offset=4 (global.get $iovec) (call $pop))",
         "(i32.store offset=0 (global.get $iovec) (call $pop))",
@@ -198,7 +212,7 @@ words = {
         "(drop (call $_word))",
         "(call $push (i32.load8_u (global.get $buffer)))",
     ],
-    "EXECUTE": [],
+    "EXECUTE": ["(return_call_indirect (type 0) (i32.load (call $pop)))"],
 }
 
 immediate = {"LBRAC", "IMMEDIATE", ";"}
