@@ -266,7 +266,7 @@
 
     (data (i32.const 0x5070) "\64\50\00\00\04OVER\00\00\00\04\00\00\00")
     (func $over (type 0)
-        unreachable
+        (call $push (i32.load offset=4 (global.get $sp)))
         (return_call $next)
     )
     (elem (i32.const 0x4) $over)
@@ -294,7 +294,8 @@
 
     (data (i32.const 0x50ac) "\9c\50\00\00\042DUP\00\00\00\08\00\00\00")
     (func $2dup (type 0)
-        unreachable
+        (call $push (i32.load offset=4 (global.get $sp)))
+        (call $push (i32.load offset=4 (global.get $sp)))
         (return_call $next)
     )
     (elem (i32.const 0x8) $2dup)
@@ -308,7 +309,10 @@
 
     (data (i32.const 0x50cc) "\bc\50\00\00\04?DUP\00\00\00\0a\00\00\00")
     (func $?dup (type 0)
-        unreachable
+        (local $a i32)
+        (if (i32.eqz (local.tee $a (i32.load (global.get $sp))))
+            (then (call $push (local.get $a)))
+        )
         (return_call $next)
     )
     (elem (i32.const 0xa) $?dup)
