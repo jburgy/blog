@@ -3,7 +3,7 @@
 import struct
 
 binary = "(i32.store (global.get $sp) ({} (call $pop) (i32.load (global.get $sp))))".format
-zinary = "(i32.store (global.get $sp) ({} (i32.load (global.get $sp)) (i32.const 0)))".format
+cinary = "(i32.store (global.get $sp) ({} (i32.load (global.get $sp)) (i32.const {:d})))".format
 
 words = {
     "DROP": ["(global.set $sp (i32.add (global.get $sp) (i32.const 4)))"],
@@ -21,10 +21,10 @@ words = {
     "2DUP": [],
     "2SWAP": [],
     "?DUP": [],
-    "1+": [],
-    "1-": [],
-    "4+": [],
-    "4-": [],
+    "1+": [cinary("i32.add", 1)],
+    "1-": [cinary("i32.sub", 1)],
+    "4+": [cinary("i32.add", 4)],
+    "4-": [cinary("i32.sub", 4)],
     "+": [binary("i32.add")],
     "-": [binary("i32.sub")],
     "*": [binary("i32.mul")],
@@ -35,29 +35,33 @@ words = {
     ">": [binary("i32.gt_s")],
     "<=": [binary("i32.le_s")],
     ">=": [binary("i32.ge_s")],
-    "0=": [zinary("i32.eq")],
-    "0<>": [zinary("i32.ne")],
-    "0<": [zinary("i32.lt_s")],
-    "0>": [zinary("i32.gt_s")],
-    "0<=": [zinary("i32.le_s")],
-    "0>=": [zinary("i32.ge_s")],
+    "0=": [cinary("i32.eq", 0)],
+    "0<>": [cinary("i32.ne", 0)],
+    "0<": [cinary("i32.lt_s", 0)],
+    "0>": [cinary("i32.gt_s", 0)],
+    "0<=": [cinary("i32.le_s", 0)],
+    "0>=": [cinary("i32.ge_s", 0)],
     "AND": [binary("i32.and")],
     "OR": [binary("i32.or")],
     "XOR": [binary("i32.xor")],
-    "INVERT": [],
+    "INVERT": [cinary("i32.xor", -1)],
     "EXIT": [],
     "LIT": [
         "(call $push (i32.load (global.get $ip)))",
         "(global.set $ip (i32.add (global.get $ip) (i32.const 4)))",
-        "(return_call $next)",
     ],
     "!": ["(i32.store (call $pop) (call $pop))"],
     "@": ["(call $push (i32.load (call $pop)))"],
-    "+!": [],
-    "-!": [],
-    "C!": [],
-    "C@": [],
-    "C@+": [],
+    "+!": [
+        "(local $p i32)",
+        "(i32.store (local.tee $p (call $pop)) (i32.add (i32.load (local.get $p)) (call $pop)))",
+    ],
+    "-!": [
+        "(local $p i32)",
+        "(i32.store (local.tee $p (call $pop)) (i32.sub (i32.load (local.get $p)) (call $pop)))",
+    ],
+    "C!": ["(i32.store8 (call $pop) (call $pop))"],
+    "C@": ["(call $push (i32.load8_u (call $pop)))"],
     "CMOVE": [],
     "STATE": ["(call $push (i32.const 0x5000))"],
     "HERE": ["(call $push (i32.const 0x5005))"],
@@ -70,13 +74,13 @@ words = {
     "F_IMMED": ["(call $push (global.get $f_immed))"],
     "F_HIDDEN": ["(call $push (global.get $f_hidden))"],
     "F_LENMASK": ["(call $push (global.get $f_lenmask))"],
-    ">R": [],
-    "R>": [],
-    "RSP@": [],
+    ">R": ["(call $pushrsp (call $pop))"],
+    "R>": ["(call $push (call $poprsp))"],
+    "RSP@": ["(call $push (global.get $rsp))"],
     "RSP!": ["(global.set $rsp (call $pop))"],
-    "RDROP": [],
-    "DSP@": [],
-    "DSP!": [],
+    "RDROP": ["(global.set $rsp (i32.add (global.get $rsp) (i32.const 4)))"],
+    "DSP@": ["(call $push (global.get $sp))"],
+    "DSP!": ["(global.set $sp (call $pop))"],
     "KEY": ["(call $push (call $_key))"],
     "EMIT": [
         "(i32.store offset=0 (global.get $iovec) (global.get $sp))",
@@ -115,9 +119,12 @@ words = {
         "(i32.store (local.tee $d (i32.const 0x5004)) (call $pop))",
         "(i32.store (i32.const 0x5004) (i32.add (local.get $d) (i32.const 4)))",
     ],
-    "[": ["(i32.store (i32.const 0x5010) (i32.const 0))"],
-    "]": ["(i32.store (i32.load8_4 offset=4 (call $pop)))"],
-    "IMMEDIATE": [],
+    "[": ["(i32.store (i32.const 0x5000) (i32.const 0))"],
+    "]": ["(i32.store (i32.const 0x5000) (i32.const 1))"],
+    "IMMEDIATE": [
+        "(local $latest i32)",
+        "(i32.store8 offset=4 (local.tee $latest (i32.load (i32.const 0x5008))) (i32.xor (i32.load8_u offset=4 (local.get $latest)) (global.get $f_immed)))"
+    ],
     "HIDDEN": [
         "(local $p i32)",
         "(i32.store8 offset=4 (local.get $p)",
@@ -131,9 +138,18 @@ words = {
     ":": "WORD CREATE LIT DOCOL , LATEST @ HIDDEN ] EXIT",
     ";": "LIT EXIT , LATEST @ HIDDEN [ EXIT",
     "BRANCH": ["(global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))"],
-    "0BRANCH": [],
+    "0BRANCH": [
+        "(if (i32.eqz (call $pop))",
+        "   (then (return_call $branch))",
+        "   (else (global.set $ip (i32.add (global.get $ip) (i32.const 4))))",
+        ")",
+    ],
     "LITSTRING": [],
-    "TELL": [],
+    "TELL": [
+        "(i32.store offset=4 (global.get $iovec) (call $pop))",
+        "(i32.store offset=0 (global.get $iovec) (call $pop))",
+        "(drop (call $fd_write (i32.const 1) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
+    ],
     "INTERPRET": [
         "(local $c i32)",
         "(local $w i32)",
@@ -143,7 +159,10 @@ words = {
         ")",
     ],
     "QUIT": "R0 RSP! INTERPRET BRANCH -8",
-    "CHAR": [],
+    "CHAR": [
+        "(drop (call $_word))",
+        "(call $push (i32.load8_u (global.get $buffer)))",
+    ],
     "EXECUTE": [],
 }
 
@@ -152,7 +171,7 @@ overrides = {",": "comma", "[": "lbrac", "]": "rbrac"}
 
 index = 0
 link = 0
-offset = 0x5040
+offset = 0x5044
 ip = None
 
 indices = {"DOCOL": 0}
@@ -192,6 +211,6 @@ for name, code in words.items():
     link = offset
     offset += len(data)
 
-print("IP    :", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", ip)))
-print("LATEST:", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)))
-print("HERE  :", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)))
+print(f";; IP    : 0x{ip:04x}")
+print(";; HERE  :", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)))
+print(";; LATEST:", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)))
