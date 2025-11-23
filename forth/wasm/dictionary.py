@@ -70,7 +70,7 @@ words = {
     ],
     "C!": ["(i32.store8 (call $pop) (call $pop))"],
     "C@": ["(call $push (i32.load8_u (call $pop)))"],
-    "CMOVE": [],
+    "CMOVE": ["(call $memcpy (call $pop) (call $pop) (call $pop))"],
     "STATE": ["(call $push (i32.const 0x5000))"],
     "HERE": ["(call $push (i32.const 0x5005))"],
     "LATEST": ["(call $push (i32.const 0x5008))"],
@@ -109,18 +109,10 @@ words = {
     "CREATE": [
         "(local $c i32) ;; count (%ecx)",
         "(local $d i32) ;; destination (%edi)",
-        "(local $s i32) ;; source (%esi)",
         "(i32.store (local.tee $d (i32.load (i32.const 0x5004))) (i32.load (i32.const 0x5008))) ;; *HERE = *LATEST",
         "(i32.store (i32.const 0x5008) (local.get $d)) ;; LATEST = HERE",
         "(i32.store8 (local.tee $d (i32.add (local.get $d) (i32.const 4))) (local.tee $c (call $pop))) ;; set flags to len",
-        "(local.set $s (call $pop))",
-        "(loop $copy  ;; `rep movsb` would be nice here",
-        "    (i32.store8 (local.get $d) (i32.load8_u (local.get $s)))",
-        "    (local.set $d (i32.add (local.get $d) (i32.const 1)))",
-        "    (local.set $s (i32.add (local.get $s) (i32.const 1)))",
-        "    (br_if $copy (i32.gt_s (local.tee $c (i32.sub (local.get $c) (i32.const 1))) (i32.const 0)))",
-        ")",
-        "(i32.store (i32.const 0x5004) (i32.and (i32.add (local.get $d) (i32.const 3)) (i32.const -4))) ;; HERE = d (aligned)",
+        "(i32.store (i32.const 0x5004) (i32.and (i32.add (call $memcpy (local.get $c) (local.get $d) (call $pop)) (i32.const 3)) (i32.const -4))) ;; HERE = d (aligned)",
     ],
     ",": [
         "(local $d i32)",
@@ -213,7 +205,8 @@ for name, code in words.items():
         print("        (return_call $next)")
         print("    )")
         print(f"    (elem (i32.const 0x{index:x}) ${overrides.get(name, name).lower()})")
-    print("")
+    if name not in {"HIDE", ":"}:
+        print("")
     if name == "QUIT":
         ip = offset + 16
     link = offset

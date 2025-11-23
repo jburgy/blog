@@ -7,7 +7,6 @@
     (func $fd_write  (import "wasi_snapshot_preview1" "fd_write")  (param i32 i32 i32 i32) (result i32))
     (func $proc_exit (import "wasi_snapshot_preview1" "proc_exit") (param i32))
 
-
     ;; Here's how I understand jonesforth's memory layout:
     ;;
     ;; machine stack (used as Forth data stack)
@@ -170,6 +169,16 @@
             (br_if $while (i32.ge_s (local.tee $n (i32.sub (local.get $n) (i32.const 1))) (i32.const 0)))
         )
         (i32.const 1)
+    )
+
+    (func $memcpy (param $c i32) (param $d i32) (param $s i32) (result i32)
+        (loop $copy  ;; `rep movsb` would be nice here
+            (i32.store8 (local.get $d) (i32.load8_u (local.get $s)))
+            (local.set $d (i32.add (local.get $d) (i32.const 1)))
+            (local.set $s (i32.add (local.get $s) (i32.const 1)))
+            (br_if $copy (i32.gt_s (local.tee $c (i32.sub (local.get $c) (i32.const 1))) (i32.const 0)))
+        )
+        (local.get $d)
     )
 
     (func $_number (param $n i32) (param $s i32) (param $base i32) (result i32)
@@ -546,7 +555,7 @@
 
     (data (i32.const 0x5268) "\5c\52\00\00\05CMOVE\00\00\2b\00\00\00")
     (func $cmove (type 0)
-        unreachable
+        (call $memcpy (call $pop) (call $pop) (call $pop))
         (return_call $next)
     )
     (elem (i32.const 0x2b) $cmove)
@@ -729,18 +738,10 @@
     (func $create (type 0)
         (local $c i32) ;; count (%ecx)
         (local $d i32) ;; destination (%edi)
-        (local $s i32) ;; source (%esi)
         (i32.store (local.tee $d (i32.load (i32.const 0x5004))) (i32.load (i32.const 0x5008))) ;; *HERE = *LATEST
         (i32.store (i32.const 0x5008) (local.get $d)) ;; LATEST = HERE
         (i32.store8 (local.tee $d (i32.add (local.get $d) (i32.const 4))) (local.tee $c (call $pop))) ;; set flags to len
-        (local.set $s (call $pop))
-        (loop $copy  ;; `rep movsb` would be nice here
-            (i32.store8 (local.get $d) (i32.load8_u (local.get $s)))
-            (local.set $d (i32.add (local.get $d) (i32.const 1)))
-            (local.set $s (i32.add (local.get $s) (i32.const 1)))
-            (br_if $copy (i32.gt_s (local.tee $c (i32.sub (local.get $c) (i32.const 1))) (i32.const 0)))
-        )
-        (i32.store (i32.const 0x5004) (i32.and (i32.add (local.get $d) (i32.const 3)) (i32.const -4))) ;; HERE = d (aligned)
+        (i32.store (i32.const 0x5004) (i32.and (i32.add (call $memcpy (local.get $c) (local.get $d) (call $pop)) (i32.const 3)) (i32.const -4))) ;; HERE = d (aligned)
         (return_call $next)
     )
     (elem (i32.const 0x43) $create)
@@ -790,9 +791,7 @@
     (elem (i32.const 0x48) $hidden)
 
     (data (i32.const 0x5460) "\50\54\00\00\04HIDE\00\00\00\00\00\00\00\3f\00\00\00\41\00\00\00\48\00\00\00\23\00\00\00")
-
     (data (i32.const 0x5480) "\60\54\00\00\01:\00\00\00\00\00\00\3f\00\00\00\43\00\00\00\24\00\00\00\33\00\00\00\44\00\00\00\2e\00\00\00\26\00\00\00\48\00\00\00\46\00\00\00\23\00\00\00")
-
     (data (i32.const 0x54b4) "\80\54\00\00\81;\00\00\00\00\00\00\24\00\00\00\23\00\00\00\44\00\00\00\2e\00\00\00\26\00\00\00\48\00\00\00\45\00\00\00\23\00\00\00")
 
     (data (i32.const 0x54e0) "\b4\54\00\00\06BRANCH\00\49\00\00\00")
