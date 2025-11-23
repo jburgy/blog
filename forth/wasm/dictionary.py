@@ -2,42 +2,82 @@
 
 import struct
 
-primitives = {
-    "DROP": [
-        "(global.set $sp (i32.add (global.get $sp) (i32.const 4)))",
-    ],
+binary = "(i32.store (global.get $sp) ({} (call $pop) (i32.load (global.get $sp))))".format
+zinary = "(i32.store (global.get $sp) ({} (i32.load (global.get $sp)) (i32.const 0)))".format
+
+words = {
+    "DROP": ["(global.set $sp (i32.add (global.get $sp) (i32.const 4)))"],
     "SWAP": [
         "(local $t i32)",
         "(local.set $t (i32.load offset=4 (global.get $sp)))",
         "(i32.store offset=4 (global.get $sp) (i32.load (global.get $sp)))",
         "(i32.store (global.get $sp) (local.get $t))",
     ],
-    "DUP": [
-        "(call $push (i32.load (global.get $sp)))",
-    ],
+    "DUP": ["(call $push (i32.load (global.get $sp)))"],
+    "OVER": [],
+    "ROT": [],
+    "-ROT": [],
+    "2DRROP": ["(global.set $sp (i32.add (global.get $sp) (i32.const 8)))"],
+    "2DUP": [],
+    "2SWAP": [],
+    "?DUP": [],
+    "1+": [],
+    "1-": [],
+    "4+": [],
+    "4-": [],
+    "+": [binary("i32.add")],
+    "-": [binary("i32.sub")],
+    "*": [binary("i32.mul")],
+    "/MOD": [],
+    "=": [binary("i32.eq")],
+    "<>": [binary("i32.ne")],
+    "<": [binary("i32.lt_s")],
+    ">": [binary("i32.gt_s")],
+    "<=": [binary("i32.le_s")],
+    ">=": [binary("i32.ge_s")],
+    "0=": [zinary("i32.eq")],
+    "0<>": [zinary("i32.ne")],
+    "0<": [zinary("i32.lt_s")],
+    "0>": [zinary("i32.gt_s")],
+    "0<=": [zinary("i32.le_s")],
+    "0>=": [zinary("i32.ge_s")],
+    "AND": [binary("i32.and")],
+    "OR": [binary("i32.or")],
+    "XOR": [binary("i32.xor")],
+    "INVERT": [],
+    "EXIT": [],
     "LIT": [
         "(call $push (i32.load (global.get $ip)))",
         "(global.set $ip (i32.add (global.get $ip) (i32.const 4)))",
         "(return_call $next)",
     ],
-    "!": [
-        "(i32.store (call $pop) (call $pop))",
-    ],
-    "@": [
-        "(call $push (i32.load (call $pop)))",
-    ],
-    "LATEST": [
-        "(call $push (i32.const 0x5008))",
-    ],
-    "R0": [
-        "(call $push (global.get $r0))",
-    ],
-    "DOCOL" : [
-        "(call $push (i32.const 0))",
-    ],
-    "RSP!": [
-        "(global.set $rsp (call $pop))",
-    ],
+    "!": ["(i32.store (call $pop) (call $pop))"],
+    "@": ["(call $push (i32.load (call $pop)))"],
+    "+!": [],
+    "-!": [],
+    "C!": [],
+    "C@": [],
+    "C@+": [],
+    "CMOVE": [],
+    "STATE": ["(call $push (i32.const 0x5000))"],
+    "HERE": ["(call $push (i32.const 0x5005))"],
+    "LATEST": ["(call $push (i32.const 0x5008))"],
+    "S0": ["(call $push (i32.const 0x500C))"],
+    "BASE": ["(call $push (i32.const 0x5010))"],
+    "VERSION": ["(call $push (i32.const 47))"],
+    "R0": ["(call $push (global.get $r0))"],
+    "DOCOL": ["(call $push (i32.const 0))"],
+    "F_IMMED": ["(call $push (global.get $f_immed))"],
+    "F_HIDDEN": ["(call $push (global.get $f_hidden))"],
+    "F_LENMASK": ["(call $push (global.get $f_lenmask))"],
+    ">R": [],
+    "R>": [],
+    "RSP@": [],
+    "RSP!": ["(global.set $rsp (call $pop))"],
+    "RDROP": [],
+    "DSP@": [],
+    "DSP!": [],
+    "KEY": ["(call $push (call $_key))"],
     "EMIT": [
         "(i32.store offset=0 (global.get $iovec) (global.get $sp))",
         "(i32.store offset=4 (global.get $iovec) (i32.const 1))",
@@ -51,12 +91,9 @@ primitives = {
     "NUMBER": [
         "(call $push (call $_number (call $pop) (call $pop) (i32.load (i32.const 0x5010))))",
     ],
-    "FIND": [
-        "(call $push (call $_find (call $pop) (call $pop)))",
-    ],
-    ">CFA": [
-        "(call $push (call $_>cfa (call $pop)))",
-    ],
+    "FIND": ["(call $push (call $_find (call $pop) (call $pop)))"],
+    ">CFA": ["(call $push (call $_>cfa (call $pop)))"],
+    ">DFA": ">CFA 4+ EXIT",
     "CREATE": [
         "(local $c i32) ;; count (%ecx)",
         "(local $d i32) ;; destination (%edi)",
@@ -78,12 +115,9 @@ primitives = {
         "(i32.store (local.tee $d (i32.const 0x5004)) (call $pop))",
         "(i32.store (i32.const 0x5004) (i32.add (local.get $d) (i32.const 4)))",
     ],
-    "[": [
-        "(i32.store (i32.const 0x5010) (i32.const 0))",
-    ],
-    "]": [
-        "(i32.store (i32.load8_4 offset=4 (call $pop)))",
-    ],
+    "[": ["(i32.store (i32.const 0x5010) (i32.const 0))"],
+    "]": ["(i32.store (i32.load8_4 offset=4 (call $pop)))"],
+    "IMMEDIATE": [],
     "HIDDEN": [
         "(local $p i32)",
         "(i32.store8 offset=4 (local.get $p)",
@@ -93,9 +127,13 @@ primitives = {
         "    )",
         ")",
     ],
-    "BRANCH": [
-        "(global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))",
-    ],
+    "HIDE": "WORD FIND HIDDEN EXIT",
+    ":": "WORD CREATE LIT DOCOL , LATEST @ HIDDEN ] EXIT",
+    ";": "LIT EXIT , LATEST @ HIDDEN [ EXIT",
+    "BRANCH": ["(global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))"],
+    "0BRANCH": [],
+    "LITSTRING": [],
+    "TELL": [],
     "INTERPRET": [
         "(local $c i32)",
         "(local $w i32)",
@@ -104,96 +142,9 @@ primitives = {
         "    (else (return_call_indirect (type 0) (i32.load (call $_>cfa (local.get $w)))))",
         ")",
     ],
-}
-
-words = {
-    "DROP": "",
-    "SWAP": "",
-    "DUP": "",
-    # "OVER": "",
-    # "ROT": "",
-    # "-ROT": "",
-    # "2DRROP": "",
-    # "2DUP": "",
-    # "2SWAP": "",
-    # "?DUP": "",
-    # "1+": "",
-    # "1-": "",
-    # "4+": "",
-    # "4-": "",
-    # "+": "",
-    # "-": "",
-    # "*": "",
-    # "/MOD": "",
-    # "=": "",
-    # "<>": "",
-    # "<": "",
-    # ">": "",
-    # "<=": "",
-    # ">=": "",
-    # "0=": "",
-    # "0<>": "",
-    # "0<": "",
-    # "0>": "",
-    # "0<=": "",
-    # "0>=": "",
-    # "AND": "",
-    # "OR": "",
-    # "XOR": "",
-    # "INVERT": "",
-    "EXIT": "",
-    "LIT": "",
-    "!": "",
-    "@": "",
-    # "+!": "",
-    # "-!": "",
-    # "C!": "",
-    # "C@": "",
-    # "C@+": "",
-    # "CMOVE": "",
-    # "STATE": "",
-    # "HERE": "",
-    "LATEST": "",
-    # "S0": "",
-    # "BASE": "",
-    # "VERSION": "",
-    "R0": "",
-    # "DOCOL": "",
-    # "F_IMMED": "",
-    # "F_HIDDEN": "",
-    # "F_LENMASK": "",
-    # ">R": "",
-    # "R>": "",
-    # "RSP@": "",
-    "RSP!": "",
-    # "RDROP": "",
-    # "DSP@": "",
-    # "DSP!": "",
-    # "KEY": "",
-    "EMIT": "",
-    "WORD": "",
-    "NUMBER": "",
-    "FIND": "",
-    ">CFA": "",
-    # ">DFA": ">CFA 4+ EXIT",
-    "CREATE": "",
-    ",": "",
-    "[": "",
-    "]": "",
-    # "IMMEDIATE": "",
-    "HIDDEN": "",
-    # "HIDE": ">CFA 4+ EXIT",
-    ":": "WORD CREATE LIT DOCOL , LATEST @ HIDDEN ] EXIT",
-    ";": "LIT EXIT , LATEST @ HIDDEN [ EXIT",
-    # "'": "",
-    "BRANCH": "",
-    # "0BRANCH": "",
-    # "LITSTRING": "",
-    # "TELL": "",
-    "INTERPRET": "",
     "QUIT": "R0 RSP! INTERPRET BRANCH -8",
-    # "CHAR": "",
-    # "EXECUTE": "",
+    "CHAR": [],
+    "EXECUTE": [],
 }
 
 immediate = {"LBRAC", "IMMEDIATE", ";"}
@@ -206,32 +157,32 @@ ip = None
 
 indices = {"DOCOL": 0}
 
-for name, args in words.items():
-    args = args.split()
-    n = len(args)
-
-    if n == 0:
+for name, code in words.items():
+    data = []
+    if isinstance(code, list):
         index = len(indices)
         indices[name] = index
+    elif isinstance(code, str):
+        data = code.split()
 
     pad = (len(name) + 1) % 4
     if pad:
         pad = 4 - pad
     data = struct.pack(
-        f"<IB{len(name)}s{pad}s{n + 1}i",
+        f"<IB{len(name)}s{pad}s{len(data) + 1}i",
         link,
         len(name) | (0x80 if name in immediate else 0),
         name.encode(),
         b"\x00" * pad,
         indices.get(name, 0),
-        *(indices[arg] if arg in indices else int(arg) for arg in args),
+        *(indices[arg] if arg in indices else int(arg) for arg in data),
     )
     chars = "".join(chr(byte) if 5 <= i < 5 + len(name) else f"\\{byte:02x}" for i, byte in enumerate(data))
     print(f'    (data (i32.const 0x{offset:x}) "{chars}")')
 
-    if n == 0:
+    if isinstance(code, list):
         print(f"    (func ${overrides.get(name, name).lower()} (type 0)")
-        print(f"        {'\n        '.join(primitives.get(name, ['unreachable']))}")
+        print(f"        {'\n        '.join(code or ['unreachable'])}")
         print("        (return_call $next)")
         print("    )")
         print(f"    (elem (i32.const 0x{index:x}) ${overrides.get(name, name).lower()})")
