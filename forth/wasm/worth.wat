@@ -62,7 +62,7 @@
     (global $ip      (mut i32) (i32.const 0x5040))  ;; instruction pointer (initialized)
     (global $sp      (mut i32) (i32.const 0x2000))  ;; data stack pointer (grows downward)
     (global $rsp     (mut i32) (i32.const 0x4000))  ;; return stack pointer (grows downward)
-    
+
     (global $currkey (mut i32) (i32.const 0x4000))  ;; current place in input buffer (next character to read)
     (global $buftop  (mut i32) (i32.const 0x4000))  ;; last valid data in input buffer + 1
     (global $state    i32      (i32.const 0x5000))
@@ -87,11 +87,11 @@
     (global $f_hidden  i32 (i32.const 0x0020))
     (global $f_lenmask i32 (i32.const 0x001F))
 
-    (type (;0;) (func)) 
+    (type (;0;) (func))
 
     (func $next (type 0)
         (global.set $cfa (i32.load (global.get $ip)))
-        (global.set $ip (i32.add (global.get $ip) (i32.const 4)))        
+        (global.set $ip (i32.add (global.get $ip) (i32.const 4)))
         (return_call_indirect (type 0) (i32.load (global.get $cfa)))
     )
 
@@ -128,10 +128,7 @@
                 (i32.store offset=0 (global.get $iovec) (global.get $currkey)) ;; TIB
                 (i32.store offset=4 (global.get $iovec) (i32.const 0x1000)) ;; BUFFER_SIZE
                 (local.set $c (call $fd_read (i32.const 0) (global.get $iovec) (i32.const 1) (global.get $nwritten)))
-                (if (i32.eqz (local.get $c))
-                    (then nop) ;; Errno::Success
-                    (else (call $proc_exit (local.get $c)))
-                )                
+                (if (local.get $c) (then (call $proc_exit (local.get $c))))
                 (global.set $buftop (i32.add (global.get $currkey) (i32.load (global.get $nwritten))))
                 (br $while)
             )
@@ -172,7 +169,7 @@
             )
             (local.set $s (i32.add (local.get $s) (i32.const 1)))
             (local.set $t (i32.add (local.get $t) (i32.const 1)))
-            (br_if $while (i32.ge_s (local.tee $n (i32.sub (local.get $n) (i32.const 1))) (i32.const 0)))
+            (br_if $while (local.tee $n (i32.sub (local.get $n) (i32.const 1))))
         )
         (i32.const 1)
     )
@@ -214,7 +211,7 @@
                         (local.set $c (i32.sub (local.get $c) (i32.const 0x7))) ;; c -= 7
                         (br_if $break (i32.lt_u (local.get $c) (i32.const 0xA))) ;; if (c < 10) break;
                     )
-                )                                   
+                )
                 (br_if $break (i32.ge_u (local.get $c) (local.get $base))) ;; if (c >= base) break;
                 (local.set $res (i32.add (local.get $res) (local.get $c))) ;; res += c
                 (local.set $s (i32.add (local.get $s) (i32.const 1)))
@@ -232,27 +229,22 @@
             (loop $while
                 (br_if $break (i32.eqz (local.get $word)))
                 (if (i32.eq (i32.and (i32.load8_u offset=4 (local.get $word)) (i32.const 0x3F)) (local.get $n))
-                    (then
-                        (if (i32.eqz (call $equal (local.get $n) (local.get $s) (i32.add (local.get $word) (i32.const 5))))
-                            (then nop)
-                            (else (br $break))
-                        )
-                    )
+                    (then (br_if $break (call $equal (local.get $n) (local.get $s) (i32.add (local.get $word) (i32.const 5)))))
                 )
                 (local.set $word (i32.load (local.get $word)))  ;; word = word->link
                 (br $while)
             )
-        )    
+        )
         (local.get $word)
     )
 
     (func $_>cfa (param $word i32) (result i32)
         (i32.add
-            (i32.and 
-                (i32.add 
-                    (i32.and (i32.load8_u offset=4 (local.get $word)) (i32.const 0x1F)) 
+            (i32.and
+                (i32.add
+                    (i32.and (i32.load8_u offset=4 (local.get $word)) (i32.const 0x1F))
                     (i32.const 8)  ;; link + flag + 3
-                ) 
+                )
                 (i32.const -4)  ;; align to 4 bytes
             )
             (local.get $word)
@@ -400,21 +392,21 @@
 
     (data (i32.const 0x510c) "\00\51\00\00\01+\00\00\0f\00\00\00")
     (func $+ (type 0)
-        (i32.store (global.get $sp) (i32.add (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.add (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0xf) $+)
 
     (data (i32.const 0x5118) "\0c\51\00\00\01-\00\00\10\00\00\00")
     (func $- (type 0)
-        (i32.store (global.get $sp) (i32.sub (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.sub (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x10) $-)
 
     (data (i32.const 0x5124) "\18\51\00\00\01*\00\00\11\00\00\00")
     (func $* (type 0)
-        (i32.store (global.get $sp) (i32.mul (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.mul (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x11) $*)
@@ -433,42 +425,42 @@
 
     (data (i32.const 0x5140) "\30\51\00\00\01=\00\00\13\00\00\00")
     (func $= (type 0)
-        (i32.store (global.get $sp) (i32.eq (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.eq (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x13) $=)
 
     (data (i32.const 0x514c) "\40\51\00\00\02<>\00\14\00\00\00")
     (func $<> (type 0)
-        (i32.store (global.get $sp) (i32.ne (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.ne (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x14) $<>)
 
     (data (i32.const 0x5158) "\4c\51\00\00\01<\00\00\15\00\00\00")
     (func $< (type 0)
-        (i32.store (global.get $sp) (i32.lt_s (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.lt_s (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x15) $<)
 
     (data (i32.const 0x5164) "\58\51\00\00\01>\00\00\16\00\00\00")
     (func $> (type 0)
-        (i32.store (global.get $sp) (i32.gt_s (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.gt_s (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x16) $>)
 
     (data (i32.const 0x5170) "\64\51\00\00\02<=\00\17\00\00\00")
     (func $<= (type 0)
-        (i32.store (global.get $sp) (i32.le_s (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.le_s (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x17) $<=)
 
     (data (i32.const 0x517c) "\70\51\00\00\02>=\00\18\00\00\00")
     (func $>= (type 0)
-        (i32.store (global.get $sp) (i32.ge_s (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.ge_s (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x18) $>=)
@@ -517,21 +509,21 @@
 
     (data (i32.const 0x51d0) "\c4\51\00\00\03AND\1f\00\00\00")
     (func $and (type 0)
-        (i32.store (global.get $sp) (i32.and (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.and (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x1f) $and)
 
     (data (i32.const 0x51dc) "\d0\51\00\00\02OR\00\20\00\00\00")
     (func $or (type 0)
-        (i32.store (global.get $sp) (i32.or (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.or (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x20) $or)
 
     (data (i32.const 0x51e8) "\dc\51\00\00\03XOR\21\00\00\00")
     (func $xor (type 0)
-        (i32.store (global.get $sp) (i32.xor (call $pop) (i32.load (global.get $sp))))
+        (i32.store offset=4 (global.get $sp) (i32.xor (i32.load offset=4 (global.get $sp)) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x21) $xor)

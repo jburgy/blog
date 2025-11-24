@@ -2,9 +2,10 @@
 
 import struct
 
-# TODO: interpret must respect IMMEDIATE flag and STATE
+# TODO: rewrite ROT -ROT 2SWAP using offset instead of local variables
 
-binary = "(i32.store (global.get $sp) ({} (call $pop) (i32.load (global.get $sp))))".format
+# offset=4 when loading and storing because (local.get $sp) happens _before_ (call $pop)
+binary = "(i32.store offset=4 (global.get $sp) ({} (i32.load offset=4 (global.get $sp)) (call $pop)))".format
 cinary = "(i32.store (global.get $sp) ({} (i32.load (global.get $sp)) (i32.const {:d})))".format
 
 words = {
@@ -221,14 +222,14 @@ words = {
         "        (local.set $w (call $_number (local.get $c) (global.get $buffer)))",
         "        (if (i32.load (global.get $nwritten)) ;; unconsumed input => parse error",
         "            (then",
-        "                (i32.store offset=0 (global.get $iovec) (i32.const 0x5538)) ;; 'PARSE ERROR: '",
-        "                (i32.store offset=4 (global.get $iovec) (i32.const 13)) ;; len('PARSE ERROR: ')",
+        '                (i32.store offset=0 (global.get $iovec) (i32.const 0x5538)) ;; "PARSE ERROR: "',
+        '                (i32.store offset=4 (global.get $iovec) (i32.const 13)) ;; len("PARSE ERROR: ")',
         "                (drop (call $fd_write (i32.const 2) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
         "                (i32.store offset=0 (global.get $iovec) (global.get $buffer))",
         "                (i32.store offset=4 (global.get $iovec) (local.get $c))",
         "                (drop (call $fd_write (i32.const 2) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
-        "                (i32.store offset=0 (global.get $iovec) (i32.const 0x5545)) ;; '\n'",
-        "                (i32.store offset=4 (global.get $iovec) (i32.const 1)) ;; len('\n')",
+        '                (i32.store offset=0 (global.get $iovec) (i32.const 0x5545)) ;; "\\n"',
+        '                (i32.store offset=4 (global.get $iovec) (i32.const 1)) ;; len("\\n")',
         "                (drop (call $fd_write (i32.const 2) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
         "            )",
         "            (else",
