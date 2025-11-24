@@ -2,8 +2,6 @@
 
 import struct
 
-# TODO: rewrite ROT -ROT 2SWAP using offset instead of local variables
-
 # offset=4 when loading and storing because (local.get $sp) happens _before_ (call $pop)
 binary = "(i32.store offset=4 (global.get $sp) ({} (i32.load offset=4 (global.get $sp)) (call $pop)))".format
 cinary = "(i32.store (global.get $sp) ({} (i32.load (global.get $sp)) (i32.const {:d})))".format
@@ -22,23 +20,23 @@ words = {
         "(local $a i32)",
         "(local $b i32)",
         "(local $c i32)",
-        "(local.set $a (call $pop))",
-        "(local.set $b (call $pop))",
-        "(local.set $c (call $pop))",
-        "(call $push (local.get $b))",
-        "(call $push (local.get $a))",
-        "(call $push (local.get $c))",
+        "(local.set $a (i32.load offset=0 (global.get $sp)))",
+        "(local.set $b (i32.load offset=4 (global.get $sp)))",
+        "(local.set $c (i32.load offset=8 (global.get $sp)))",
+        "(i32.store offset=8 (global.get $sp) (local.get $b))",
+        "(i32.store offset=4 (global.get $sp) (local.get $a))",
+        "(i32.store offset=0 (global.get $sp) (local.get $c))",
     ],
     "-ROT": [
         "(local $a i32)",
         "(local $b i32)",
         "(local $c i32)",
-        "(local.set $a (call $pop))",
-        "(local.set $b (call $pop))",
-        "(local.set $c (call $pop))",
-        "(call $push (local.get $a))",
-        "(call $push (local.get $c))",
-        "(call $push (local.get $b))",
+        "(local.set $a (i32.load offset=0 (global.get $sp)))",
+        "(local.set $b (i32.load offset=4 (global.get $sp)))",
+        "(local.set $c (i32.load offset=8 (global.get $sp)))",
+        "(i32.store offset=0 (global.get $sp) (local.get $a))",
+        "(i32.store offset=4 (global.get $sp) (local.get $c))",
+        "(i32.store offset=8 (global.get $sp) (local.get $b))",
     ],
     "2DRROP": ["(global.set $sp (i32.add (global.get $sp) (i32.const 8)))"],
     "2DUP": [
@@ -50,20 +48,21 @@ words = {
         "(local $b i32)",
         "(local $c i32)",
         "(local $d i32)",
-        "(local.set $a (call $pop))",
-        "(local.set $b (call $pop))",
-        "(local.set $c (call $pop))",
-        "(local.set $d (call $pop))",
-        "(call $push (local.get $b))",
-        "(call $push (local.get $a))",
-        "(call $push (local.get $d))",
-        "(call $push (local.get $c))",
+        "(local.set $a (i32.load offset=0 (global.get $sp)))",
+        "(local.set $b (i32.load offset=4 (global.get $sp)))",
+        "(local.set $c (i32.load offset=8 (global.get $sp)))",
+        "(local.set $d (i32.load offset=12 (global.get $sp)))",
+        "(i32.store offset=12 (global.get $sp) (local.get $b))",
+        "(i32.store offset=8 (global.get $sp) (local.get $a))",
+        "(i32.store offset=4 (global.get $sp) (local.get $d))",
+        "(i32.store offset=0 (global.get $sp) (local.get $c))",
 
     ],
     "?DUP": [
         "(local $a i32)",
-        "(if (i32.eqz (local.tee $a (i32.load (global.get $sp))))",
-        "    (then (call $push (local.get $a)))",
+        "(if (local.tee $a (i32.load (global.get $sp)))",
+        "    (then nop)",
+        "    (else (call $push (local.get $a)))",
         ")",
     ],
     "1+": [cinary("i32.add", 1)],
@@ -183,9 +182,9 @@ words = {
     ";": "LIT EXIT , LATEST @ HIDDEN [ EXIT",
     "BRANCH": ["(global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))"],
     "0BRANCH": [
-        "(if (i32.eqz (call $pop))",
-        "   (then (return_call $branch))",
-        "   (else (global.set $ip (i32.add (global.get $ip) (i32.const 4))))",
+        "(if (call $pop)",
+        "    (then (global.set $ip (i32.add (global.get $ip) (i32.const 4))))",
+        "    (else (return_call $branch))",
         ")",
     ],
     "LITSTRING": [
