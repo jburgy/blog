@@ -2,6 +2,8 @@
 
 import struct
 
+# TODO: interpret must respect IMMEDIATE flag and STATE
+
 binary = "(i32.store (global.get $sp) ({} (call $pop) (i32.load (global.get $sp))))".format
 cinary = "(i32.store (global.get $sp) ({} (i32.load (global.get $sp)) (i32.const {:d})))".format
 
@@ -36,7 +38,6 @@ words = {
         "(call $push (local.get $a))",
         "(call $push (local.get $c))",
         "(call $push (local.get $b))",
-
     ],
     "2DRROP": ["(global.set $sp (i32.add (global.get $sp) (i32.const 8)))"],
     "2DUP": [
@@ -95,7 +96,7 @@ words = {
     "OR": [binary("i32.or")],
     "XOR": [binary("i32.xor")],
     "INVERT": [cinary("i32.xor", -1)],
-    "EXIT": [],
+    "EXIT": ["(global.set $ip (call $poprsp))"],
     "LIT": [
         "(call $push (i32.load (global.get $ip)))",
         "(global.set $ip (i32.add (global.get $ip) (i32.const 4)))",
@@ -204,8 +205,10 @@ words = {
         "(local $w i32)",
         "(if (i32.eqz (local.tee $w (call $_find (local.tee $c (call $_word)) (global.get $buffer))))",
         "    (then (call $push (call $_number (local.get $c) (global.get $buffer) (i32.load (i32.const 0x5010)))))",
-        "    (else (return_call_indirect (type 0) (i32.load (call $_>cfa (local.get $w)))))",
-        ")",
+        "    (else",
+        "        (global.set $cfa (call $_>cfa (local.get $w)))",
+        "        (return_call_indirect (type 0) (i32.load (global.get $cfa)))",
+        "    )",
     ],
     "QUIT": "R0 RSP! INTERPRET BRANCH -8",
     "CHAR": [
@@ -221,34 +224,31 @@ overrides = {",": "comma", "[": "lbrac", "]": "rbrac"}
 index = 0
 link = 0
 offset = 0x5044
-ip = None
 
 indices = {"DOCOL": 0}
+offsets = {"-8": -8}
 
 for name, code in words.items():
-    data = []
-    if isinstance(code, list):
-        index = len(indices)
-        indices[name] = index
-    elif isinstance(code, str):
-        data = code.split()
+    args = code.split() if isinstance(code, str) else []
 
     pad = (len(name) + 1) % 4
     if pad:
         pad = 4 - pad
     data = struct.pack(
-        f"<IB{len(name)}s{pad}s{len(data) + 1}i",
+        f"<IB{len(name)}s{pad}s{len(args) + 1}i",
         link,
         len(name) | (0x80 if name in immediate else 0),
         name.encode(),
         b"\x00" * pad,
-        indices.get(name, 0),
-        *(indices[arg] if arg in indices else int(arg) for arg in data),
+        index := 0 if isinstance(code, str) else len(indices),
+        *(offsets[arg] for arg in args),
     )
     chars = "".join(chr(byte) if 5 <= i < 5 + len(name) else f"\\{byte:02x}" for i, byte in enumerate(data))
     print(f'    (data (i32.const 0x{offset:x}) "{chars}")')
 
     if isinstance(code, list):
+        indices[name] = len(indices)
+
         print(f"    (func ${overrides.get(name, name).lower()} (type 0)")
         print(f"        {'\n        '.join(code or ['unreachable'])}")
         print("        (return_call $next)")
@@ -256,11 +256,10 @@ for name, code in words.items():
         print(f"    (elem (i32.const 0x{index:x}) ${overrides.get(name, name).lower()})")
     if name not in {"HIDE", ":"}:
         print("")
-    if name == "QUIT":
-        ip = offset + 16
     link = offset
+    offsets[name] = offset + 5 + len(name) + pad
     offset += len(data)
 
-print(f";; IP    : 0x{ip:04x}")
+print(";; START :", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offsets["QUIT"])))
 print(";; HERE  :", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)))
 print(";; LATEST:", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)))

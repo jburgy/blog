@@ -58,7 +58,8 @@
     (memory (export "memory") 1)
     (table 80 funcref)
 
-    (global $ip      (mut i32) (i32.const 0x5548))  ;; instruction pointer (initialized)
+    (global $cfa     (mut i32) (i32.const 0xcccc))  ;; code field address of the next word to define
+    (global $ip      (mut i32) (i32.const 0x5040))  ;; instruction pointer (initialized)
     (global $sp      (mut i32) (i32.const 0x2000))  ;; data stack pointer (grows downward)
     (global $rsp     (mut i32) (i32.const 0x4000))  ;; return stack pointer (grows downward)
     
@@ -73,6 +74,7 @@
     (data (i32.const 0x5008) "\6c\55\00\00")        ;; LATEST initialized to 0x51e4
     (data (i32.const 0x500C) "\00\00\20\00")        ;; S0 initialized to top of data stack
     (data (i32.const 0x5010) "\0A\00\00\00")        ;; BASE initialized to 10
+    (data (i32.const 0x5040) "\44\55\00\00")        ;; cold_start initialized to >CFA of QUIT
 
     (global $version   i32 (i32.const 0x002f))
     (global $r0        i32 (i32.const 0x4000))
@@ -83,10 +85,9 @@
     (type (;0;) (func)) 
 
     (func $next (type 0)
-        (local $t i32)
-        (local.set $t (i32.load (global.get $ip)))
-        (global.set $ip (i32.add (global.get $ip) (i32.const 4)))
-        (return_call_indirect (type 0) (local.get $t))
+        (global.set $cfa (i32.load (global.get $ip)))
+        (global.set $ip (i32.add (global.get $ip) (i32.const 4)))        
+        (return_call_indirect (type 0) (i32.load (global.get $cfa)))
     )
 
     (func $push (param $v i32)
@@ -248,6 +249,13 @@
             (local.get $word)
         )
     )
+
+    (func $_docol (type 0)
+        (call $pushrsp (global.get $ip))
+        (global.set $ip (i32.add (global.get $cfa) (i32.const 4)))
+        (return_call $next)
+    )
+    (elem (i32.const 0x0) $_docol)
 
     (data (i32.const 0x5044) "\00\00\00\00\04DROP\00\00\00\01\00\00\00")
     (func $drop (type 0)
@@ -528,7 +536,7 @@
 
     (data (i32.const 0x5204) "\f4\51\00\00\04EXIT\00\00\00\23\00\00\00")
     (func $exit (type 0)
-        unreachable
+        (global.set $ip (call $poprsp))
         (return_call $next)
     )
     (elem (i32.const 0x23) $exit)
@@ -764,7 +772,7 @@
     )
     (elem (i32.const 0x42) $>cfa)
 
-    (data (i32.const 0x53ec) "\dc\53\00\00\04>DFA\00\00\00\00\00\00\00\42\00\00\00\0d\00\00\00\23\00\00\00")
+    (data (i32.const 0x53ec) "\dc\53\00\00\04>DFA\00\00\00\00\00\00\00\e8\53\00\00\fc\50\00\00\10\52\00\00")
 
     (data (i32.const 0x5408) "\ec\53\00\00\06CREATE\00\43\00\00\00")
     (func $create (type 0)
@@ -822,9 +830,9 @@
     )
     (elem (i32.const 0x48) $hidden)
 
-    (data (i32.const 0x5460) "\50\54\00\00\04HIDE\00\00\00\00\00\00\00\3f\00\00\00\41\00\00\00\48\00\00\00\23\00\00\00")
-    (data (i32.const 0x5480) "\60\54\00\00\01:\00\00\00\00\00\00\3f\00\00\00\43\00\00\00\24\00\00\00\33\00\00\00\44\00\00\00\2e\00\00\00\26\00\00\00\48\00\00\00\46\00\00\00\23\00\00\00")
-    (data (i32.const 0x54b4) "\80\54\00\00\81;\00\00\00\00\00\00\24\00\00\00\23\00\00\00\44\00\00\00\2e\00\00\00\26\00\00\00\48\00\00\00\45\00\00\00\23\00\00\00")
+    (data (i32.const 0x5460) "\50\54\00\00\04HIDE\00\00\00\00\00\00\00\b8\53\00\00\d8\53\00\00\5c\54\00\00\10\52\00\00")
+    (data (i32.const 0x5480) "\60\54\00\00\01:\00\00\00\00\00\00\b8\53\00\00\14\54\00\00\1c\52\00\00\ec\52\00\00\20\54\00\00\a4\52\00\00\34\52\00\00\5c\54\00\00\38\54\00\00\10\52\00\00")
+    (data (i32.const 0x54b4) "\80\54\00\00\81;\00\00\00\00\00\00\1c\52\00\00\10\52\00\00\20\54\00\00\a4\52\00\00\34\52\00\00\5c\54\00\00\2c\54\00\00\10\52\00\00")
 
     (data (i32.const 0x54e0) "\b4\54\00\00\06BRANCH\00\49\00\00\00")
     (func $branch (type 0)
@@ -870,13 +878,16 @@
         (local $w i32)
         (if (i32.eqz (local.tee $w (call $_find (local.tee $c (call $_word)) (global.get $buffer))))
             (then (call $push (call $_number (local.get $c) (global.get $buffer) (i32.load (i32.const 0x5010)))))
-            (else (return_call_indirect (type 0) (i32.load (call $_>cfa (local.get $w)))))
+            (else
+                (global.set $cfa (call $_>cfa (local.get $w)))
+                (return_call_indirect (type 0) (i32.load (global.get $cfa)))
+            )
         )
         (return_call $next)
     )
     (elem (i32.const 0x4d) $interpret)
 
-    (data (i32.const 0x5538) "\24\55\00\00\04QUIT\00\00\00\00\00\00\00\32\00\00\00\39\00\00\00\4d\00\00\00\49\00\00\00\f8\ff\ff\ff")
+    (data (i32.const 0x5538) "\24\55\00\00\04QUIT\00\00\00\00\00\00\00\dc\52\00\00\5c\53\00\00\34\55\00\00\ec\54\00\00\f8\ff\ff\ff")
 
     (data (i32.const 0x555c) "\38\55\00\00\04CHAR\00\00\00\4e\00\00\00")
     (func $char (type 0)
