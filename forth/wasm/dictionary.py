@@ -114,11 +114,11 @@ words = {
     "C!": ["(i32.store8 (call $pop) (call $pop))"],
     "C@": ["(call $push (i32.load8_u (call $pop)))"],
     "CMOVE": ["(call $memcpy (call $pop) (call $pop) (call $pop))"],
-    "STATE": ["(call $push (i32.const 0x5000))"],
-    "HERE": ["(call $push (i32.const 0x5005))"],
-    "LATEST": ["(call $push (i32.const 0x5008))"],
-    "S0": ["(call $push (i32.const 0x500C))"],
-    "BASE": ["(call $push (i32.const 0x5010))"],
+    "STATE": ["(call $push (global.get $state))"],
+    "HERE": ["(call $push (global.get $here))"],
+    "LATEST": ["(call $push (global.get $latest))"],
+    "S0": ["(call $push (global.get $s0))"],
+    "BASE": ["(call $push (global.get $base))"],
     "VERSION": ["(call $push (i32.const 47))"],
     "R0": ["(call $push (global.get $r0))"],
     "DOCOL": ["(call $push (i32.const 0))"],
@@ -144,7 +144,7 @@ words = {
         "(call $push (call $_word (call $pop) (call $pop)))",
     ],
     "NUMBER": [
-        "(call $push (call $_number (call $pop) (call $pop) (i32.load (i32.const 0x5010))))",
+        "(call $push (call $_number (call $pop) (call $pop)))",
     ],
     "FIND": ["(call $push (call $_find (call $pop) (call $pop)))"],
     ">CFA": ["(call $push (call $_>cfa (call $pop)))"],
@@ -152,21 +152,21 @@ words = {
     "CREATE": [
         "(local $c i32) ;; count (%ecx)",
         "(local $d i32) ;; destination (%edi)",
-        "(i32.store (local.tee $d (i32.load (i32.const 0x5004))) (i32.load (i32.const 0x5008))) ;; *HERE = *LATEST",
-        "(i32.store (i32.const 0x5008) (local.get $d)) ;; LATEST = HERE",
+        "(i32.store (local.tee $d (i32.load (global.get $here))) (i32.load (global.get $latest))) ;; *HERE = *LATEST",
+        "(i32.store (global.get $latest) (local.get $d)) ;; LATEST = HERE",
         "(i32.store8 (local.tee $d (i32.add (local.get $d) (i32.const 4))) (local.tee $c (call $pop))) ;; set flags to len",
-        "(i32.store (i32.const 0x5004) (i32.and (i32.add (call $memcpy (local.get $c) (local.get $d) (call $pop)) (i32.const 3)) (i32.const -4))) ;; HERE = d (aligned)",
+        "(i32.store (global.get $here) (i32.and (i32.add (call $memcpy (local.get $c) (local.get $d) (call $pop)) (i32.const 3)) (i32.const -4))) ;; HERE = d (aligned)",
     ],
     ",": [
         "(local $d i32)",
-        "(i32.store (local.tee $d (i32.const 0x5004)) (call $pop))",
-        "(i32.store (i32.const 0x5004) (i32.add (local.get $d) (i32.const 4)))",
+        "(i32.store (local.tee $d (global.get $here)) (call $pop))",
+        "(i32.store (global.get $here) (i32.add (local.get $d) (i32.const 4)))",
     ],
-    "[": ["(i32.store (i32.const 0x5000) (i32.const 0))"],
-    "]": ["(i32.store (i32.const 0x5000) (i32.const 1))"],
+    "[": ["(i32.store (global.get $state) (i32.const 0))"],
+    "]": ["(i32.store (global.get $state) (i32.const 1))"],
     "IMMEDIATE": [
         "(local $latest i32)",
-        "(i32.store8 offset=4 (local.tee $latest (i32.load (i32.const 0x5008))) (i32.xor (i32.load8_u offset=4 (local.get $latest)) (global.get $f_immed)))"
+        "(i32.store8 offset=4 (local.tee $latest (i32.load (global.get $latest))) (i32.xor (i32.load8_u offset=4 (local.get $latest)) (global.get $f_immed)))"
     ],
     "HIDDEN": [
         "(local $p i32)",
@@ -203,12 +203,47 @@ words = {
     "INTERPRET": [
         "(local $c i32)",
         "(local $w i32)",
-        "(if (i32.eqz (local.tee $w (call $_find (local.tee $c (call $_word)) (global.get $buffer))))",
-        "    (then (call $push (call $_number (local.get $c) (global.get $buffer) (i32.load (i32.const 0x5010)))))",
-        "    (else",
-        "        (global.set $cfa (call $_>cfa (local.get $w)))",
-        "        (return_call_indirect (type 0) (i32.load (global.get $cfa)))",
+        "(if (local.tee $w (call $_find (local.tee $c (call $_word)) (global.get $buffer)))",
+        "    (then ;; found word => execute or append",
+        "        (if (i32.or",
+        "                (i32.and (i32.load8_u offset=4 (local.get $w)) (global.get $f_immed))",
+        "                (i32.eqz (i32.load (global.get $state)))",
+        "            )",
+        "            (then",
+        "                (global.set $cfa (call $_>cfa (local.get $w)))",
+        "                (return_call_indirect (type 0) (i32.load (global.get $cfa)))",
+        "            )",
+        "        )",
+        "        (i32.store (i32.load (global.get $here)) (local.get $w))",
+        "        (i32.store (global.get $here) (i32.add (i32.load (global.get $here)) (i32.const 4)))",
         "    )",
+        "    (else",
+        "        (local.set $w (call $_number (local.get $c) (global.get $buffer)))",
+        "        (if (i32.load (global.get $nwritten)) ;; unconsumed input => parse error",
+        "            (then",
+        "                (i32.store offset=0 (global.get $iovec) (i32.const 0x5538)) ;; 'PARSE ERROR: '",
+        "                (i32.store offset=4 (global.get $iovec) (i32.const 13)) ;; len('PARSE ERROR: ')",
+        "                (drop (call $fd_write (i32.const 2) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
+        "                (i32.store offset=0 (global.get $iovec) (global.get $buffer))",
+        "                (i32.store offset=4 (global.get $iovec) (local.get $c))",
+        "                (drop (call $fd_write (i32.const 2) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
+        "                (i32.store offset=0 (global.get $iovec) (i32.const 0x5545)) ;; '\n'",
+        "                (i32.store offset=4 (global.get $iovec) (i32.const 1)) ;; len('\n')",
+        "                (drop (call $fd_write (i32.const 2) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
+        "            )",
+        "            (else",
+        "                (if (i32.load (global.get $state)) ;; compile number",
+        "                    (then",
+        "                        (i32.store (i32.load (global.get $here)) (i32.const 0x521C)) ;; LIT cfa",
+        "                        (i32.store offset=4 (i32.load (global.get $here)) (local.get $w))",
+        "                        (i32.store (global.get $here) (i32.add (i32.load (global.get $here)) (i32.const 8)))",
+        "                    )",
+        "                    (else (call $push (local.get $w)))",
+        "                )",
+        "            )",
+        "        )",
+        "    )",
+        ")",
     ],
     "QUIT": "R0 RSP! INTERPRET BRANCH -8",
     "CHAR": [
@@ -260,6 +295,10 @@ for name, code in words.items():
     offsets[name] = offset + 5 + len(name) + pad
     offset += len(data)
 
-print(";; START :", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offsets["QUIT"])))
-print(";; HERE  :", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)))
-print(";; LATEST:", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)))
+    if name == "INTERPRET":
+        print(f'    (data (i32.const 0x{offset:x}) "PARSE ERROR: \\0A\\00\\00")')
+        offset += 16
+
+print("  (data (i32.const 0x5004) ", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)), ")", sep="")
+print("  (data (i32.const 0x5008) ", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)), ")", sep="")
+print("  (data (i32.const 0x5040) ", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offsets["QUIT"])), ")", sep="")
