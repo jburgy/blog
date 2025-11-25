@@ -126,9 +126,7 @@ words = {
     "DSP!": ["(global.set $sp (call $pop))"],
     "KEY": ["(call $push (call $_key))"],
     "EMIT": [
-        "(i32.store offset=0 (global.get $iovec) (global.get $sp))",
-        "(i32.store offset=4 (global.get $iovec) (i32.const 1))",
-        "(drop (call $fd_write (i32.const 1) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
+        "(call $write (i32.const 1) (global.get $sp) (i32.const 1))",
         "(global.set $sp (i32.add (global.get $sp) (i32.const 4)))",
     ],
     "WORD": [
@@ -187,11 +185,7 @@ words = {
         "(call $push (local.get $len))",
         "(global.set $ip (i32.add (global.get $ip) (i32.and (i32.add (local.get $len) (i32.const 3)) (i32.const -4))))",
     ],
-    "TELL": [
-        "(i32.store offset=4 (global.get $iovec) (call $pop))",
-        "(i32.store offset=0 (global.get $iovec) (call $pop))",
-        "(drop (call $fd_write (i32.const 1) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
-    ],
+    "TELL": ["(call $write (i32.const 1) (call $pop) (call $pop))"],
     "INTERPRET": [
         "(local $c i32)",
         "(local $w i32)",
@@ -213,15 +207,9 @@ words = {
         "        (local.set $w (call $_number (local.get $c) (global.get $buffer)))",
         "        (if (i32.load (global.get $nwritten)) ;; unconsumed input => parse error",
         "            (then",
-        '                (i32.store offset=0 (global.get $iovec) (i32.const 0x5538)) ;; "PARSE ERROR: "',
-        '                (i32.store offset=4 (global.get $iovec) (i32.const 13)) ;; len("PARSE ERROR: ")',
-        "                (drop (call $fd_write (i32.const 2) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
-        "                (i32.store offset=0 (global.get $iovec) (global.get $buffer))",
-        "                (i32.store offset=4 (global.get $iovec) (local.get $c))",
-        "                (drop (call $fd_write (i32.const 2) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
-        '                (i32.store offset=0 (global.get $iovec) (i32.const 0x5545)) ;; "\\n"',
-        '                (i32.store offset=4 (global.get $iovec) (i32.const 1)) ;; len("\\n")',
-        "                (drop (call $fd_write (i32.const 2) (global.get $iovec) (i32.const 1) (global.get $nwritten)))",
+        '                (call $write (i32.const 2) (i32.const 0x5538) (i32.const 13)) ;; "PARSE ERROR:"',
+        "                (call $write (i32.const 2) (global.get $buffer) (local.get $c))",
+        '                (call $write (i32.const 2) (i32.const 0x5545) (i32.const 1)) ;; "\n"'
         "            )",
         "            (else",
         "                (if (i32.load (global.get $state)) ;; compile number",
