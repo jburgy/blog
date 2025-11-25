@@ -17,26 +17,22 @@ words = {
     "DUP": ["(call $push (i32.load (global.get $sp)))"],
     "OVER": ["(call $push (i32.load offset=4 (global.get $sp)))"],
     "ROT": [
-        "(local $a i32)",
-        "(local $b i32)",
-        "(local $c i32)",
-        "(local.set $a (i32.load offset=0 (global.get $sp)))",
-        "(local.set $b (i32.load offset=4 (global.get $sp)))",
-        "(local.set $c (i32.load offset=8 (global.get $sp)))",
-        "(i32.store offset=8 (global.get $sp) (local.get $b))",
-        "(i32.store offset=4 (global.get $sp) (local.get $a))",
-        "(i32.store offset=0 (global.get $sp) (local.get $c))",
+        "(local i32 i32 i32)",
+        "(local.set 0 (i32.load offset=0 (global.get $sp)))",
+        "(local.set 1 (i32.load offset=4 (global.get $sp)))",
+        "(local.set 2 (i32.load offset=8 (global.get $sp)))",
+        "(i32.store offset=8 (global.get $sp) (local.get 1))",
+        "(i32.store offset=4 (global.get $sp) (local.get 0))",
+        "(i32.store offset=0 (global.get $sp) (local.get 2))",
     ],
     "-ROT": [
-        "(local $a i32)",
-        "(local $b i32)",
-        "(local $c i32)",
-        "(local.set $a (i32.load offset=0 (global.get $sp)))",
-        "(local.set $b (i32.load offset=4 (global.get $sp)))",
-        "(local.set $c (i32.load offset=8 (global.get $sp)))",
-        "(i32.store offset=0 (global.get $sp) (local.get $a))",
-        "(i32.store offset=4 (global.get $sp) (local.get $c))",
-        "(i32.store offset=8 (global.get $sp) (local.get $b))",
+        "(local i32 i32 i32)",
+        "(local.set 0 (i32.load offset=0 (global.get $sp)))",
+        "(local.set 1 (i32.load offset=4 (global.get $sp)))",
+        "(local.set 2 (i32.load offset=8 (global.get $sp)))",
+        "(i32.store offset=0 (global.get $sp) (local.get 0))",
+        "(i32.store offset=4 (global.get $sp) (local.get 2))",
+        "(i32.store offset=8 (global.get $sp) (local.get 1))",
     ],
     "2DRROP": ["(global.set $sp (i32.add (global.get $sp) (i32.const 8)))"],
     "2DUP": [
@@ -44,18 +40,15 @@ words = {
         "(call $push (i32.load offset=4 (global.get $sp)))",
     ],
     "2SWAP": [
-        "(local $a i32)",
-        "(local $b i32)",
-        "(local $c i32)",
-        "(local $d i32)",
-        "(local.set $a (i32.load offset=0 (global.get $sp)))",
-        "(local.set $b (i32.load offset=4 (global.get $sp)))",
-        "(local.set $c (i32.load offset=8 (global.get $sp)))",
-        "(local.set $d (i32.load offset=12 (global.get $sp)))",
-        "(i32.store offset=12 (global.get $sp) (local.get $b))",
-        "(i32.store offset=8 (global.get $sp) (local.get $a))",
-        "(i32.store offset=4 (global.get $sp) (local.get $d))",
-        "(i32.store offset=0 (global.get $sp) (local.get $c))",
+        "(local i32 i32 i32 i32)",
+        "(local.set 0 (i32.load offset=0 (global.get $sp)))",
+        "(local.set 1 (i32.load offset=4 (global.get $sp)))",
+        "(local.set 2 (i32.load offset=8 (global.get $sp)))",
+        "(local.set 3 (i32.load offset=12 (global.get $sp)))",
+        "(i32.store offset=12 (global.get $sp) (local.get 1))",
+        "(i32.store offset=8 (global.get $sp) (local.get 0))",
+        "(i32.store offset=4 (global.get $sp) (local.get 3))",
+        "(i32.store offset=0 (global.get $sp) (local.get 2))",
 
     ],
     "?DUP": [
@@ -73,12 +66,11 @@ words = {
     "-": [binary("i32.sub")],
     "*": [binary("i32.mul")],
     "/MOD": [
-        "(local $a i32)",
-        "(local $b i32)",
-        "(local.set $a (call $pop))",
-        "(local.set $b (call $pop))",
-        "(call $push (i32.rem_s (local.get $b) (local.get $a)))",
-        "(call $push (i32.div_s (local.get $b) (local.get $a)))",
+        "(local i32 i32)",
+        "(local.set 0 (call $pop))",
+        "(local.set 1 (call $pop))",
+        "(call $push (i32.rem_s (local.get 1) (local.get 0)))",
+        "(call $push (i32.div_s (local.get 1) (local.get 0)))",
     ],
     "=": [binary("i32.eq")],
     "<>": [binary("i32.ne")],
@@ -250,17 +242,19 @@ words = {
         "(drop (call $_word))",
         "(call $push (i32.load8_u (global.get $buffer)))",
     ],
-    "EXECUTE": ["(return_call_indirect (type 0) (i32.load (call $pop)))"],
+    "EXECUTE": [
+        "(global.set $cfa (call $pop))"
+        "(return_call_indirect (type 0) (i32.load (global.get $cfa)))"
+    ],
 }
 
 immediate = {"LBRAC", "IMMEDIATE", ";"}
 overrides = {",": "comma", "[": "lbrac", "]": "rbrac"}
 
-index = 0
+index = 1
 link = 0
 offset = 0x5044
 
-indices = {"DOCOL": 0}
 offsets = {"-8": -8}
 
 for name, code in words.items():
@@ -275,20 +269,17 @@ for name, code in words.items():
         len(name) | (0x80 if name in immediate else 0),
         name.encode(),
         b"\x00" * pad,
-        index := 0 if isinstance(code, str) else len(indices),
+        0 if isinstance(code, str) else index,
         *(offsets[arg] for arg in args),
     )
     chars = "".join(chr(byte) if 5 <= i < 5 + len(name) else f"\\{byte:02x}" for i, byte in enumerate(data))
     print(f'    (data (i32.const 0x{offset:x}) "{chars}")')
 
     if isinstance(code, list):
-        indices[name] = len(indices)
-
-        print(f"    (func ${overrides.get(name, name).lower()} (type 0)")
-        print(f"        {'\n        '.join(code or ['unreachable'])}")
-        print("        (return_call $next)")
+        print(f"    (func ${overrides.get(name, name).lower()} (type 0)", *code, "(return_call $next)", sep="\n        ")
         print("    )")
         print(f"    (elem (i32.const 0x{index:x}) ${overrides.get(name, name).lower()})")
+        index += 1
     if name not in {"HIDE", ":"}:
         print("")
     link = offset
