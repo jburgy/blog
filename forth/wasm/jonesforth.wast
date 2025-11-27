@@ -125,8 +125,9 @@
                 (global.set $currkey (i32.const 0x4000))
                 (i32.store offset=0 (global.get $iovec) (global.get $currkey)) ;; TIB
                 (i32.store offset=4 (global.get $iovec) (i32.const 0x1000)) ;; BUFFER_SIZE
-                (local.set $c (call $fd_read (i32.const 0) (global.get $iovec) (i32.const 1) (global.get $nwritten)))
-                (if (local.get $c) (then (call $proc_exit (local.get $c))))
+                (if (local.tee $c (call $fd_read (i32.const 0) (global.get $iovec) (i32.const 1) (global.get $nwritten)))
+                    (then (call $proc_exit (local.get $c)))
+                )
                 (global.set $buftop (i32.add (global.get $currkey) (i32.load (global.get $nwritten))))
                 (br $while)
             )
@@ -825,7 +826,7 @@
     (elem (i32.const 0x49) $hidden)
 
     (data (i32.const 0x5460) "\50\54\00\00\04HIDE\00\00\00\00\00\00\00\b8\53\00\00\d8\53\00\00\5c\54\00\00\10\52\00\00")
-    (data (i32.const 0x5480) "\60\54\00\00\01:\00\00\00\00\00\00\b8\53\00\00\14\54\00\00\1c\52\00\00\ec\52\00\00\20\54\00\00\a4\52\00\00\34\52\00\00\5c\54\00\00\38\54\00\00\10\52\00\00")
+    (data (i32.const 0x5480) "\60\54\00\00\01:\00\00\00\00\00\00\b8\53\00\00\14\54\00\00\1c\52\00\00\00\00\00\00\20\54\00\00\a4\52\00\00\34\52\00\00\5c\54\00\00\38\54\00\00\10\52\00\00")
     (data (i32.const 0x54b4) "\80\54\00\00\81;\00\00\00\00\00\00\1c\52\00\00\10\52\00\00\20\54\00\00\a4\52\00\00\34\52\00\00\5c\54\00\00\2c\54\00\00\10\52\00\00")
 
     (data (i32.const 0x54e0) "\b4\54\00\00\06BRANCH\00\4a\00\00\00")
@@ -870,16 +871,16 @@
         (local $w i32)
         (if (local.tee $w (call $_find (local.tee $c (call $_word)) (global.get $buffer)))
             (then ;; found word => execute or append
+                (global.set $cfa (call $_>cfa (local.get $w)))
                 (if (i32.or
                         (i32.and (i32.load8_u offset=4 (local.get $w)) (global.get $f_immed))
                         (i32.eqz (i32.load (global.get $state)))
                     )
                     (then
-                        (global.set $cfa (call $_>cfa (local.get $w)))
                         (return_call_indirect (type 0) (i32.load (global.get $cfa)))
                     )
                 )
-                (i32.store (i32.load (global.get $here)) (local.get $w))
+                (i32.store (i32.load (global.get $here)) (global.get $cfa))
                 (i32.store (global.get $here) (i32.add (i32.load (global.get $here)) (i32.const 4)))
             )
             (else

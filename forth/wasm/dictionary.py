@@ -168,7 +168,7 @@ words = {
         ")",
     ],
     "HIDE": "WORD FIND HIDDEN EXIT",
-    ":": "WORD CREATE LIT DOCOL , LATEST @ HIDDEN ] EXIT",
+    ":": "WORD CREATE LIT &DOCOL , LATEST @ HIDDEN ] EXIT",
     ";": "LIT EXIT , LATEST @ HIDDEN [ EXIT",
     "BRANCH": ["(global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))"],
     "0BRANCH": [
@@ -191,16 +191,16 @@ words = {
         "(local $w i32)",
         "(if (local.tee $w (call $_find (local.tee $c (call $_word)) (global.get $buffer)))",
         "    (then ;; found word => execute or append",
+        "        (global.set $cfa (call $_>cfa (local.get $w)))",
         "        (if (i32.or",
         "                (i32.and (i32.load8_u offset=4 (local.get $w)) (global.get $f_immed))",
         "                (i32.eqz (i32.load (global.get $state)))",
         "            )",
         "            (then",
-        "                (global.set $cfa (call $_>cfa (local.get $w)))",
         "                (return_call_indirect (type 0) (i32.load (global.get $cfa)))",
         "            )",
         "        )",
-        "        (i32.store (i32.load (global.get $here)) (local.get $w))",
+        "        (i32.store (i32.load (global.get $here)) (global.get $cfa))",
         "        (i32.store (global.get $here) (i32.add (i32.load (global.get $here)) (i32.const 4)))",
         "    )",
         "    (else",
@@ -243,7 +243,7 @@ index = 1
 link = 0
 offset = 0x5044
 
-offsets = {"-8": -8}
+offsets = {"-8": -8, "&DOCOL": 0}
 
 for name, code in words.items():
     args = code.split() if isinstance(code, str) else []
