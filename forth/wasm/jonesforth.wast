@@ -81,8 +81,6 @@
     (data (i32.const 0x5010) "\0A\00\00\00")        ;; BASE initialized to 10
     (data (i32.const 0x5040) "\54\55\00\00")        ;; cold_start initialized to >CFA of QUIT
 
-    (global $version   i32 (i32.const 0x002f))
-    (global $r0        i32 (i32.const 0x4000))
     (global $f_immed   i32 (i32.const 0x0080))
     (global $f_hidden  i32 (i32.const 0x0020))
     (global $f_lenmask i32 (i32.const 0x001F))
@@ -140,7 +138,7 @@
 
     (func $write (param i32 i32 i32)
         (i32.store offset=0 (global.get $iovec) (local.get 1))
-        (i32.store offset=4 (global.get $iovec) (i32.const 2))
+        (i32.store offset=4 (global.get $iovec) (local.get 2))
         (drop (call $fd_write (local.get 0) (global.get $iovec) (i32.const 1) (global.get $nwritten)))
     )
 
@@ -185,7 +183,7 @@
             (i32.store8 (local.get $d) (i32.load8_u (local.get $s)))
             (local.set $d (i32.add (local.get $d) (i32.const 1)))
             (local.set $s (i32.add (local.get $s) (i32.const 1)))
-            (br_if $copy (i32.gt_s (local.tee $c (i32.sub (local.get $c) (i32.const 1))) (i32.const 0)))
+            (br_if $copy (local.tee $c (i32.sub (local.get $c) (i32.const 1))))
         )
         (local.get $d)
     )
@@ -593,7 +591,7 @@
 
     (data (i32.const 0x5268) "\5c\52\00\00\05CMOVE\00\00\2b\00\00\00")
     (func $cmove (type 0)
-        (call $memcpy (call $pop) (call $pop) (call $pop))
+        (drop (call $memcpy (call $pop) (call $pop) (call $pop)))
         (return_call $next)
     )
     (elem (i32.const 0x2b) $cmove)
@@ -635,14 +633,14 @@
 
     (data (i32.const 0x52c4) "\b4\52\00\00\07VERSION\31\00\00\00")
     (func $version (type 0)
-        (call $push (i32.const 47))
+        (call $push (i32.const 0x2f))
         (return_call $next)
     )
     (elem (i32.const 0x31) $version)
 
     (data (i32.const 0x52d4) "\c4\52\00\00\02R0\00\32\00\00\00")
     (func $r0 (type 0)
-        (call $push (global.get $r0))
+        (call $push (i32.const 0x4000))
         (return_call $next)
     )
     (elem (i32.const 0x32) $r0)
@@ -742,7 +740,7 @@
     (data (i32.const 0x53ac) "\9c\53\00\00\04WORD\00\00\00\40\00\00\00")
     (func $word (type 0)
         (call $push (global.get $buffer))
-        (call $push (call $_word (call $pop) (call $pop)))
+        (call $push (call $_word))
         (return_call $next)
     )
     (elem (i32.const 0x40) $word)
@@ -776,8 +774,8 @@
         (local $d i32) ;; destination (%edi)
         (i32.store (local.tee $d (i32.load (global.get $here))) (i32.load (global.get $latest))) ;; *HERE = *LATEST
         (i32.store (global.get $latest) (local.get $d)) ;; LATEST = HERE
-        (i32.store8 (local.tee $d (i32.add (local.get $d) (i32.const 4))) (local.tee $c (call $pop))) ;; set flags to len
-        (i32.store (global.get $here) (i32.and (i32.add (call $memcpy (local.get $c) (local.get $d) (call $pop)) (i32.const 3)) (i32.const -4))) ;; HERE = d (aligned)
+        (i32.store8 offset=4 (local.get $d) (local.tee $c (call $pop))) ;; set flags to len
+        (i32.store (global.get $here) (i32.and (i32.add (call $memcpy (local.get $c) (i32.add (local.get $d) (i32.const 5)) (call $pop)) (i32.const 3)) (i32.const -4))) ;; HERE = d (aligned)
         (return_call $next)
     )
     (elem (i32.const 0x44) $create)
@@ -785,7 +783,7 @@
     (data (i32.const 0x5418) "\08\54\00\00\01,\00\00\45\00\00\00")
     (func $comma (type 0)
         (local $d i32)
-        (i32.store (local.tee $d (global.get $here)) (call $pop))
+        (i32.store (local.tee $d (i32.load (global.get $here))) (call $pop))
         (i32.store (global.get $here) (i32.add (local.get $d) (i32.const 4)))
         (return_call $next)
     )
@@ -816,9 +814,9 @@
     (data (i32.const 0x5450) "\3c\54\00\00\06HIDDEN\00\49\00\00\00")
     (func $hidden (type 0)
         (local $p i32)
-        (i32.store8 offset=4 (local.get $p)
+        (i32.store8 offset=4 (local.tee $p (call $pop))
             (i32.xor
-                (i32.load8_u offset=4 (local.tee $p (call $pop)))
+                (i32.load8_u offset=4 (local.get $p))
                 (global.get $f_hidden)
             )
         )
@@ -922,7 +920,8 @@
 
     (data (i32.const 0x557c) "\6c\55\00\00\07EXECUTE\50\00\00\00")
     (func $execute (type 0)
-        (global.set $cfa (call $pop))(return_call_indirect (type 0) (i32.load (global.get $cfa)))
+        (global.set $cfa (call $pop))
+        (return_call_indirect (type 0) (i32.load (global.get $cfa)))
     )
     (elem (i32.const 0x50) $execute)
 
