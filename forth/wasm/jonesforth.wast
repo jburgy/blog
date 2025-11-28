@@ -56,7 +56,7 @@
     ;;   0x5044 -       : word definitions (\00\00\00\00 4DROP\00\00\00 \02\00\00\00)
 
     (memory (export "memory") 1)
-    (table 81 funcref)
+    (table 82 funcref)
 
     (global $cfa     (mut i32) (i32.const 0xcccc))  ;; code field address of the next word to define
     (global $ip      (mut i32) (i32.const 0x5040))  ;; instruction pointer (initialized)
@@ -75,11 +75,11 @@
     (global $buffer   i32      (i32.const 0x5020))  ;; word_buffer
 
     (data (i32.const 0x5000) "\00\00\00\00")        ;; STATE initialized to 0 (interpreting)
-    (data (i32.const 0x5004) "\8c\55\00\00")        ;; HERE initialized to 0x558c
-    (data (i32.const 0x5008) "\7c\55\00\00")        ;; LATEST initialized to 0x557c
+    (data (i32.const 0x5004) "\98\55\00\00")        ;; HERE initialized to 0x5598
+    (data (i32.const 0x5008) "\88\55\00\00")        ;; LATEST initialized to 0x5588
     (data (i32.const 0x500C) "\00\00\20\00")        ;; S0 initialized to top of data stack
     (data (i32.const 0x5010) "\0A\00\00\00")        ;; BASE initialized to 10
-    (data (i32.const 0x5040) "\54\55\00\00")        ;; cold_start initialized to >CFA of QUIT
+    (data (i32.const 0x5040) "\60\55\00\00")        ;; cold_start initialized to >CFA of QUIT
 
     (global $f_immed   i32 (i32.const 0x0080))
     (global $f_hidden  i32 (i32.const 0x0020))
@@ -829,14 +829,22 @@
     (data (i32.const 0x5480) "\60\54\00\00\01:\00\00\00\00\00\00\b8\53\00\00\14\54\00\00\1c\52\00\00\00\00\00\00\20\54\00\00\a4\52\00\00\34\52\00\00\5c\54\00\00\38\54\00\00\10\52\00\00")
     (data (i32.const 0x54b4) "\80\54\00\00\81;\00\00\00\00\00\00\1c\52\00\00\10\52\00\00\20\54\00\00\a4\52\00\00\34\52\00\00\5c\54\00\00\2c\54\00\00\10\52\00\00")
 
-    (data (i32.const 0x54e0) "\b4\54\00\00\06BRANCH\00\4a\00\00\00")
+    (data (i32.const 0x54e0) "\b4\54\00\00\01'\00\00\4a\00\00\00")
+    (func $' (type 0)
+        (call $push (i32.load (global.get $ip)))
+        (global.set $ip (i32.add (global.get $ip) (i32.const 4)))
+        (return_call $next)
+    )
+    (elem (i32.const 0x4a) $')
+
+    (data (i32.const 0x54ec) "\e0\54\00\00\06BRANCH\00\4b\00\00\00")
     (func $branch (type 0)
         (global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))
         (return_call $next)
     )
-    (elem (i32.const 0x4a) $branch)
+    (elem (i32.const 0x4b) $branch)
 
-    (data (i32.const 0x54f0) "\e0\54\00\00\070BRANCH\4b\00\00\00")
+    (data (i32.const 0x54fc) "\ec\54\00\00\070BRANCH\4c\00\00\00")
     (func $0branch (type 0)
         (if (call $pop)
             (then (global.set $ip (i32.add (global.get $ip) (i32.const 4))))
@@ -844,9 +852,9 @@
         )
         (return_call $next)
     )
-    (elem (i32.const 0x4b) $0branch)
+    (elem (i32.const 0x4c) $0branch)
 
-    (data (i32.const 0x5500) "\f0\54\00\00\09LITSTRING\00\00\4c\00\00\00")
+    (data (i32.const 0x550c) "\fc\54\00\00\09LITSTRING\00\00\4d\00\00\00")
     (func $litstring (type 0)
         (local $len i32)
         (local.set $len (i32.load (global.get $ip)))
@@ -856,16 +864,16 @@
         (global.set $ip (i32.add (global.get $ip) (i32.and (i32.add (local.get $len) (i32.const 3)) (i32.const -4))))
         (return_call $next)
     )
-    (elem (i32.const 0x4c) $litstring)
+    (elem (i32.const 0x4d) $litstring)
 
-    (data (i32.const 0x5514) "\00\55\00\00\04TELL\00\00\00\4d\00\00\00")
+    (data (i32.const 0x5520) "\0c\55\00\00\04TELL\00\00\00\4e\00\00\00")
     (func $tell (type 0)
         (call $write (i32.const 1) (call $pop) (call $pop))
         (return_call $next)
     )
-    (elem (i32.const 0x4d) $tell)
+    (elem (i32.const 0x4e) $tell)
 
-    (data (i32.const 0x5524) "\14\55\00\00\09INTERPRET\00\00\4e\00\00\00")
+    (data (i32.const 0x5530) "\20\55\00\00\09INTERPRET\00\00\4f\00\00\00")
     (func $interpret (type 0)
         (local $c i32)
         (local $w i32)
@@ -887,9 +895,9 @@
                 (local.set $w (call $_number (local.get $c) (global.get $buffer)))
                 (if (i32.load (global.get $nwritten)) ;; unconsumed input => parse error
                     (then
-                        (call $write (i32.const 2) (i32.const 0x5538) (i32.const 13)) ;; "PARSE ERROR:"
+                        (call $write (i32.const 2) (i32.const 0x5544) (i32.const 13)) ;; "PARSE ERROR:"
                         (call $write (i32.const 2) (global.get $buffer) (local.get $c))
-                        (call $write (i32.const 2) (i32.const 0x5545) (i32.const 1)) ;; "\n"
+                        (call $write (i32.const 2) (i32.const 0x5551) (i32.const 1)) ;; "\n"
                     )
                     (else
                         (if (i32.load (global.get $state)) ;; compile number
@@ -906,25 +914,26 @@
         )
         (return_call $next)
     )
-    (elem (i32.const 0x4e) $interpret)
+    (elem (i32.const 0x4f) $interpret)
 
-    (data (i32.const 0x5538) "PARSE ERROR: \0A\00\00")
-    (data (i32.const 0x5548) "\24\55\00\00\04QUIT\00\00\00\00\00\00\00\dc\52\00\00\5c\53\00\00\34\55\00\00\ec\54\00\00\f8\ff\ff\ff")
+    (data (i32.const 0x5544) "PARSE ERROR: \0A\00\00")
+    (data (i32.const 0x5554) "\30\55\00\00\04QUIT\00\00\00\00\00\00\00\dc\52\00\00\5c\53\00\00\40\55\00\00\f8\54\00\00\f8\ff\ff\ff")
 
-    (data (i32.const 0x556c) "\48\55\00\00\04CHAR\00\00\00\4f\00\00\00")
+    (data (i32.const 0x5578) "\54\55\00\00\04CHAR\00\00\00\50\00\00\00")
     (func $char (type 0)
         (drop (call $_word))
         (call $push (i32.load8_u (global.get $buffer)))
         (return_call $next)
     )
-    (elem (i32.const 0x4f) $char)
+    (elem (i32.const 0x50) $char)
 
-    (data (i32.const 0x557c) "\6c\55\00\00\07EXECUTE\50\00\00\00")
+    (data (i32.const 0x5588) "\78\55\00\00\07EXECUTE\51\00\00\00")
     (func $execute (type 0)
         (global.set $cfa (call $pop))
         (return_call_indirect (type 0) (i32.load (global.get $cfa)))
+        (return_call $next)
     )
-    (elem (i32.const 0x50) $execute)
+    (elem (i32.const 0x51) $execute)
 
     (start $next)
 )

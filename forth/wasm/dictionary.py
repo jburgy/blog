@@ -105,7 +105,7 @@ words = {
     ],
     "C!": ["(i32.store8 (call $pop) (call $pop))"],
     "C@": ["(call $push (i32.load8_u (call $pop)))"],
-    "CMOVE": ["(call $memcpy (call $pop) (call $pop) (call $pop))"],
+    "CMOVE": ["(drop (call $memcpy (call $pop) (call $pop) (call $pop)))"],
     "STATE": ["(call $push (global.get $state))"],
     "HERE": ["(call $push (global.get $here))"],
     "LATEST": ["(call $push (global.get $latest))"],
@@ -170,6 +170,10 @@ words = {
     "HIDE": "WORD FIND HIDDEN EXIT",
     ":": "WORD CREATE LIT &DOCOL , LATEST @ HIDDEN ] EXIT",
     ";": "LIT EXIT , LATEST @ HIDDEN [ EXIT",
+    "'": [
+        "(call $push (i32.load (global.get $ip)))",
+        "(global.set $ip (i32.add (global.get $ip) (i32.const 4)))",
+    ],
     "BRANCH": ["(global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))"],
     "0BRANCH": [
         "(if (call $pop)",
@@ -209,7 +213,7 @@ words = {
         "            (then",
         '                (call $write (i32.const 2) (i32.const 0x5538) (i32.const 13)) ;; "PARSE ERROR:"',
         "                (call $write (i32.const 2) (global.get $buffer) (local.get $c))",
-        '                (call $write (i32.const 2) (i32.const 0x5545) (i32.const 1)) ;; "\n"'
+        '                (call $write (i32.const 2) (i32.const 0x5545) (i32.const 1)) ;; "\\n"',
         "            )",
         "            (else",
         "                (if (i32.load (global.get $state)) ;; compile number",
@@ -278,6 +282,6 @@ for name, code in words.items():
         print(f'    (data (i32.const 0x{offset:x}) "PARSE ERROR: \\0A\\00\\00")')
         offset += 16
 
-print("  (data (i32.const 0x5004) ", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)), ")", sep="")
-print("  (data (i32.const 0x5008) ", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)), ")", sep="")
-print("  (data (i32.const 0x5040) ", "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offsets["QUIT"])), ")", sep="")
+print('  (data (i32.const 0x5004) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)), '")', sep="")
+print('  (data (i32.const 0x5008) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)), '")', sep="")
+print('  (data (i32.const 0x5040) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offsets["QUIT"])), '")', sep="")
