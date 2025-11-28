@@ -34,7 +34,7 @@ words = {
         "(i32.store offset=4 (global.get $sp) (local.get 2))",
         "(i32.store offset=8 (global.get $sp) (local.get 1))",
     ],
-    "2DRROP": ["(global.set $sp (i32.add (global.get $sp) (i32.const 8)))"],
+    "2DROP": ["(global.set $sp (i32.add (global.get $sp) (i32.const 8)))"],
     "2DUP": [
         "(call $push (i32.load offset=4 (global.get $sp)))",
         "(call $push (i32.load offset=4 (global.get $sp)))",
@@ -240,7 +240,7 @@ words = {
     ],
 }
 
-immediate = {"LBRAC", "IMMEDIATE", ";"}
+immediate = {"[", "IMMEDIATE", ";"}
 overrides = {",": "comma", "[": "lbrac", "]": "rbrac"}
 
 index = 1

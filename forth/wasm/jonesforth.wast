@@ -245,7 +245,7 @@
         (i32.add
             (i32.and
                 (i32.add
-                    (i32.and (i32.load8_u offset=4 (local.get $word)) (i32.const 0x1F))
+                    (i32.and (i32.load8_u offset=4 (local.get $word)) (global.get $f_lenmask))
                     (i32.const 8)  ;; link + flag + 3
                 )
                 (i32.const -4)  ;; align to 4 bytes
@@ -318,7 +318,7 @@
     )
     (elem (i32.const 0x6) $-rot)
 
-    (data (i32.const 0x509c) "\8c\50\00\00\062DRROP\00\07\00\00\00")
+    (data (i32.const 0x509c) "\8c\50\00\00\052DROP\00\00\07\00\00\00")
     (func $2drrop (type 0)
         (global.set $sp (i32.add (global.get $sp) (i32.const 8)))
         (return_call $next)
@@ -790,7 +790,7 @@
     )
     (elem (i32.const 0x45) $comma)
 
-    (data (i32.const 0x5424) "\18\54\00\00\01[\00\00\46\00\00\00")
+    (data (i32.const 0x5424) "\18\54\00\00\81[\00\00\46\00\00\00")
     (func $lbrac (type 0)
         (i32.store (global.get $state) (i32.const 0))
         (return_call $next)
