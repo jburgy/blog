@@ -117,6 +117,24 @@ words = {
     "F_IMMED": ["(call $push (global.get $f_immed))"],
     "F_HIDDEN": ["(call $push (global.get $f_hidden))"],
     "F_LENMASK": ["(call $push (global.get $f_lenmask))"],
+    "SYS_EXIT": ["(call $push (i32.const 1))"],
+    "SYS_OPEN": ["(call $push (i32.const 5))"],
+    "SYS_CLOSE": ["(call $push (i32.const 6))"],
+    "SYS_READ": ["(call $push (i32.const 3))"],
+    "SYS_WRITE": ["(call $push (i32.const 4))"],
+    "SYS_CREAT": ["(call $push (i32.const 8))"],
+    "SYS_BRK": ["(call $push (i32.const 45))"],
+    # https://github.com/WebAssembly/wasi-libc/blob/main/expected/wasm32-wasip1/predefined-macros.txt
+    "O_RDONLY": ["(call $push (i32.const 0x04000000))"],
+    "O_WRONLY": ["(call $push (i32.const 0x10000000))"],
+    "O_RDWR": ["(call $push (i32.const 0x14000000))"],
+    # __wasi_oflags_t (CREAT DIRECTORY EXCL TRUNC) << 12
+    "O_CREAT": ["(call $push (i32.const 0x1000))"],
+    "O_EXCL": ["(call $push (i32.const 0x4000))"],
+    "O_TRUNC": ["(call $push (i32.const 0x8000))"],
+    # __wasi_fdflags_t (APPEND DSYNC NONBLOCK RSYNC SYNC)
+    "O_APPEND": ["(call $push (i32.const 0x1))"],
+    "O_NONBLOCK": ["(call $push (i32.const 0x4))"],
     ">R": ["(call $pushrsp (call $pop))"],
     "R>": ["(call $push (call $poprsp))"],
     "RSP@": ["(call $push (global.get $rsp))"],
@@ -211,9 +229,9 @@ words = {
         "        (local.set $w (call $_number (local.get $c) (global.get $buffer)))",
         "        (if (i32.load (global.get $nwritten)) ;; unconsumed input => parse error",
         "            (then",
-        '                (call $write (i32.const 2) (i32.const 0x5538) (i32.const 13)) ;; "PARSE ERROR:"',
+        '                (call $write (i32.const 2) (i32.const 0x5668) (i32.const 13)) ;; "PARSE ERROR:"',
         "                (call $write (i32.const 2) (global.get $buffer) (local.get $c))",
-        '                (call $write (i32.const 2) (i32.const 0x5545) (i32.const 1)) ;; "\\n"',
+        '                (call $write (i32.const 2) (i32.const 0x5675) (i32.const 1)) ;; "\\n"',
         "            )",
         "            (else",
         "                (if (i32.load (global.get $state)) ;; compile number",
@@ -238,6 +256,9 @@ words = {
         "(global.set $cfa (call $pop))",
         "(return_call_indirect (type 0) (i32.load (global.get $cfa)))"
     ],
+    "SYSCALL3": ["unreachable"],
+    "SYSCALL2": ["unreachable"],
+    "SYSCALL1": ["unreachable"],
 }
 
 immediate = {"[", "IMMEDIATE", ";"}
@@ -285,3 +306,6 @@ for name, code in words.items():
 print('  (data (i32.const 0x5004) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)), '")', sep="")
 print('  (data (i32.const 0x5008) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)), '")', sep="")
 print('  (data (i32.const 0x5040) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offsets["QUIT"])), '")', sep="")
+print(f';; "PARSE ERROR:" 0x{offsets["QUIT"] - 16:04x}')
+print(f';; "\\n"           0x{offsets["QUIT"] - 3:04x}')
+print(f";; LIT            0x{offsets['LIT']:04x}")
