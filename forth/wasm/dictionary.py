@@ -52,10 +52,9 @@ words = {
 
     ],
     "?DUP": [
-        "(local $a i32)",
-        "(if (local.tee $a (i32.load (global.get $sp)))",
-        "    (then nop)",
-        "    (else (call $push (local.get $a)))",
+        "(local i32)",
+        "(if (local.tee 0 (i32.load (global.get $sp)))",
+        "    (then (call $push (local.get 0)))",
         ")",
     ],
     "1+": [cinary("i32.add", 1)],
@@ -67,10 +66,10 @@ words = {
     "*": [binary("i32.mul")],
     "/MOD": [
         "(local i32 i32)",
-        "(local.set 0 (call $pop))",
-        "(local.set 1 (call $pop))",
-        "(call $push (i32.rem_s (local.get 1) (local.get 0)))",
-        "(call $push (i32.div_s (local.get 1) (local.get 0)))",
+        "(local.set 0 (i32.load offset=4 (global.get $sp)))",
+        "(local.set 1 (i32.load offset=0 (global.get $sp)))",
+        "(i32.store offset=4 (i32.rem_s (local.get 0) (local.get 1)))",
+        "(i32.store offset=0 (i32.div_s (local.get 0) (local.get 1)))",
     ],
     "=": [binary("i32.eq")],
     "<>": [binary("i32.ne")],
@@ -203,11 +202,15 @@ words = {
         "(local $len i32)",
         "(local.set $len (i32.load (global.get $ip)))",
         "(global.set $ip (i32.add (global.get $ip) (i32.const 4)))",
-        "(call $push (global.get $sp))",
+        "(call $push (global.get $ip))",
         "(call $push (local.get $len))",
         "(global.set $ip (i32.add (global.get $ip) (i32.and (i32.add (local.get $len) (i32.const 3)) (i32.const -4))))",
     ],
-    "TELL": ["(call $write (i32.const 1) (call $pop) (call $pop))"],
+    "TELL": [
+        "(local i32)",
+        "(local.set 0 (call $pop))",
+        "(call $write (i32.const 1) (call $pop) (local.get 0))",
+    ],
     "INTERPRET": [
         "(local $c i32)",
         "(local $w i32)",
@@ -258,7 +261,11 @@ words = {
     ],
     "SYSCALL3": ["unreachable"],
     "SYSCALL2": ["unreachable"],
-    "SYSCALL1": ["unreachable"],
+    "SYSCALL1": [
+        "(if (i32.eq (call $pop) (i32.const 45))",
+        "    (then (i32.store (global.get $sp) (i32.mul (memory.size) (i32.const 0x10000))))",
+        ")",
+    ],
 }
 
 immediate = {"[", "IMMEDIATE", ";"}

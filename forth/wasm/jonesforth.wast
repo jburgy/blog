@@ -55,7 +55,7 @@
     ;;   0x5040 - 0x5044: cold_start
     ;;   0x5044 -       : word definitions (\00\00\00\00 4DROP\00\00\00 \02\00\00\00)
 
-    (memory (export "memory") 1)
+    (memory (export "memory") 2)
     (table 101 funcref)
 
     (global $cfa     (mut i32) (i32.const 0xcccc))  ;; code field address of the next word to define
@@ -77,7 +77,7 @@
     (data (i32.const 0x5000) "\00\00\00\00")        ;; STATE initialized to 0 (interpreting)
     (data (i32.const 0x5004) "\ec\56\00\00")        ;; HERE initialized to 0x56ec
     (data (i32.const 0x5008) "\d8\56\00\00")        ;; LATEST initialized to 0x56d8
-    (data (i32.const 0x500C) "\00\00\20\00")        ;; S0 initialized to top of data stack
+    (data (i32.const 0x500C) "\00\20\00\00")        ;; S0 initialized to top of data stack
     (data (i32.const 0x5010) "\0A\00\00\00")        ;; BASE initialized to 10
     (data (i32.const 0x5040) "\78\56\00\00")        ;; cold_start initialized to >CFA of QUIT
 
@@ -224,7 +224,7 @@
             )
         )
         (i32.store (global.get $nwritten) (local.get $n)) ;; number of unparsed characters (0 = no error)
-        (local.get $res)
+        (i32.mul (local.get $res) (local.get $sign))
     )
 
     (func $_find (param $n i32) (param $s i32) (result i32)
@@ -350,10 +350,9 @@
 
     (data (i32.const 0x50cc) "\bc\50\00\00\04?DUP\00\00\00\0a\00\00\00")
     (func $?dup (type 0)
-        (local $a i32)
-        (if (local.tee $a (i32.load (global.get $sp)))
-            (then nop)
-            (else (call $push (local.get $a)))
+        (local i32)
+        (if (local.tee 0 (i32.load (global.get $sp)))
+            (then (call $push (local.get 0)))
         )
         (return_call $next)
     )
@@ -411,10 +410,10 @@
     (data (i32.const 0x5130) "\24\51\00\00\04/MOD\00\00\00\12\00\00\00")
     (func $/mod (type 0)
         (local i32 i32)
-        (local.set 0 (call $pop))
-        (local.set 1 (call $pop))
-        (call $push (i32.rem_s (local.get 1) (local.get 0)))
-        (call $push (i32.div_s (local.get 1) (local.get 0)))
+        (local.set 0 (i32.load offset=4 (global.get $sp)))
+        (local.set 1 (i32.load offset=0 (global.get $sp)))
+        (i32.store offset=4 (global.get $sp) (i32.rem_s (local.get 0) (local.get 1)))
+        (i32.store offset=0 (global.get $sp) (i32.div_s (local.get 0) (local.get 1)))
         (return_call $next)
     )
     (elem (i32.const 0x12) $/mod)
@@ -964,7 +963,7 @@
         (local $len i32)
         (local.set $len (i32.load (global.get $ip)))
         (global.set $ip (i32.add (global.get $ip) (i32.const 4)))
-        (call $push (global.get $sp))
+        (call $push (global.get $ip))
         (call $push (local.get $len))
         (global.set $ip (i32.add (global.get $ip) (i32.and (i32.add (local.get $len) (i32.const 3)) (i32.const -4))))
         (return_call $next)
@@ -973,7 +972,9 @@
 
     (data (i32.const 0x5638) "\24\56\00\00\04TELL\00\00\00\5d\00\00\00")
     (func $tell (type 0)
-        (call $write (i32.const 1) (call $pop) (call $pop))
+        (local i32)
+        (local.set 0 (call $pop))
+        (call $write (i32.const 1) (call $pop) (local.get 0))
         (return_call $next)
     )
     (elem (i32.const 0x5d) $tell)
@@ -1056,7 +1057,9 @@
 
     (data (i32.const 0x56d8) "\c4\56\00\00\08SYSCALL1\00\00\00\63\00\00\00")
     (func $syscall1 (type 0)
-        unreachable
+        (if (i32.eq (call $pop) (i32.const 45))
+            (then (i32.store (global.get $sp) (i32.mul (memory.size) (i32.const 0x10000))))
+        )
         (return_call $next)
     )
     (elem (i32.const 0x63) $syscall1)
