@@ -1004,9 +1004,9 @@
                 (local.set $w (call $_number (local.get $c) (global.get $buffer)))
                 (if (i32.load (global.get $nwritten)) ;; unconsumed input => parse error
                     (then
-                        (call $write (i32.const 2) (i32.const 0x5678) (i32.const 13)) ;; "PARSE ERROR:"
+                        (call $write (i32.const 2) (i32.const 0x566c) (i32.const 13)) ;; "PARSE ERROR:"
                         (call $write (i32.const 2) (global.get $buffer) (local.get $c))
-                        (call $write (i32.const 2) (i32.const 0x5685) (i32.const 1)) ;; "\n"
+                        (call $write (i32.const 2) (i32.const 0x5679) (i32.const 1)) ;; "\n"
                     )
                     (else
                         (if (i32.load (global.get $state)) ;; compile number
@@ -1067,5 +1067,5 @@
     )
     (elem (i32.const 0x64) $syscall1)
 
-    (start $next)
+    (func (export "_start") (call $next))
 )
