@@ -58,9 +58,8 @@ worker.addEventListener('message', async (event) => {
                     const result = Atomics.waitAsync(controlView, CTRL_STATE, 0);
                     if (result.async) await result.value;
                 }
-
                 sharedDataView.set(chunk);
-                console.log(`Sending chunk of size ${chunk.byteLength} to worker`);
+
                 // Signal to WASM that data is ready
                 Atomics.store(controlView, CTRL_LENGTH, chunk.byteLength);
                 Atomics.store(controlView, CTRL_STATE, 2); // data_ready
