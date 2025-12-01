@@ -124,7 +124,7 @@ const importObject = {
 // Initialize and load the WebAssembly module
 async function initWasm() {
     try {
-        const response = await fetch('/jonesforth.wasm');
+        const response = await fetch('/blog/jonesforth.wasm');
         const { instance: { exports } } = await WebAssembly.instantiateStreaming(response, importObject);
 
         memory = exports.memory;
