@@ -32,7 +32,7 @@ const CTRL_LENGTH = 1;  // Length of data
 const CTRL_FD = 2;      // File descriptor
 
 // Create and initialize worker
-const worker = new Worker('worker.js');
+const worker = new Worker('/blog/worker.js');
 
 // Send shared buffers to worker
 worker.postMessage({
@@ -47,7 +47,7 @@ worker.addEventListener('message', async (event) => {
 
     switch (type) {
         case 'ready':
-            const response = await fetch('https://bur.gy/blog/jonesforth.f');
+            const response = await fetch('/blog/jonesforth.f');
             const buffer = await response.arrayBuffer();
             const bytes = new Uint8Array(buffer);
 
