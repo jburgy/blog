@@ -324,6 +324,6 @@ for name, code in words.items():
 print('  (data (i32.const 0x5004) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)), '")', sep="")
 print('  (data (i32.const 0x5008) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)), '")', sep="")
 print('  (data (i32.const 0x5040) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offsets["QUIT"])), '")', sep="")
-print(f';; "PARSE ERROR:" 0x{offsets["QUIT"] - 16:04x}')
-print(f';; "\\n"           0x{offsets["QUIT"] - 3:04x}')
+print(f';; "PARSE ERROR:" 0x{offsets["QUIT"] - 0x1c:04x}')
+print(f';; "\\n"           0x{offsets["QUIT"] - 0x0f:04x}')
 print(f";; LIT            0x{offsets['LIT']:04x}")
