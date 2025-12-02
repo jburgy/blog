@@ -3,6 +3,8 @@
 import { Terminal } from 'https://esm.sh/xterm@5.3.0';
 import { Readline } from 'https://esm.sh/xterm-readline@1.1.2';
 
+let timeout = -1;
+
 // Create xterm.js terminal
 const term = new Terminal({
     cursorBlink: true,
@@ -77,6 +79,8 @@ worker.addEventListener('message', async (event) => {
                 rl.write(`\x1b[0;${33 -fd}m${text}\x1b[0;37m`);
                 if (text.endsWith('\n'))
                     readLine();
+                else if (timeout < 0)
+                    timeout = setTimeout(resume, 100);
             }
             break;
 
@@ -93,6 +97,12 @@ worker.addEventListener('message', async (event) => {
 
 function readLine() {
     rl.read("$ ").then(processLine);
+}
+
+function resume() {
+    timeout = -1;
+    rl.println('');
+    readLine();
 }
 
 function processLine(text) {
