@@ -4,7 +4,7 @@ ZFLAGS = -ODebug -target wasm32-emscripten -mcpu baseline+atomics+bulk_memory+ta
 LDFLAGS = -sPROXY_TO_PTHREAD -sEXPORTED_FUNCTIONS=_malloc,_main
 VPATH = ../forth
 
-all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic
+all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic jonesforth.wasm
 	rm -rf *.a *.o node_modules/@xterm/xterm/src
 
 %.mjs : %.o node_modules/xterm-pty/emscripten-pty.js
@@ -16,6 +16,9 @@ all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic
 
 6th.mjs : lib6th.a node_modules/xterm-pty/emscripten-pty.js
 	$(CC) $(CFLAGS) $(LDFLAGS) --js-library=$(lastword $^) -o $@ $<
+
+jonesforth.wasm : ../forth/wasm/jonesforth.wast main.js worker.js
+	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
 
 lib%.a : %.zig
 	uv run --with ziglang -m ziglang build-lib $(ZFLAGS) -Mroot=$< -lc --name $(basename $(<F)) -static -rdynamic
@@ -33,6 +36,9 @@ TinyBasic : client-server
 
 client-server:
 	npm run build
+
+%.js: ../forth/wasm/%.js
+	cp $< $@
 
 clean :
 	rm -rf *.o *.a *.js *.mjs *.d.ts *.wasm* *.mjs node_modules dist
