@@ -568,7 +568,7 @@
     (func $cmove (param $cfa i32) (param $ip i32) (param $sp i32) (param $rsp i32)
         (local i32)
         (memory.copy (local.tee 4 (i32.load offset=4 (local.get $sp))) (i32.load offset=8 (local.get $sp)) (i32.load (local.get $sp)))
-        (i32.store offset=4 (local.get $sp) (local.get 4))
+        (i32.store offset=8 (local.get $sp) (local.get 4))
         (return_call $next (local.get $cfa) (local.get $ip) (i32.add (local.get $sp) (i32.const 8)) (local.get $rsp))
     )
     (elem (i32.const 0x2c) $cmove)
