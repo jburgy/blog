@@ -612,7 +612,7 @@
             (br $next))
 
             ;; key
-            (i32.store (local.tee $sp (i32.sub (local.tee 4 (local.get $sp)) (i32.const 4))) (local.get 4))
+            (i32.store (local.tee $sp (i32.sub (local.tee 4 (local.get $sp)) (i32.const 4))) (call $_key))
             (br $next))
 
             ;; emit
