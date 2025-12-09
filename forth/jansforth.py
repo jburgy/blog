@@ -32,10 +32,10 @@ names = [
     "-",
     "*",
     "/MOD",
-    "=:",
-    "<=:",
-    "<:",
-    ">:",
+    "=",
+    "<=",
+    "<",
+    ">",
     "<=",
     ">=",
     "0=",
@@ -128,11 +128,12 @@ composite = {
     "QUIT": ["R0", "RSP!", "INTERPRET", "BRANCH", -2],
 }
 
-print("/* STATE      */ [5120] =     0,")
-print("/* HERE       */ [5121] =  5544 << 2,")
-print("/* LATEST     */ [5122] =  5540,")
-print("/* S0         */ [5123] =  2048,")
-print("/* BASE       */ [5124] =    10,")
+print("static int memory[0x8000] = {")
+print("    /* STATE      */ [5120] =     0,")
+print("    /* HERE       */ [5121] =  5544 << 2,")
+print("    /* LATEST     */ [5122] =  5540,")
+print("    /* S0         */ [5123] =  2048,")
+print("    /* BASE       */ [5124] =    10,")
 
 index = link = 0
 offset = 0x140D - 1
@@ -140,7 +141,6 @@ offsets = {}
 
 shifts = [1 << i for i in range(0, 32, 8)]
 
-print("static int memory[0x8000] = {")
 for name in names:
     print(f"    /* {name:10s} */", end=" ")
     offset += 1
