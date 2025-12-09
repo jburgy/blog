@@ -117,6 +117,9 @@ names = [
     "QUIT",
     "CHAR",
     "EXECUTE",
+    "SYSCALL3",
+    "SYSCALL2",
+    "SYSCALL1",
 ]
 
 immediate = {"[", "IMMEDIATE", ";"}

@@ -6,8 +6,8 @@
 
 static int memory[0x8000] = {
     /* STATE      */ [5120] =    0,
-    /* HERE       */ [5121] = 5547 << 2,
-    /* LATEST     */ [5122] = 5543,
+    /* HERE       */ [5121] = 5562 << 2,
+    /* LATEST     */ [5122] = 5557,
     /* S0         */ [5123] = 2048,
     /* BASE       */ [5124] =   10,
     /* DROP       */ [5133] =    0, [5134] = 0x4f524404, [5135] = 0x00000050, [5136] = 1,
@@ -113,6 +113,9 @@ static int memory[0x8000] = {
     /* QUIT       */ [5530] = 5525, [5531] = 0x49555104, [5532] = 0x00000054, [5533] = 0, [5534] = 5306, [5535] = 5408, [5536] = 5529, [5537] = 5511, [5538] = -8,
     /* CHAR       */ [5539] = 5530, [5540] = 0x41484304, [5541] = 0x00000052, [5542] = 97,
     /* EXECUTE    */ [5543] = 5539, [5544] = 0x45584507, [5545] = 0x45545543, [5546] = 98,
+    /* SYSCALL3   */ [5547] = 5543, [5548] = 0x53595308, [5549] = 0x4c4c4143, [5550] = 0x00000033, [5551] = 99,
+    /* SYSCALL2   */ [5552] = 5547, [5553] = 0x53595308, [5554] = 0x4c4c4143, [5555] = 0x00000032, [5556] = 100,
+    /* SYSCALL1   */ [5557] = 5552, [5558] = 0x53595308, [5559] = 0x4c4c4143, [5560] = 0x00000031, [5561] = 101,    
 };
 static char *bytes = (char *)memory;
 
@@ -195,14 +198,6 @@ unsigned code_field_address(unsigned word) {
     return word + 2 + ((memory[word + 1] & 0x1F) >> 2);
 }
 
-unsigned from_cfa(unsigned cfa) {
-    unsigned word = memory[0x1402]; /* LATEST */
-
-    while (cfa < word)
-        word = memory[word];
-    return word;
-}
-
 int main(void) {
     register unsigned sp = 0x0800;
     register unsigned rsp = 0x1000;
@@ -211,9 +206,6 @@ int main(void) {
     long long num;
 
     while (1) {
-        // a = from_cfa(cfa);
-        // printf("SP=%04X RSP=%04X IP=%04X CFA=%04X (%.*s)\n", sp, rsp, ip, cfa, memory[a + 1] & 0x1F, bytes + (a << 2) + 5);
-
         switch (memory[cfa]) {
             case 0: /* DOCOL */
                 memory[--rsp] = ip;
@@ -376,7 +368,7 @@ int main(void) {
                 sp += 2;
                 break;
             case 39: /* @ */
-                memory[sp] = memory[memory[sp]];
+                memory[sp] = memory[memory[sp] >> 2];
                 break;
             case 40: /* +! */
                 memory[memory[sp]] += memory[sp + 1];
@@ -402,19 +394,19 @@ int main(void) {
                 sp += 2;
                 break;
             case 46: /* STATE */
-                memory[--sp] = 0x1400;
+                memory[--sp] = 0x1400 << 2;
                 break;
             case 47: /* HERE */
-                memory[--sp] = 0x1401;
+                memory[--sp] = 0x1401 << 2;
                 break;
             case 48: /* LATEST */
-                memory[--sp] = 0x1402;
+                memory[--sp] = 0x1402 << 2;
                 break;
             case 49: /* S0 */
-                memory[--sp] = 0x1403;
+                memory[--sp] = 0x1403 << 2;
                 break;
             case 50: /* BASE */
-                memory[--sp] = 0x1404;
+                memory[--sp] = 0x1404 << 2;
                 break;
             case 51: /* VERSION */
                 memory[--sp] = 47;
@@ -555,7 +547,6 @@ int main(void) {
                 ip += memory[ip] >> 2;
                 break;
             case 93: /* 0BRANCH */
-                // printf("0BRANCH test: %d offset: %d\n", memory[sp], memory[ip]);
                 ip += memory[sp++] ? 1 : memory[ip] >> 2;
                 break;
             case 94: /* LITSTRING */
@@ -583,7 +574,7 @@ int main(void) {
                         (void)(write(STDERR_FILENO, bytes + 0x5014, a) + 1);
                         (void)(write(STDERR_FILENO, "\n", 1) + 1);
                     } else if (memory[0x1400]) {
-                        memory[memory[0x1401] >> 2] = 5251; /* LIT */
+                        memory[memory[0x1401] >> 2] = 5254; /* LIT */
                         memory[0x1401] += 4;
                         memory[memory[0x1401] >> 2] = num & 0xFFFFFFFF;
                         memory[0x1401] += 4;
@@ -599,7 +590,19 @@ int main(void) {
             case 98: /* EXECUTE */
                 cfa = memory[sp++];
                 continue;
-        }
+            case 99: /* SYSCALL3 */
+                memory[sp + 3] = syscall(memory[sp], memory[sp + 1], memory[sp + 2], memory[sp + 3]);
+                sp += 3;
+                break;
+            case 100: /* SYSCALL2 */
+                memory[sp + 2] = syscall(memory[sp], memory[sp + 1], memory[sp + 2]);
+                sp += 2;
+                break;
+            case 101: /* SYSCALL1 */
+                memory[sp + 1] = syscall(memory[sp], memory[sp + 1]);
+                sp += 1;
+                break;
+            }
         cfa = memory[ip++];
     }
     return cfa;
