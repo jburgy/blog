@@ -30,6 +30,7 @@ dev = [
     "pytest-playwright-asyncio",
     "scipy",
     "scipy-stubs",
+    "shapely>=2.1.2",
     "sqlalchemy",
     "sqlalchemy[mypy]",
     "sympy",
