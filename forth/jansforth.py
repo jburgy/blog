@@ -33,6 +33,7 @@ names = [
     "*",
     "/MOD",
     "=",
+    "<>",
     "<=",
     "<",
     ">",
@@ -125,15 +126,15 @@ composite = {
     "HIDE": ["WORD", "FIND", "HIDDEN", "EXIT"],
     ":": ["WORD", "CREATE", "LIT", 0, ",", "LATEST", "@", "HIDDEN", "]", "EXIT"],
     ";": ["LIT", "EXIT", ",", "LATEST", "@", "HIDDEN", "[", "EXIT"],
-    "QUIT": ["R0", "RSP!", "INTERPRET", "BRANCH", -2],
+    "QUIT": ["R0", "RSP!", "INTERPRET", "BRANCH", -8],
 }
 
 print("static int memory[0x8000] = {")
-print("    /* STATE      */ [5120] =     0,")
-print("    /* HERE       */ [5121] =  5544 << 2,")
-print("    /* LATEST     */ [5122] =  5540,")
-print("    /* S0         */ [5123] =  2048,")
-print("    /* BASE       */ [5124] =    10,")
+print("    /* STATE      */ [5120] =    0,")
+print("    /* HERE       */ [5121] = 5547 << 2,")
+print("    /* LATEST     */ [5122] = 5543,")
+print("    /* S0         */ [5123] = 2048,")
+print("    /* BASE       */ [5124] =   10,")
 
 index = link = 0
 offset = 0x140D - 1
