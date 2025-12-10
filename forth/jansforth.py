@@ -34,7 +34,6 @@ names = [
     "/MOD",
     "=",
     "<>",
-    "<=",
     "<",
     ">",
     "<=",
@@ -134,8 +133,8 @@ composite = {
 
 print("static int memory[0x8000] = {")
 print("    /* STATE      */ [5120] =    0,")
-print("    /* HERE       */ [5121] = 5547 << 2,")
-print("    /* LATEST     */ [5122] = 5543,")
+print("    /* HERE       */ [5121] = 5559 << 2,")
+print("    /* LATEST     */ [5122] = 5554 << 2,")
 print("    /* S0         */ [5123] = 2048,")
 print("    /* BASE       */ [5124] =   10,")
 
@@ -164,13 +163,13 @@ for name in names:
     code = composite.get(name)
     if code:
         offset += 1
-        print(f"[{offset}] = 0", end=", ")
+        print(f"[{offset}] = 0", end="")
         for item in code:
             offset += 1
-            print(f"[{offset}] = {offsets.get(item, item)}", end=", ")
+            print(f", [{offset}] = {offsets.get(item, item)} << 2", end="")
+        print(",")
     else:
         offset += 1
         index += 1
-        print(f"[{offset}] = {index}", end=", ")
-    print()
+        print(f"[{offset}] = {index},")
 print("};")
