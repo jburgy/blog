@@ -194,7 +194,10 @@ long long number(unsigned n, unsigned s) {
 }
 
 unsigned code_field_address(unsigned word) {
-    return word + 2 + ((memory[word + 1] & 0x1F) >> 2);
+    word += 4;
+    word += (bytes[word] & 0x1F) + 4;
+    word &= ~3;
+    return word;
 }
 
 int main(void) {
@@ -492,7 +495,7 @@ int main(void) {
                 memory[--sp] = key();
                 break;
             case 79: /* EMIT */
-                (void)(write(STDOUT_FILENO, bytes + (sp++ << 2), 1) + 1);
+                (void)(write(STDOUT_FILENO, memory + sp++, 1) + 1);
                 break;
             case 80: /* WORD */
                 memory[--sp] = 0x5014;
@@ -508,15 +511,15 @@ int main(void) {
                 ++sp;
                 break;
             case 83: /* >CFA */
-                memory[sp] = code_field_address(memory[sp] >> 2) << 2;
+                memory[sp] = code_field_address(memory[sp]);
                 break;
             case 84: /* CREATE */
-                a = (memory[0x1401] + 3) >> 2;
-                memory[a] = memory[0x1402];
-                memory[a + 1] = memory[sp];
-                memcpy(bytes + (a << 2) + 5, bytes + memory[sp + 1], memory[sp]);
-                memory[0x1401] = code_field_address(a) << 2;
-                memory[0x1402] = a << 2;
+                a = memory[0x1401];
+                memory[a >> 2] = memory[0x1402];
+                bytes[a + 4] = memory[sp];
+                memcpy(bytes + a + 5, bytes + memory[sp + 1], memory[sp]);
+                memory[0x1401] = code_field_address(a);
+                memory[0x1402] = a;
                 sp += 2;
                 break;
             case 85: /* , */
@@ -555,12 +558,14 @@ int main(void) {
                 break;
             case 95: /* INTERPRET */
                 a = word();
-                b = find(a, 0x5014) >> 2;
+                b = find(a, 0x5014);
                 if (b) {
                     cfa = code_field_address(b);
-                    if ((memory[b + 1] & 0x80) || !memory[0x1400])
+                    if ((bytes[b + 4] & 0x80) || !memory[0x1400]) {
+                        cfa >>= 2;
                         continue;
-                    memory[memory[0x1401] >> 2] = cfa << 2;
+                    }
+                    memory[memory[0x1401] >> 2] = cfa;
                     memory[0x1401] += 4;
                 } else {
                     num = number(a, 0x5014);
