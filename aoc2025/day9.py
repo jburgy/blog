@@ -1,3 +1,9 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "shapely",
+# ]
+# ///
 from itertools import combinations
 
 import numpy as np
