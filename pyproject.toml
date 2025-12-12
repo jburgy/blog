@@ -32,7 +32,6 @@ dev = [
     "sqlalchemy[mypy]",
     "sympy",
     "types-networkx",
-    "z3-solver",
 ]
 
 [tool.pytest.ini_options]

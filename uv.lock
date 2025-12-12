@@ -235,7 +235,6 @@ dev = [
     { name = "sqlalchemy", extra = ["mypy"] },
     { name = "sympy" },
     { name = "types-networkx" },
-    { name = "z3-solver" },
 ]
 
 [package.metadata]
@@ -261,7 +260,6 @@ dev = [
     { name = "sqlalchemy", extras = ["mypy"] },
     { name = "sympy" },
     { name = "types-networkx" },
-    { name = "z3-solver" },
 ]
 
 [[package]]
@@ -2647,18 +2645,4 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/41/53/2e0253c5efd69c9656b1843892052a31c36d37ad42812b5da45c62191f7e/widgetsnbextension-4.0.14.tar.gz", hash = "sha256:a3629b04e3edb893212df862038c7232f62973373869db5084aed739b437b5af", size = 1097428, upload-time = "2025-04-10T13:01:25.628Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ca/51/5447876806d1088a0f8f71e16542bf350918128d0a69437df26047c8e46f/widgetsnbextension-4.0.14-py3-none-any.whl", hash = "sha256:4875a9eaf72fbf5079dc372a51a9f268fc38d46f767cbf85c43a36da5cb9b575", size = 2196503, upload-time = "2025-04-10T13:01:23.086Z" },
-]
-
-[[package]]
-name = "z3-solver"
-version = "4.15.3.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a3/60/9a924ee28cd1d12f2482834581d9024bf05110aa1098c056e847f05f7f76/z3_solver-4.15.3.0.tar.gz", hash = "sha256:78f69aebda5519bfd8af146a129f36cf4721a3c2667e80d9fe35cc9bb4d214a6", size = 4985945, upload-time = "2025-08-16T02:27:37.706Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/63/45/dd8e9d7500faa05eafa589cc8f0f0b982ce575d51b455d62dab8e19dd571/z3_solver-4.15.3.0-py3-none-macosx_13_0_arm64.whl", hash = "sha256:65335aab295ded7c0ce27c85556067087a87052389ff160777d1a1d48ef0d74f", size = 36882388, upload-time = "2025-08-16T02:27:18.721Z" },
-    { url = "https://files.pythonhosted.org/packages/54/9e/a11186061d9fead8be43bad7c75055585694124b2ccdd896ef249fe5824f/z3_solver-4.15.3.0-py3-none-macosx_13_0_x86_64.whl", hash = "sha256:3e62e93adff2def3537ff1ca67c3d58a6ca6d1944e0b5e774f88627b199d50e7", size = 39637842, upload-time = "2025-08-16T02:27:22.177Z" },
-    { url = "https://files.pythonhosted.org/packages/b9/0b/f15168475e5493ea44fa3c5e642903f05d2b870db71ad05662ed87a06976/z3_solver-4.15.3.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a9afd9ceb290482097474d43f08415bcc1874f433189d1449f6c1508e9c68384", size = 29056003, upload-time = "2025-08-16T02:27:27.951Z" },
-    { url = "https://files.pythonhosted.org/packages/a7/04/32a97b1f04175ec56213168ee3659709e876e3feacacb891ed3c26c1a82c/z3_solver-4.15.3.0-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:f61ef44552489077eedd7e6d9bed52ef1875decf86d66027742099a2703b1c77", size = 27074143, upload-time = "2025-08-16T02:27:30.755Z" },
-    { url = "https://files.pythonhosted.org/packages/75/77/da54076a584557ea34f20800c68f725fe61f1dd987493fcb410b4a26f99f/z3_solver-4.15.3.0-py3-none-win32.whl", hash = "sha256:0c603f6bad7423d6411adda6af55030b725e3d30f54ea91b714abcedd73b848a", size = 13123666, upload-time = "2025-08-16T02:27:33.309Z" },
-    { url = "https://files.pythonhosted.org/packages/c1/59/abc1bad8b25e9c576484ba65ca5ed225c8ed24d601ec242712f1c370b693/z3_solver-4.15.3.0-py3-none-win_amd64.whl", hash = "sha256:06abdf6c36f97c463aea827533504fd59476d015a65cf170a88bd6a53ba13ab5", size = 16203065, upload-time = "2025-08-16T02:27:35.763Z" },
 ]
