@@ -1,10 +1,11 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/syscall.h>
 
-static int memory[0x8000] = {
+static int rodata[] = {
     /* STATE      */ [5120] =    0,
     /* HERE       */ [5121] = 5559 << 2,
     /* LATEST     */ [5122] = 5554 << 2,
@@ -116,7 +117,8 @@ static int memory[0x8000] = {
     /* SYSCALL2   */ [5549] = 5544 << 2, [5550] = 0x53595308, [5551] = 0x4c4c4143, [5552] = 0x00000032, [5553] = 99,
     /* SYSCALL1   */ [5554] = 5549 << 2, [5555] = 0x53595308, [5556] = 0x4c4c4143, [5557] = 0x00000031, [5558] = 100,
 };
-static char *bytes = (char *)memory;
+static int *memory;
+static char *bytes;
 
 char key(void) {
     static unsigned currkey = 0x4000, buftop = 0x4000;
@@ -200,12 +202,23 @@ unsigned code_field_address(unsigned word) {
     return word;
 }
 
+void *set_up_data_segment(const void *src, size_t n) {
+    void *here = sbrk(0x10000);
+    if (here == (void *)-1)
+        exit(errno);
+
+    return memcpy((void *)here, src, n);
+}
+
 int main(void) {
     register unsigned sp = 0x0800;
     register unsigned rsp = 0x1000;
     register unsigned cfa = 5530, ip = 0;
     register int a, b, c, d;
     long long num;
+
+    memory = (int *)set_up_data_segment(rodata, sizeof rodata);
+    bytes = (char *)memory;
 
     while (1) {
         switch (memory[cfa]) {
@@ -600,6 +613,8 @@ int main(void) {
                 break;
             case 100: /* SYSCALL1 */
                 memory[sp + 1] = syscall(memory[sp], memory[sp + 1]);
+                if (memory[sp] == SYS_brk)
+                    memory[sp + 1] -= (int)bytes;
                 sp += 1;
                 break;
         }
