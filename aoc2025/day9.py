@@ -7,7 +7,7 @@
 from itertools import combinations
 
 import numpy as np
-import shapely
+import shapely  # pyright: ignore[reportMissingModuleSource]
 
 def first_half(tiles: np.ndarray) -> int:
     areas = []

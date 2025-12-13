@@ -7,11 +7,11 @@
 from itertools import chain, repeat
 from pathlib import Path
 
-from polyomino import TilingProblem
-from polyomino.constant import MONOMINO
-from polyomino.board import Rectangle
-from polyomino.solution import Solution
-from polyomino.tileset import Tileset
+from polyomino import TilingProblem  # pyright: ignore[reportMissingImports]
+from polyomino.constant import MONOMINO  # pyright: ignore[reportMissingImports]
+from polyomino.board import Rectangle  # pyright: ignore[reportMissingImports]
+from polyomino.solution import Solution  # pyright: ignore[reportMissingImports]
+from polyomino.tileset import Tileset  # pyright: ignore[reportMissingImports]
 
 
 def cover(line: str, *, tiles: list[list[tuple[int, int]]]) -> Solution | None:
