@@ -20,11 +20,8 @@ dev = [
     "interpreters-pep-734",
     "jupyter>=1.1.1",
     "matplotlib",
-    "networkx",
     "pandas",
     "pandas-stubs",
-    "pillow",
-    "pyright",
     "pytest",
     "pytest-github-report",
     "pytest-playwright-asyncio",
@@ -33,8 +30,6 @@ dev = [
     "sqlalchemy",
     "sqlalchemy[mypy]",
     "sympy",
-    "types-networkx",
-    "z3-solver",
 ]
 
 [tool.pytest.ini_options]
@@ -54,6 +49,8 @@ exclude = [
 select = ["E", "F", "W"]
 
 [tool.pyright]
+venv = ".venv"
+venvPath = "."
 exclude = [
     ".venv",
     "emsdk-cache",

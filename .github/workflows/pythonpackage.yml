@@ -29,7 +29,7 @@ jobs:
         with:
           version: "latest"
       - run: uvx ruff check
-      - run: uv run pyright
+      - run: uvx pyright
       - uses: actions/cache@v4
         id: cache-playwright
         with:
