@@ -121,7 +121,7 @@ static int *memory;
 static char *bytes;
 
 char key(void) {
-    static unsigned currkey = 0x4000, buftop = 0x4000;
+    static int currkey = 0x4000, buftop = 0x4000;
     ssize_t c;
 
     while (buftop <= currkey) {
@@ -134,7 +134,7 @@ char key(void) {
     return bytes[currkey++];
 }
 
-unsigned word(void) {
+int word(void) {
     char ch, *s = bytes + 0x5014;
 
     do
@@ -155,16 +155,21 @@ unsigned word(void) {
     return s - (bytes + 0x5014);
 }
 
-unsigned find(unsigned count, unsigned name) {
-    unsigned word = memory[0x1402]; /* LATEST */
+int find(int count, int name) {
+    int word = memory[0x1402]; /* LATEST */
 
-    while (word && (((bytes[word + 4] & 0x3F) != count) || memcmp(bytes + word + 5, bytes + name, count)))
+    while (word && (((bytes[word + 4] & 0x3F) != count) || memcmp(bytes + word + 5, bytes + name, (unsigned)count)))
         word = memory[word >> 2];
 
     return word;
 }
 
-long long number(unsigned n, unsigned s) {
+struct num_t {
+    int result;
+    int remaining;
+};
+
+struct num_t number(int n, int s) {
     int digit, res = 0, sign = 1, base = memory[0x1404];
 
     switch (bytes[s]) {
@@ -192,10 +197,10 @@ long long number(unsigned n, unsigned s) {
         res += digit;
     } while (--n);
 
-    return ((long long)n << 32) | (res * sign);
+    return (struct num_t) { .result = res * sign, .remaining = n };
 }
 
-unsigned code_field_address(unsigned word) {
+int code_field_address(int word) {
     word += 4;
     word += (bytes[word] & 0x1F) + 4;
     word &= ~3;
@@ -211,11 +216,11 @@ void *set_up_data_segment(const void *src, size_t n) {
 }
 
 int main(void) {
-    register unsigned sp = 0x0800;
-    register unsigned rsp = 0x1000;
-    register unsigned cfa = 5530, ip = 0;
+    register int sp = 0x0800;
+    register int rsp = 0x1000;
+    register int cfa = 5530, ip = 0;
     register int a, b, c, d;
-    long long num;
+    struct num_t num;
 
     memory = (int *)set_up_data_segment(rodata, sizeof rodata);
     bytes = (char *)memory;
@@ -390,7 +395,7 @@ int main(void) {
                 sp += 2;
                 break;
             case 41: /* C! */
-                bytes[memory[sp]] = memory[sp + 1];
+                bytes[memory[sp]] = (char)memory[sp + 1];
                 sp += 2;
                 break;
             case 42: /* C@ */
@@ -401,7 +406,7 @@ int main(void) {
                 ++sp;
                 break;
             case 44: /* CMOVE */
-                (void)memmove(bytes + memory[sp + 1], bytes + memory[sp + 2], memory[sp]);
+                (void)memmove(bytes + memory[sp + 1], bytes + memory[sp + 2], (size_t)memory[sp]);
                 sp += 2;
                 break;
             case 45: /* STATE */
@@ -516,8 +521,8 @@ int main(void) {
                 break;
             case 81: /* NUMBER */
                 num = number(memory[sp], memory[sp + 1]);
-                memory[sp + 1] = num & 0xFFFFFFFF;
-                memory[sp + 0] = (num >> 32);
+                memory[sp + 1] = num.result;
+                memory[sp + 0] = num.remaining;
                 break;
             case 82: /* FIND */
                 memory[sp + 1] = find(memory[sp], memory[sp + 1]);
@@ -529,8 +534,8 @@ int main(void) {
             case 84: /* CREATE */
                 a = memory[0x1401];
                 memory[a >> 2] = memory[0x1402];
-                bytes[a + 4] = memory[sp];
-                memcpy(bytes + a + 5, bytes + memory[sp + 1], memory[sp]);
+                bytes[a + 4] = (char)memory[sp];
+                memcpy(bytes + a + 5, bytes + memory[sp + 1], (size_t)memory[sp]);
                 memory[0x1401] = code_field_address(a);
                 memory[0x1402] = a;
                 sp += 2;
@@ -566,7 +571,7 @@ int main(void) {
                 ip += 1 + ((memory[ip] + 3) >> 2);
                 break;
             case 94: /* TELL */
-                (void)(write(STDOUT_FILENO, bytes + memory[sp + 1], memory[sp]) + 1);
+                (void)(write(STDOUT_FILENO, bytes + memory[sp + 1], (size_t)memory[sp]) + 1);
                 sp += 2;
                 break;
             case 95: /* INTERPRET */
@@ -582,17 +587,17 @@ int main(void) {
                     memory[0x1401] += 4;
                 } else {
                     num = number(a, 0x5014);
-                    if (num >> 32) {
+                    if (num.remaining) {
                         (void)(write(STDERR_FILENO, "PARSE ERROR: ", 13) + 1);
-                        (void)(write(STDERR_FILENO, bytes + 0x5014, a) + 1);
+                        (void)(write(STDERR_FILENO, bytes + 0x5014, (size_t)a) + 1);
                         (void)(write(STDERR_FILENO, "\n", 1) + 1);
                     } else if (memory[0x1400]) {
                         memory[memory[0x1401] >> 2] = 5251 << 2; /* LIT */
                         memory[0x1401] += 4;
-                        memory[memory[0x1401] >> 2] = num & 0xFFFFFFFF;
+                        memory[memory[0x1401] >> 2] = num.result;
                         memory[0x1401] += 4;
                     } else {
-                        memory[--sp] = num & 0xFFFFFFFF;
+                        memory[--sp] = num.result;
                     }
                 }
                 break;

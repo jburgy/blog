@@ -55,6 +55,9 @@ cosmopolitan-amalgamation-2.2.zip :
 zig-out/bin/6th : 6th.zig
 	uv run --with ziglang python -m ziglang build
 
+jansforth : jansforth.c
+	$(CC) -m32 -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
+
 clean :
 	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.ll *.wasm* *th.*mjs *.html 4th.32 4th.gcov *.gcda *.gcno
 
