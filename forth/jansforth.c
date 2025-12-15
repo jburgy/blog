@@ -127,8 +127,11 @@ char key(void) {
     while (buftop <= currkey) {
         currkey = 0x4000;
         c = read(STDIN_FILENO, bytes + currkey, 0x1000);
-        if (c < 0)
-            exit(-c);
+        if (c < 0) {
+            char *s = strerror(errno);
+            write(STDERR_FILENO, s, strlen(s));
+            exit(EIO);
+        }
         buftop = 0x4000 + c;
     }
     return bytes[currkey++];
