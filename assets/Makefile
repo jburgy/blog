@@ -40,7 +40,7 @@ client-server:
 %.js: ../forth/wasm/%.js
 	cp $< $@
 
-%.f: ../jonesforth/%.F
+jonesforth.f: ../jonesforth/jonesforth.f
 	cp $< $@
 
 clean :
