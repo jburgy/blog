@@ -4,7 +4,7 @@ ZFLAGS = -ODebug -target wasm32-emscripten -mcpu baseline+atomics+bulk_memory+ta
 LDFLAGS = -sPROXY_TO_PTHREAD -sEXPORTED_FUNCTIONS=_malloc,_main
 VPATH = ../forth
 
-all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic jonesforth.wasm
+all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic jonesforth.wasm jonesforth.f
 	rm -rf *.a *.o node_modules/@xterm/xterm/src
 
 %.mjs : %.o node_modules/xterm-pty/emscripten-pty.js
@@ -38,6 +38,9 @@ client-server:
 	npm run build
 
 %.js: ../forth/wasm/%.js
+	cp $< $@
+
+jonesforth.f: ../jonesforth/jonesforth.f
 	cp $< $@
 
 clean :

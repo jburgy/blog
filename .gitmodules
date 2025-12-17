@@ -1,3 +1,6 @@
 [submodule "xterm-pty"]
 	path = xterm-pty
 	url = https://github.com/mame/xterm-pty
+[submodule "jonesforth"]
+	path = jonesforth
+	url = https://github.com/nornagon/jonesforth
