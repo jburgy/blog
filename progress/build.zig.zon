@@ -1,0 +1,12 @@
+.{
+    .name = .progress,
+    .version = "0.15.2",
+    .dependencies = .{
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c#0b0980cd84dc9338f135ba346f08902b22ea3e6f",
+            .hash = "translate_c-0.0.0-Q_BUWm7cBgBE17NXAKZ6x16F7XMqFpYsWjiP7RphT3H-",
+        },
+    },
+    .paths = .{""},
+    .fingerprint = 0x2201f246e6fb8646,
+}
