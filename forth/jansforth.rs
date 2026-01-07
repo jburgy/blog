@@ -9,6 +9,7 @@ const HERE_ADDR: usize = 0x1401;
 const LATEST_ADDR: usize = 0x1402;
 const S0_ADDR: usize = 0x1403;
 const BASE_ADDR: usize = 0x1404;
+const LIT_CFA: i32 = 5251;
 
 #[derive(Default)]
 struct NumResult {
@@ -74,7 +75,7 @@ impl Forth {
             (5238, 5235 << 2), (5239, 0x524f5803), (5240, 33),
             (5241, 5238 << 2), (5242, 0x564e4906), (5243, 0x00545245), (5244, 34),
             (5245, 5241 << 2), (5246, 0x49584504), (5247, 0x00000054), (5248, 35),
-            (5249, 5245 << 2), (5250, 0x54494c03), (5251, 36),
+            (5249, 5245 << 2), (5250, 0x54494c03), (LIT_CFA as usize, 36),
             (5252, 5249 << 2), (5253, 0x00002101), (5254, 37),
             (5255, 5252 << 2), (5256, 0x00004001), (5257, 38),
             (5258, 5255 << 2), (5259, 0x00212b02), (5260, 39),
@@ -130,8 +131,8 @@ impl Forth {
             (5461, 5458 << 2), (5462, 0x4d4d4989), (5463, 0x41494445), (5464, 0x00004554), (5465, 88),
             (5466, 5461 << 2), (5467, 0x44494806), (5468, 0x004e4544), (5469, 89),
             (5470, 5466 << 2), (5471, 0x44494804), (5472, 0x00000045), (5473, 0), (5474, 5428 << 2), (5475, 5436 << 2), (5476, 5469 << 2), (5477, 5248 << 2),
-            (5478, 5470 << 2), (5479, 0x00003a01), (5480, 0), (5481, 5428 << 2), (5482, 5451 << 2), (5483, 5251 << 2), (5484, 0), (5485, 5454 << 2), (5486, 5289 << 2), (5487, 5257 << 2), (5488, 5469 << 2), (5489, 5460 << 2), (5490, 5248 << 2),
-            (5491, 5478 << 2), (5492, 0x00003b81), (5493, 0), (5494, 5251 << 2), (5495, 5248 << 2), (5496, 5454 << 2), (5497, 5289 << 2), (5498, 5257 << 2), (5499, 5469 << 2), (5500, 5457 << 2), (5501, 5248 << 2),
+            (5478, 5470 << 2), (5479, 0x00003a01), (5480, 0), (5481, 5428 << 2), (5482, 5451 << 2), (5483, LIT_CFA << 2), (5484, 0), (5485, 5454 << 2), (5486, 5289 << 2), (5487, 5257 << 2), (5488, 5469 << 2), (5489, 5460 << 2), (5490, 5248 << 2),
+            (5491, 5478 << 2), (5492, 0x00003b81), (5493, 0), (5494, LIT_CFA << 2), (5495, 5248 << 2), (5496, 5454 << 2), (5497, 5289 << 2), (5498, 5257 << 2), (5499, 5469 << 2), (5500, 5457 << 2), (5501, 5248 << 2),
             (5502, 5491 << 2), (5503, 0x00002701), (5504, 90),
             (5505, 5502 << 2), (5506, 0x41524206), (5507, 0x0048434e), (5508, 91),
             (5509, 5505 << 2), (5510, 0x52423007), (5511, 0x48434e41), (5512, 92),
@@ -155,17 +156,16 @@ impl Forth {
 
     #[inline]
     fn read_i32(&self, addr: usize) -> i32 {
-        let base = addr * 4;
-        let slice: &[u8] = &self.memory[base..base + 4];
+        let slice: &[u8] = &self.memory[addr * 4..(addr + 1) * 4];
         let bytes: [u8; 4] = slice.try_into().expect("length mismatch");
         i32::from_ne_bytes(bytes)
     }
 
     #[inline]
     fn write_i32(&mut self, addr: usize, value: i32) {
-        let base = addr * 4;
-        let bytes = value.to_ne_bytes();
-        self.memory[base..base + 4].copy_from_slice(&bytes);
+        let slice: &mut [u8] = &mut self.memory[addr * 4..(addr + 1) * 4];
+        let bytes: [u8; 4] = value.to_ne_bytes();
+        slice.copy_from_slice(&bytes);
     }
 
     fn key(&mut self) -> io::Result<u8> {
@@ -307,10 +307,8 @@ impl Forth {
                     sp += 1;
                 }
                 2 => { // SWAP
-                    let a = self.read_i32(sp);
-                    let b = self.read_i32(sp + 1);
-                    self.write_i32(sp, b);
-                    self.write_i32(sp + 1, a);
+                    let (a, b) = self.memory[sp * 4..(sp + 2) * 4].split_at_mut(4);
+                    a.swap_with_slice(b);
                 }
                 3 => { // DUP
                     sp -= 1;
@@ -751,7 +749,7 @@ impl Forth {
                             io::stderr().write_all(b"\n")?;
                         } else if self.read_i32(STATE_ADDR) != 0 {
                             let here = self.read_i32(HERE_ADDR);
-                            self.write_i32(here as usize >> 2, 5251 << 2); // LIT
+                            self.write_i32(here as usize >> 2, LIT_CFA << 2); // LIT
                             self.write_i32(HERE_ADDR, here + 4);
                             let here = self.read_i32(HERE_ADDR);
                             self.write_i32(here as usize >> 2, num.result);
