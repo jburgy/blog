@@ -29,7 +29,7 @@ MakeFunctionFlags = IntFlag(
     "MakeFunctionFlags",
     " ".join(
         flag.upper()
-        for flag in getattr(dis, "MAKE_FUNCTION_FLAGS", None)  # pyright: ignore[reportOptionalIterable]
+        for flag in getattr(dis, "MAKE_FUNCTION_FLAGS", None)  # pyright: ignore[reportOptionalIterable]  # ty: ignore[not-iterable]
         or getattr(dis, "FUNCTION_ATTR_FLAGS", None)
     ),
 )
@@ -44,7 +44,7 @@ class CodeBuilderBase:
         self.freevars = {}
 
     def ascode(self, func_name: str, argcount: int) -> CodeType:
-        code = bytes(self)  # pyright: ignore[reportArgumentType]
+        code = bytes(self)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         stacksize = max(
             accumulate(
                 dis.stack_effect(op, arg)  # pyright: ignore[reportFunctionMemberAccess]
@@ -60,17 +60,17 @@ class CodeBuilderBase:
             0,  # kwonlyargcount
             len(self.varnames),
             stacksize,  # stacksize
-            (CompilerFlags.OPTIMIZED | CompilerFlags.NEWLOCALS),  # pyright: ignore[reportAttributeAccessIssue]
+            (CompilerFlags.OPTIMIZED | CompilerFlags.NEWLOCALS),  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
             code,
             tuple(self.consts),  # insertion order
             tuple(self.names),
             tuple(self.varnames),
             "",
             func_name,
-            0,  # pyright: ignore[reportArgumentType]
-            bytes(),  # pyright: ignore[reportArgumentType]
-            tuple(self.freevars),  # pyright: ignore[reportArgumentType]
-            tuple(self.cellvars),  # pyright: ignore[reportArgumentType]
+            0,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            bytes(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            tuple(self.freevars),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            tuple(self.cellvars),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         )
 
 

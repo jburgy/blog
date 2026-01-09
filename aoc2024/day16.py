@@ -7,7 +7,7 @@ class Reindeer(NamedTuple):
     x: complex
     v: complex
 
-    def __lt__(self, other: Self) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
+    def __lt__(self, other: Self) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]  # ty: ignore[invalid-method-override]
         return self.score < other.score
 
 

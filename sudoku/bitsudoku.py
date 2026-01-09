@@ -29,10 +29,10 @@ _neighbors = np.array(
 def propagate(
     possible: npt.NDArray[np.intp], count: ma.MaskedArray, where=ma.MaskedArray
 ) -> int:
-    while np.equal(count, 1, out=where).any():  # pyright: ignore[reportArgumentType, reportCallIssue]
-        k = np.invert(possible[where])  # pyright: ignore[reportArgumentType, reportCallIssue]
+    while np.equal(count, 1, out=where).any():  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[no-matching-overload]
+        k = np.invert(possible[where])  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[invalid-argument-type]
         # ufunc.at performs *unbuffered* in place operation
-        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),  # pyright: ignore[reportArgumentType, reportCallIssue]
+        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[invalid-argument-type]
                           k[:, np.newaxis])
         if not _counts.take(possible, out=count).all():  # stay in sync
             return -1

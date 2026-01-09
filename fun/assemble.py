@@ -67,10 +67,10 @@ def assemble(func: Callable):
                 varnames[oparg] = argrepr
         else:
             codestring.append(0)
-    code = CodeType(  # pyright: ignore[reportCallIssue]
-        func.__code__.co_argcount,
-        func.__code__.co_posonlyargcount,
-        func.__code__.co_kwonlyargcount,
+    code = CodeType(  # pyright: ignore[reportCallIssue]  # ty: ignore[missing-argument]
+        func.__code__.co_argcount,  # ty: ignore[unresolved-attribute]
+        func.__code__.co_posonlyargcount,  # ty: ignore[unresolved-attribute]
+        func.__code__.co_kwonlyargcount,  # ty: ignore[unresolved-attribute]
         len(varnames),
         0,  # stacksize
         COMPILER_FLAGS["OPTIMIZED"]
@@ -80,12 +80,12 @@ def assemble(func: Callable):
         _tuple_from_dict(consts),
         _tuple_from_dict(names),
         _tuple_from_dict(varnames),
-        func.__code__.co_filename,
-        func.__code__.co_name,
-        func.__code__.co_firstlineno,
-        bytes(lnotab),
+        func.__code__.co_filename,  # ty: ignore[unresolved-attribute]
+        func.__code__.co_name,  # ty: ignore[unresolved-attribute]
+        func.__code__.co_firstlineno,  # ty: ignore[unresolved-attribute]
+        bytes(lnotab),  # ty: ignore[invalid-argument-type]
     )
-    return FunctionType(code, func.__globals__)
+    return FunctionType(code, func.__globals__)  # ty: ignore[unresolved-attribute]
 
 
 def fibonacci(n: int) -> int:

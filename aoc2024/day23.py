@@ -5,7 +5,7 @@
 # ]
 # ///
 
-import networkx as nx # pyright: ignore[reportMissingModuleSource]
+import networkx as nx # pyright: ignore[reportMissingModuleSource]  # ty: ignore[unresolved-import]
 
 g: nx.Graph = nx.Graph()
 with open("aoc2024/day23input.txt", "rt") as lines:

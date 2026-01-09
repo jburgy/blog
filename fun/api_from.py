@@ -18,8 +18,8 @@ from importlib.util import module_from_spec
 from inspect import getmembers, isfunction
 from pkgutil import walk_packages
 
-from fastapi import FastAPI  # pyright: ignore[reportMissingImports]
-from starlette.responses import JSONResponse  # pyright: ignore[reportMissingImports]
+from fastapi import FastAPI  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
+from starlette.responses import JSONResponse  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
 
 
 class _PandasJsonResponse(JSONResponse):
@@ -42,7 +42,7 @@ def _pairs_from_package(package):
             prefix=package.__name__ + ".",
             onerror=lambda _: None,
         ) if not name.rpartition(".")[-1].startswith("_") and not ispkg
-        for pair in _pairs_from_spec(finder.find_spec(name))  # pyright: ignore[reportCallIssue]
+        for pair in _pairs_from_spec(finder.find_spec(name))  # pyright: ignore[reportCallIssue]  # ty: ignore[missing-argument]
     )
 
 

@@ -8,7 +8,7 @@
 # ]
 # ///
 
-import marimo  # pyright: ignore[reportMissingImports]
+import marimo  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
 
 __generated_with = "0.14.8"
 app = marimo.App()

@@ -55,3 +55,9 @@ exclude = [
     ".venv",
     "emsdk-cache",
 ]
+
+[tool.ty.src]
+exclude = [
+    "emsdk-cache",
+    "**/*.ipynb",
+]

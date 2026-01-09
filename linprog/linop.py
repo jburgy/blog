@@ -98,7 +98,7 @@ def matmul(
 
     assert isinstance(b, sparse.csc_array)
 
-    n, k = cast(tuple[int, int], a.shape)
+    n, k = cast(tuple[int, int], a.shape)  # ty: ignore[redundant-cast]
     l, m = b.shape  # noqa E741
     assert k == l
 

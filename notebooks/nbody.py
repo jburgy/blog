@@ -1,6 +1,6 @@
 # pyright: reportAttributeAccessIssue=false, reportInvalidTypeForm=false, reportPrivateImportUsage=false
 
-import marimo  # pyright: ignore[reportMissingImports]
+import marimo  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
 
 __generated_with = "0.14.8"
 app = marimo.App(width="medium")
@@ -83,7 +83,7 @@ def _():
 
 @app.cell
 def _(m, np, xs):
-    import marimo as mo  # pyright: ignore[reportMissingImports]
+    import marimo as mo  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
     import numpy.typing as npt
     from matplotlib import animation, pyplot as plt
 
@@ -91,7 +91,7 @@ def _(m, np, xs):
         num: int, xs: npt.NDArray[np.float32], lines: list[plt.Line2D]
     ) -> list[plt.Line2D]:
         for i, line in enumerate(lines):
-            line.set_data_3d(xs[i, :, : num * 100 : 100])
+            line.set_data_3d(xs[i, :, : num * 100 : 100])  # ty: ignore[unresolved-attribute]
         return lines
 
     # Attaching 3D axis to the figure
@@ -114,7 +114,7 @@ def _(m, np, xs):
         fargs=(xs.T, lines),
         interval=30,
     )
-    mo.mpl.interactive(ani._fig)
+    mo.mpl.interactive(ani._fig)  # ty: ignore[unresolved-attribute]
     return
 
 

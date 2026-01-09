@@ -368,7 +368,7 @@ for _ in range(2):
             out.append(buf[-1] | 0x80)
 
 
-test = "".join(map("{:02X}".format, out))
+test = "".join(map("{:02X}".format, out))  # ty: ignore[no-matching-overload]
 assert test == "".join(
     line[5:line.index(";", 5)] for line in interpreter.splitlines() if len(line) > 5
 )

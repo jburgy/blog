@@ -33,7 +33,7 @@ def second_half(buttons: list[tuple[int]], joltages: list[tuple[int]]) -> int:
             [1] * len(button), A_eq=A_eq, b_eq=joltage, integrality=1  # type: ignore
         )
         assert sol.success
-        total += int(sum(sol.x))
+        total += int(sum(sol.x))  # ty: ignore[no-matching-overload]
     return total
 
 

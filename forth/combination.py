@@ -7,7 +7,7 @@
 # ///
 
 from dis import dis
-from forth import ForthCompiler  # pyright: ignore[reportAttributeAccessIssue]
+from forth import ForthCompiler  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-import]
 
 
 def index(mask: int) -> int:
