@@ -42,7 +42,7 @@ def main():
     parent_node = Progress()
     parents: list[tuple[Path, Progress]] = []
 
-    with ZipFile(args.zipfile, "w") as zf:  # pyright: ignore[reportArgumentType, reportCallIssue]
+    with ZipFile(args.zipfile, "w") as zf:  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[no-matching-overload]
         for root, dirs, files in platlib.walk():
             try:
                 dirs.remove("__pycache__")

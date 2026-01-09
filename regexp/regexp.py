@@ -47,10 +47,15 @@ implementation compiles :code:`"a|b|c"`
 .. _graphlib: https://docs.python.org/3/library/graphlib.html
 .. _Epsilon transitions: https://en.wikipedia.org/wiki/Epsilon_transition
 """
-from enum import IntEnum
+from enum import IntEnum, auto
 from typing import Iterable, Union
 
-Token = IntEnum("Token", "LPAREN RPAREN ALTERN CONCAT KLEENE")
+class Token(IntEnum):
+    LPAREN = auto()
+    RPAREN = auto()
+    ALTERN = auto()
+    CONCAT = auto()
+    KLEENE = auto()
 TokenOrChar = Union[str, Token]
 TokenOrCharOrNone = Union[None, str, Token]
 

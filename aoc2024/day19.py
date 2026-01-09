@@ -21,7 +21,7 @@ def counter(needles: list[str]) -> Callable[[str], int]:
 
 with open("aoc2024/day19input.txt", "rt") as lines:
     patterns = next(lines).rstrip().replace(" ", "").split(",")
-    count = counter(sorted(patterns, key=len, reverse=True))
+    count = counter(sorted(patterns, key=len, reverse=True))  # ty: ignore[invalid-argument-type]
     next(lines)
     counts = [count(line.rstrip()) for line in lines]
 

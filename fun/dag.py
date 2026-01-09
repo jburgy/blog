@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from functools import _NOT_FOUND  # pyright: ignore[reportAttributeAccessIssue]
+from functools import _NOT_FOUND  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-import]
 from functools import cached_property, lru_cache, partial, wraps
 from timeit import timeit
 from typing import Any, Iterator, Self
@@ -12,7 +12,7 @@ class _BaseEntry(ABC):
     def __enter__(self):
         callers = self.callers
         self.update(callers[-1:])
-        callers.append(self)
+        callers.append(self)  # ty: ignore[invalid-argument-type]
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):

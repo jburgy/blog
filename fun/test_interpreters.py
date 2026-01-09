@@ -6,7 +6,7 @@
 # ///
 
 try:
-    import _xxsubinterpreters as interpreters  # pyright: ignore[reportMissingImports]
+    import _xxsubinterpreters as interpreters  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
 except ModuleNotFoundError:
     from interpreters_backport import interpreters
 

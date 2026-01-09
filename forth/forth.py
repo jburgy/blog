@@ -205,7 +205,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
             lnotab.extend((n - offset, i - lineno))
             offset, lineno = n, i
 
-        code = CodeType(  # pyright: ignore[reportCallIssue]
+        code = CodeType(  # pyright: ignore[reportCallIssue]  # ty: ignore[missing-argument]
             func.__code__.co_argcount,
             0,  # posonlyargcount
             0,  # kwonlyargcount
@@ -223,7 +223,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
             func.__code__.co_filename,
             self.func_name or func.__code__.co_name,
             func.__code__.co_firstlineno,
-            bytes(lnotab),
+            bytes(lnotab),  # ty: ignore[invalid-argument-type]
         )
         return FunctionType(code, func.__globals__)
 

@@ -296,7 +296,7 @@ def butterfly(name: str, opener: request.OpenerDirector) -> None:
             result.setsampwidth(indian.getsampwidth() // 2)
             result.setframerate(indian.getframerate() * 2)
             frames = indian.readframes(indian.getnframes())
-            wave.big_endian = 1  # pyright: ignore[reportAttributeAccessIssue]
+            wave.big_endian = 1  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
             result.writeframes(frames)
 
 
