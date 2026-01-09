@@ -57,4 +57,7 @@ exclude = [
 ]
 
 [tool.ty.src]
-exclude = ["**/*.ipynb"]
+exclude = [
+    "emsdk-cache",
+    "**/*.ipynb",
+]
