@@ -30,13 +30,8 @@ jobs:
       - run: uvx ruff check
       - run: uvx ty check
       - run: uvx pyright
-      - uses: actions/cache@v4
-        id: cache-playwright
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pyproject.toml') }}
+      - uses: browser-actions/setup-chrome@v2
       - run: uv run python -m playwright install chromium --with-deps
-        if: steps.cache-playwright.outputs.cache-hit != 'true'
       - run: uv run pytest
         env:
           pytest_github_report: true
