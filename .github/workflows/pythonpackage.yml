@@ -23,7 +23,6 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-      - run: sudo apt-get update && sudo apt-get install -y libjpeg-dev
       - run: uv sync
       - uses: astral-sh/ruff-action@v3
         with:
