@@ -24,7 +24,6 @@ dev = [
     "pandas-stubs",
     "pytest",
     "pytest-github-report",
-    "pytest-playwright-asyncio",
     "scipy",
     "scipy-stubs",
     "sqlalchemy",
@@ -34,7 +33,6 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
-asyncio_default_test_loop_scope = "session"
 
 [[tool.uv.index]]
 url = "https://pypi.ampl.com/"

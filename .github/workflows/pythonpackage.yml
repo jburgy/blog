@@ -20,23 +20,19 @@ jobs:
         with:
           version: 4.0.15
           actions-cache-folder: 'emsdk-cache'
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync
       - uses: astral-sh/ruff-action@v3
         with:
           version: "latest"
-      - run: uvx ruff check
-      - run: uvx ty check
-      - run: uvx pyright
-      - uses: actions/cache@v4
-        id: cache-playwright
+      - uses: qoomon/actions--parallel-steps@v1
         with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pyproject.toml') }}
-      - run: uv run python -m playwright install chromium --with-deps
-        if: steps.cache-playwright.outputs.cache-hit != 'true'
+          steps: |
+            - run: uvx ruff check
+            - run: uvx ty check
+            - run: uvx pyright
       - run: uv run pytest
         env:
           pytest_github_report: true
