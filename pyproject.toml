@@ -1,35 +1,11 @@
 [build-system]
-requires = ["meson-python", "ninja", "numpy", "ziglang"]
-build-backend = "mesonpy"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
 
 [project]
-name = "blog"
+name = "wasm-runner"
 version = "0.1.0"
-readme = "README.md"
-requires-python = ">=3.12"
-license = {file = "LICENSE"}
-dependencies = [
-    "numpy",
-]
-
-[dependency-groups]
-dev = [
-    "ampl-module-base>=20250901",
-    "ampl-module-highs>=20251015",
-    "amplpy>=0.15.2",
-    "interpreters-pep-734",
-    "jupyter>=1.1.1",
-    "matplotlib",
-    "pandas",
-    "pandas-stubs",
-    "pytest",
-    "pytest-github-report",
-    "scipy",
-    "scipy-stubs",
-    "sqlalchemy",
-    "sqlalchemy[mypy]",
-    "sympy",
-]
+requires-python = ">=3.7"
 
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]

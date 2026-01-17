@@ -1,0 +1,15 @@
+[package]
+name = "wasm_runner"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "wasm_runner"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+wasmtime = "16.0"
+wasmtime-wasi = "16.0"
+wasi-common = "16.0"
+anyhow = "1.0"
