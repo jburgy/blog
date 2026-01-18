@@ -16,10 +16,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: pyodide/setup-emsdk@v15
-        with:
-          version: 4.0.15
-          actions-cache-folder: 'emsdk-cache'
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
@@ -36,3 +32,8 @@ jobs:
       - run: uv run pytest
         env:
           pytest_github_report: true
+      - uses: konsumer/install-wasi-sdk@v1
+      - run: npm ci
+        working-directory: ./forth
+      - run: npm run test
+        working-directory: ./forth

@@ -7,6 +7,7 @@ collect_ignore = [
     "emsdk-cache",
     "forth/combination.py",
     "forth/forth.py",
+    "forth/test_4th_wasm.py",
     "fun/api_from.py",
     "fun/assemble.py",
     "fun/awslayer.py",
