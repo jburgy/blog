@@ -16,10 +16,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: pyodide/setup-emsdk@v15
-        with:
-          version: 4.0.15
-          actions-cache-folder: 'emsdk-cache'
       - uses: konsumer/install-wasi-sdk@v1
       - uses: astral-sh/setup-uv@v7
         with:
