@@ -16,7 +16,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: konsumer/install-wasi-sdk@v1
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
@@ -33,6 +32,7 @@ jobs:
       - run: uv run pytest
         env:
           pytest_github_report: true
+      - uses: konsumer/install-wasi-sdk@v1
       - run: npm ci
         working-directory: ./forth
       - run: npm run test
