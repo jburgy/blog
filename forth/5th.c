@@ -632,7 +632,7 @@ DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
             sp[1] = close(sp[1]);
             break;
         case SYS_brk:
-            sp[1] = sp[1] ? brk((void *)sp[1]) : (intptr_t)sbrk(sp[1]);
+            sp[1] = sp[1] ? (intptr_t)sbrk((intptr_t)sbrk(0) + sp[1]) : (intptr_t)sbrk(sp[1]);
             break;
     }
     ++sp;
@@ -640,12 +640,14 @@ DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
 }
 DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
 {
+#ifndef EMSCRIPTEN
     switch (sp[0])
     {
         case SYS_getppid:
             sp[0] = getppid();
             break;
     }
+#endif
     NEXT;
 }
 
