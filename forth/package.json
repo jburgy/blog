@@ -2,5 +2,13 @@
   "dependencies": {
     "wabt": "^1.0.39",
     "xterm-pty": "^0.11.1"
+  },
+  "devDependencies": {
+    "uwasi": "^1.4.1",
+    "vitest": "^4.0.17"
+  },
+  "scripts": {
+    "build": "${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DEMSCRIPTEN -mtail-call -o 5th.wasm 5th.c",
+    "test": "npm run build && vitest run && rm -f 5th.wasm"
   }
 }
