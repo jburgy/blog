@@ -1,3 +1,7 @@
+import os
+import re
+import subprocess
+
 import pytest  # pyright: ignore[reportMissingImports]
 
 
@@ -17,22 +21,33 @@ collect_ignore = [
     "notebooks/nbody.py",
 ]
 
-def pytest_addoption(parser: pytest.Parser) -> None:
-    parser.addoption(
-        "--target",
-        choices=[
-            "", "4th", "4th.gcov", "4th.32", "4th.ll", "5th.ll", "zig-out/bin/6th"
-        ],
-        default="",
-        help="Pick a target to test",
-    )
-
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    if "target" in metafunc.fixturenames:
-        target = metafunc.config.getoption("target")
+    scenarios: str | None = getattr(metafunc.cls, "scenarios", None)
+    if scenarios:
+        target = {
+            "test_4th": "4th",
+            "test_5th": "5th.ll",
+        }[metafunc.function.__name__]
+        scenarios = scenarios.format(
+            argv0=f"./{target}",
+            uid=os.getuid(),
+        )
+        subprocess.run(["make", target], cwd="forth", check=True)
+        cp = subprocess.run(
+            [f"./{target}"],
+            cwd="forth/",
+            env={"SHELL": "/bin/bash"},
+            capture_output=True,
+            check=True,
+            input=scenarios,
+            text=True,
+        )
+        subprocess.run(["rm", target], cwd="forth", check=True)
         metafunc.parametrize(
-            "target",
-            [target] if target else ["4th", "5th.ll", "zig-out/bin/6th"],
-            scope="module"
+            ["actual", "expected"],
+            zip(
+                cp.stdout.splitlines(),
+                re.findall(r"(?<=\\ )(.+)$", scenarios, re.M),
+            ),
         )

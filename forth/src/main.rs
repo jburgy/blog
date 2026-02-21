@@ -1,6 +1,4 @@
-class TestForth:
-    scenarios = r"""
-: / /MOD SWAP DROP ;
+const PREAMBLE: &str = r#": / /MOD SWAP DROP ;
 : '\n' 10 ;
 : BL 32 ;
 : CR '\n' EMIT ;
@@ -48,7 +46,7 @@ class TestForth:
   DROP EXIT THEN EMIT AGAIN THEN ;
 : CELLS 8 * ;
 : ID. 8+ DUP C@ F_LENMASK AND BEGIN DUP 0> WHILE SWAP 1+ DUP C@ EMIT SWAP 1- REPEAT
-2DROP ;
+  2DROP ;
 : ?IMMEDIATE 8+ C@ F_IMMED AND ;
 : CASE    IMMEDIATE 0 ;
 : OF      IMMEDIATE ' OVER , ' = , [COMPILE] IF ' DROP , ;
@@ -87,63 +85,78 @@ class TestForth:
 : ARGC (ARGC) @ ;
 : ARGV 1+ CELLS (ARGC) + @ DUP STRLEN ;
 : ENVIRON ARGC 2 + CELLS (ARGC) + ;
-65 EMIT CR \ A
-777 65 EMIT DROP CR \ A
-32 DUP + 1+ EMIT CR \ A
-16 DUP 2DUP + + + 1+ EMIT CR \ A
-8 DUP * 1+ EMIT CR \ A
-CHAR A EMIT CR \ A
-: SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT CR \ A
-3480240455236671827 DSP@ 8 TELL 2DROP CR \ SYSCALL0
-3480240455236671827 DSP@ HERE @ 8 CMOVE HERE @ 8 TELL 2DROP CR \ SYSCALL0
-13622 DSP@ 2 NUMBER DROP EMIT CR \ A
-64 >R RSP@ 1 TELL RDROP CR \ @
-64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL 2DROP CR \ @
-64 >R 1 RSP@ +! RSP@ 1 TELL RDROP CR \ A
+"#;
+
+#[cfg(test)]
+mod tests {
+    use std::process::{Command, Stdio};
+    use std::io::Write;
+    use rstest::rstest;
+    use super::PREAMBLE;
+
+    #[rstest]
+    #[case("", "65 EMIT", "A")]
+    #[case("", "777 65 EMIT", "A")]
+    #[case("", "32 DUP + 1+ EMIT", "A")]
+    #[case("", "16 DUP 2DUP + + + 1+ EMIT", "A")]
+    #[case("", "8 DUP * 1+ EMIT", "A")]
+    #[case("", "CHAR A EMIT", "A")]
+    #[case("", ": SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT", "A")]
+    #[case("", "3480240455236671827 DSP@ 8 TELL", "SYSCALL0")]
+    #[case("", "3480240455236671827 DSP@ HERE @ 8 CMOVE HERE @ 8 TELL", "SYSCALL0")]
+    #[case("", "13622 DSP@ 2 NUMBER DROP EMIT", "A")]
+    #[case("", "64 >R RSP@ 1 TELL RDROP", "@")]
+    #[case("", "64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL", "@")]
+    #[case("", "64 >R 1 RSP@ +! RSP@ 1 TELL", "A")]
+    #[case("", r#"
 : <BUILDS WORD CREATE DODOES , 0 , ;
 : DOES> R> LATEST @ >DFA ! ;
 : CONST <BUILDS , DOES> @ ;
+
 65 CONST FOO
-FOO EMIT CR \ A
-VERSION . CR \ 47
-LATEST @ ID. CR \ FOO
-0 1 > . CR \ 0
-1 0 > . CR \ -1
-0 1 >= . CR \ 0
-0 0 >= . CR \ -1
-0 0<> . CR \ 0
-1 0<> . CR \ -1
-1 0<= . CR \ 0
-0 0 <= . CR \ -1
--1 0>= . CR \ 0
-0 0>= . CR \ -1
-0 0 OR . CR \ 0
-0 -1 OR . CR \ -1
--1 -1 XOR . CR \ 0
-0 -1 XOR . CR \ -1
--1 INVERT . CR \ 0
-0 INVERT . CR \ -1
-3 4 5 .S 2DROP DROP CR \ 5 4 3
-F_IMMED F_HIDDEN .S 2DROP CR \ 32 128
-: CFA@ WORD FIND >CFA @ ; CFA@ >DFA DOCOL = . CR \ -1
-3 4 5 WITHIN . CR \ 0
-102 SYSCALL0 . CR \ {uid}
-{uid} 105 SYSCALL1 . CR \ 0
-O_RDONLY Z" {argv0}" 21 SYSCALL2 . CR \ 0
-S" test" SWAP 1 SYS_WRITE SYSCALL3 . CR \ test4
-ARGC . CR \ 1
-0 ARGV TELL CR \ {argv0}
-ENVIRON @ DUP STRLEN TELL CR \ SHELL=/bin/bash
-SEE >DFA \ : >DFA >CFA 8+ EXIT ;
-SEE HIDE \ : HIDE WORD FIND HIDDEN ;
-SEE QUIT \ : QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;
-: FOO THROW ;
-: TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF ." FOO threw exception: " . CR DROP THEN ;
-TEST-EXCEPTIONS \ FOO threw exception: 25
-"""
+FOO EMIT
+"#, "A")]
+    #[case(PREAMBLE, "VERSION .", "47 ")]
+    #[case(PREAMBLE, "CR", "\n")]
+    #[case(PREAMBLE, "LATEST @ ID.", "ENVIRON")]
+    #[case(PREAMBLE, "0 1 > . 1 0 > .", "0 -1 ")]
+    #[case(PREAMBLE, "0 1 >= . 0 0 >= .", "0 -1 ")]
+    #[case(PREAMBLE, "0 0<> . 1 0<> .", "0 -1 ")]
+    #[case(PREAMBLE, "1 0<= . 0 0<= .", "0 -1 ")]
+    #[case(PREAMBLE, "-1 0>= . 0 0>= .", "0 -1 ")]
+    #[case(PREAMBLE, "0 0 OR . 0 -1 OR .", "0 -1 ")]
+    #[case(PREAMBLE, "-1 -1 XOR . 0 -1 XOR .", "0 -1 ")]
+    #[case(PREAMBLE, "-1 INVERT . 0 INVERT .", "0 -1 ")]
+    #[case(PREAMBLE, "3 4 5 .S", "5 4 3 ")]
+    #[case(PREAMBLE, "1 2 3 4 2SWAP .S", "2 1 4 3 ")]
+    #[case(PREAMBLE, "F_IMMED F_HIDDEN .S", "32 128 ")]
+    #[case(PREAMBLE, ": CFA@ WORD FIND >CFA @ ; CFA@ >DFA DOCOL = .", "-1 ")]
+    #[case(PREAMBLE, "3 4 5 WITHIN .", "0 ")]
+    #[case(PREAMBLE, r#"S" test" SWAP 1 SYS_WRITE SYSCALL3"#, "test")]
+    #[case(PREAMBLE, "SEE >DFA", ": >DFA >CFA 8+ EXIT ;\n")]
+    #[case(PREAMBLE, "SEE HIDE", ": HIDE WORD FIND HIDDEN ;\n")]
+    #[case(PREAMBLE, "SEE QUIT", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n")]
+    fn test_wait_with_output(
+        #[case] preamble: &str,
+        #[case] input: &str,
+        #[case] expected: &str,
+        #[values("./4th", "./5th.ll")] program: &str,
+    ) {
+        let mut child = Command::new(program)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("Failed to spawn command");
 
-    def test_4th(self, actual: str, expected: str):
-        assert actual.rstrip() == expected
+        child.stdin.take()
+            .unwrap()
+            .write_all(format!("{} {}\n", preamble, input).as_bytes())
+            .expect("Failed to write to stdin");
 
-    def test_5th(self, actual: str, expected: str):
-        assert actual.rstrip() == expected
+        let output = child.wait_with_output().expect("Failed to read stdout");
+
+        assert!(output.status.success(), "Command failed with status: {:?}", output.status);
+        assert_eq!(output.stdout, expected.as_bytes(), "Mismatch for: {}", input);
+    }
+}

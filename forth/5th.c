@@ -11,7 +11,7 @@
 #include <stdarg.h>
 
 /* https://github.com/emscripten-core/emscripten/issues/6708 */
-enum SYS {SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk, SYS_getppid};
+enum SYS {SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk};
 #endif
 
 #define NEXT __attribute__((musttail)) return ip->word->code(env, sp, rsp, ip + 1, ip->word)
@@ -634,6 +634,11 @@ DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
         case SYS_brk:
             sp[1] = sp[1] ? (intptr_t)sbrk((intptr_t)sbrk(0) + sp[1]) : (intptr_t)sbrk(sp[1]);
             break;
+#ifndef EMSCRIPTEN
+        case SYS_setuid:
+            sp[1] = setuid(sp[1]);
+            break;
+#endif            
     }
     ++sp;
     NEXT;
@@ -643,8 +648,8 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
 #ifndef EMSCRIPTEN
     switch (sp[0])
     {
-        case SYS_getppid:
-            sp[0] = getppid();
+        case SYS_getuid:
+            sp[0] = getuid();
             break;
     }
 #endif
