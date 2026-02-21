@@ -21,7 +21,7 @@ jonesforth.wasm : ../forth/wasm/jonesforth.wast main.js worker.js
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
 
 lib%.a : %.zig
-	uv run --with ziglang -m ziglang build-lib $(ZFLAGS) -Mroot=$< -lc --name $(basename $(<F)) -static -rdynamic
+	uv run --no-project --with ziglang -m ziglang build-lib $(ZFLAGS) -Mroot=$< -lc --name $(basename $(<F)) -static -rdynamic
 
 lib6th.a : 6th.zig
 

@@ -8,9 +8,6 @@ on:
     branches:
       - '*'
 
-env:
-  UV_NO_EDITABLE: 1
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,13 +21,9 @@ jobs:
         with:
           version: 4.0.15
           actions-cache-folder: 'emsdk-cache'
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: '3.13'
-      - run: uv sync
       - run: |
           cd assets
-          make
+          make --jobs=4
       - uses: actions/upload-pages-artifact@v3
         with:
           path: assets
