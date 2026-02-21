@@ -21,6 +21,7 @@ jobs:
         with:
           version: 4.0.15
           actions-cache-folder: 'emsdk-cache'
+      - uses: astral-sh/setup-uv@v6
       - run: |
           cd assets
           make --jobs=4
