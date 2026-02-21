@@ -1,30 +1,28 @@
 const std = @import("std");
-const Translator = @import("translate_c").Translator;
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    if (b.option([]const u8, "include", "sysconfig.get_path('include')")) |include| {
+    if (b.option(std.Build.LazyPath, "include", "sysconfig.get_path('include')")) |include| {
         const lib_mod = b.createModule(.{
             .root_source_file = b.path("binding.zig"),
             .target = target,
             .optimize = optimize,
         });
-        lib_mod.addIncludePath(.{ .cwd_relative = include });
+        lib_mod.addIncludePath(include);
 
-        if (b.option([]const u8, "stdlib", "sysconfig.get_path('stdlib')")) |stdlib| {
-            var it = std.mem.splitBackwardsScalar(u8, stdlib, '/');
+        const py = b.addTranslateC(.{
+            .root_source_file = try include.join(b.allocator, "Python.h"),
+            .target = target,
+            .optimize = optimize,
+        });
+        py.addIncludePath(include);
+        const py_mod = py.createModule();
 
-            const translate_c = b.dependency("translate_c", .{});
-            const py: Translator = .init(translate_c, .{
-                .c_source_file = b.path("Python.h"),
-                .target = target,
-                .optimize = optimize,
-            });
-            py.mod.linkSystemLibrary(it.first(), .{});
-            py.mod.addLibraryPath(.{ .cwd_relative = it.rest() });
-            lib_mod.addImport("python", py.mod);
+        if (b.option(std.Build.LazyPath, "stdlib", "sysconfig.get_path('stdlib')")) |stdlib| {
+            py_mod.addLibraryPath(stdlib);
+            lib_mod.addImport("python", py_mod);
 
             const lib = b.addLibrary(.{
                 .name = "binding",
