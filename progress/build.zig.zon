@@ -1,0 +1,7 @@
+.{
+    .name = .progress,
+    .version = "0.15.2",
+    .dependencies = .{},
+    .paths = .{""},
+    .fingerprint = 0x2201f246e6fb8646,
+}
