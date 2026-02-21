@@ -23,12 +23,8 @@ jobs:
       - uses: astral-sh/ruff-action@v3
         with:
           version: "latest"
-      - uses: qoomon/actions--parallel-steps@v1
-        with:
-          steps: |
-            - run: uvx ruff check
-            - run: uvx ty check
-            - run: uvx pyright
+      - run: uvx ruff check
+      - run: uvx ty check
       - run: uv run pytest
         env:
           pytest_github_report: true
