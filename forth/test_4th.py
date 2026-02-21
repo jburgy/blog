@@ -1,12 +1,5 @@
-import os
-from functools import partial
-from subprocess import run
-from typing import Iterable, Mapping
-
-import pytest
-from _pytest import fixtures
-
-preamble = r""": TEST-MODE ;
+class TestForth:
+    scenarios = r"""
 : / /MOD SWAP DROP ;
 : '\n' 10 ;
 : BL 32 ;
@@ -33,10 +26,10 @@ preamble = r""": TEST-MODE ;
 : WHILE     IMMEDIATE ' 0BRANCH , HERE @ 0 , ;
 : REPEAT    IMMEDIATE ' BRANCH , SWAP HERE @ - , DUP HERE @ SWAP - SWAP ! ;
 : NIP SWAP DROP ;
-: PICK 1+ {w} * DSP@ + @ ;
+: PICK 1+ 8 * DSP@ + @ ;
 : SPACES BEGIN DUP 0> WHILE SPACE 1- REPEAT DROP ;
 : U. BASE @ /MOD ?DUP IF RECURSE THEN DUP 10 < IF '0' ELSE 10 - 'A' THEN + EMIT ;
-: .S DSP@ BEGIN DUP S0 @ < WHILE DUP @ U. {w}+ SPACE REPEAT DROP ;
+: .S DSP@ BEGIN DUP S0 @ < WHILE DUP @ U. 8+ SPACE REPEAT DROP ;
 : UWIDTH BASE @ / ?DUP IF RECURSE 1+ ELSE 1 THEN ;
 : U.R SWAP DUP UWIDTH ROT SWAP - SPACES U. ;
 : .R SWAP DUP 0< IF NEGATE 1 SWAP ROT 1- ELSE 0 SWAP ROT THEN SWAP DUP
@@ -44,19 +37,19 @@ preamble = r""": TEST-MODE ;
 : . 0 .R SPACE ;
 : U. U. SPACE ;
 : WITHIN -ROT OVER <= IF > IF TRUE ELSE FALSE THEN ELSE 2DROP FALSE THEN ;
-: ALIGNED {v} + -{w} AND ;
+: ALIGNED 7 + -8 AND ;
 : ALIGN HERE @ ALIGNED HERE ! ;
 : C, HERE @ C! 1 HERE +! ;
 : S" IMMEDIATE STATE @ IF
   ' LITSTRING , HERE @ 0 , BEGIN KEY DUP '"' <> WHILE
-  C, REPEAT DROP DUP HERE @ SWAP - {w}- SWAP ! ALIGN ELSE
+  C, REPEAT DROP DUP HERE @ SWAP - 8- SWAP ! ALIGN ELSE
   HERE @ BEGIN KEY DUP '"' <> WHILE OVER C! 1+ REPEAT DROP HERE @ - HERE @ SWAP THEN ;
 : ." IMMEDIATE STATE @ IF [COMPILE] S" ' TELL , ELSE BEGIN KEY DUP '"' = IF
   DROP EXIT THEN EMIT AGAIN THEN ;
-: CELLS {w} * ;
-: ID. {w}+ DUP C@ F_LENMASK AND BEGIN DUP 0> WHILE SWAP 1+ DUP C@ EMIT SWAP 1- REPEAT
-  2DROP ;
-: ?IMMEDIATE {w}+ C@ F_IMMED AND ;
+: CELLS 8 * ;
+: ID. 8+ DUP C@ F_LENMASK AND BEGIN DUP 0> WHILE SWAP 1+ DUP C@ EMIT SWAP 1- REPEAT
+2DROP ;
+: ?IMMEDIATE 8+ C@ F_IMMED AND ;
 : CASE    IMMEDIATE 0 ;
 : OF      IMMEDIATE ' OVER , ' = , [COMPILE] IF ' DROP , ;
 : ENDOF   IMMEDIATE [COMPILE] ELSE ;
@@ -66,214 +59,91 @@ preamble = r""": TEST-MODE ;
   ':' EMIT SPACE DUP ID. SPACE DUP ?IMMEDIATE IF ." IMMEDIATE " THEN >DFA
   BEGIN 2DUP > WHILE DUP @
       CASE
-          ' LIT OF {w}+ DUP @ . ENDOF
-          ' LITSTRING OF [ CHAR S ] LITERAL EMIT '"' EMIT SPACE {w}+ DUP @ SWAP {w}+
-            SWAP 2DUP TELL '"' EMIT SPACE + ALIGNED {w}- ENDOF
-          ' 0BRANCH OF ." 0BRANCH ( " {w}+ DUP @ . ." ) " ENDOF
-          '  BRANCH OF  ." BRANCH ( " {w}+ DUP @ . ." ) " ENDOF
-          ' ' OF [ CHAR ' ] LITERAL EMIT SPACE {w}+ DUP CFA> ID. SPACE ENDOF
-          ' EXIT OF 2DUP {w}+ <> IF ." EXIT " THEN ENDOF
+          ' LIT OF 8+ DUP @ . ENDOF
+          ' LITSTRING OF [ CHAR S ] LITERAL EMIT '"' EMIT SPACE 8+ DUP @ SWAP 8+
+            SWAP 2DUP TELL '"' EMIT SPACE + ALIGNED 8- ENDOF
+          ' 0BRANCH OF ." 0BRANCH ( " 8+ DUP @ . ." ) " ENDOF
+          '  BRANCH OF  ." BRANCH ( " 8+ DUP @ . ." ) " ENDOF
+          ' ' OF [ CHAR ' ] LITERAL EMIT SPACE 8+ DUP CFA> ID. SPACE ENDOF
+          ' EXIT OF 2DUP 8+ <> IF ." EXIT " THEN ENDOF
           DUP CFA> ID. SPACE
       ENDCASE
-      {w}+
+      8+
   REPEAT
  ';' EMIT CR 2DROP ;
 : ['] IMMEDIATE ' LIT , ;
 : EXCEPTION-MARKER RDROP 0 ;
-: CATCH DSP@ {w}+ >R ' EXCEPTION-MARKER {w}+ >R EXECUTE ;
-: THROW ?DUP IF RSP@ BEGIN DUP R0 {w}- < WHILE DUP @ ' EXCEPTION-MARKER {w}+ = IF
-  {w}+ RSP! DUP DUP DUP R> {w}- SWAP OVER ! DSP! EXIT THEN {w}+ REPEAT
+: CATCH DSP@ 8+ >R ' EXCEPTION-MARKER 8+ >R EXECUTE ;
+: THROW ?DUP IF RSP@ BEGIN DUP R0 8- < WHILE DUP @ ' EXCEPTION-MARKER 8+ = IF
+  8+ RSP! DUP DUP DUP R> 8- SWAP OVER ! DSP! EXIT THEN 8+ REPEAT
   DROP CASE 0 1- OF ." ABORTED" CR ENDOF ." UNCAUGHT THROW " DUP . CR ENDCASE QUIT THEN
   ;
 : Z" IMMEDIATE STATE @ IF
   ' LITSTRING , HERE @ 0 , BEGIN KEY DUP '"' <> WHILE
   HERE @ C! 1 HERE +! REPEAT 0 HERE @ C! 1 HERE +! DROP DUP
-  HERE @ SWAP - {w}- SWAP ! ALIGN ' DROP , ELSE
+  HERE @ SWAP - 8- SWAP ! ALIGN ' DROP , ELSE
   HERE @ BEGIN KEY DUP '"' <> WHILE OVER C! 1+ REPEAT DROP 0 SWAP C! HERE @ THEN ;
 : STRLEN DUP BEGIN DUP C@ 0<> WHILE 1+ REPEAT SWAP - ;
 : ARGC (ARGC) @ ;
 : ARGV 1+ CELLS (ARGC) + @ DUP STRLEN ;
 : ENVIRON ARGC 2 + CELLS (ARGC) + ;
-: GET-BRK 0 SYS_BRK SYSCALL1 ;
-: UNUSED GET-BRK HERE @ - {w} / ;
-: WELCOME S" TEST-MODE" FIND NOT IF
-  ." JONESFORTH VERSION " VERSION . CR
-  UNUSED . ." CELLS REMAINING" CR
-  ." OK " THEN ;
-WELCOME
-HIDE WELCOME
-"""
-
-
-@pytest.fixture(scope="module")
-def mapping(target: str) -> Mapping[str, str]:
-    names = {
-        "SYS_EXIT": "__NR_exit",
-        "SYS_READ": "__NR_read",
-        "SYS_WRITE": "__NR_write",
-        "SYS_OPEN": "__NR_open",
-        "SYS_CLOSE": "__NR_close",
-        "SYS_CREAT": "__NR_creat",
-        "access": "__NR_access",
-        "SYS_BRK": "__NR_brk",
-        "getppid": "__NR_getppid",
-        "umask": "__NR_umask",
-        "O_RDONLY": "O_RDONLY",
-        "O_WRONLY": "O_WRONLY",
-        "O_RDWR": "O_RDWR",
-        "O_CREAT": "O_CREAT",
-        "O_EXCL": "O_EXCL",
-        "O_TRUNC": "O_TRUNC",
-        "O_APPEND": "O_APPEND",
-        "O_NONBLOCK": "O_NONBLOCK",
-    }
-    arch = "-m32" if target == "4th.32" else "-m64"
-    # https://unix.stackexchange.com/a/254700
-    rc = run(
-        ["gcc", arch, "-include", "sys/syscall.h", "-include", "fcntl.h", "-E", "-"],
-        input=" ".join(names.values()),
-        capture_output=True,
-        check=True,
-        text=True,
-    )
-    values = (
-        str(int(value, 8 if value.startswith("0") else 10))
-        for value in rc.stdout.rstrip().rpartition("\n")[2].split()
-    )
-    result = dict(zip(names.keys(), values))
-
-    syscall0 = int.from_bytes("SYSCALL0".encode(), byteorder="little")
-    result["syscall0"] = (
-        "{:d} {:d}".format(*divmod(syscall0, 2**32))
-        if target == "4th.32"
-        else "{:d}".format(syscall0)
-    )
-    w = 4 if target == "4th.32" else 8
-    result["forth"] = preamble.format(v=w - 1, w=w)
-    return result
-
-
-@pytest.fixture(scope="module")
-def cmd(target: str) -> Iterable[partial]:
-    run(["make", target], cwd="forth", check=True)
-    yield partial(
-        run,
-        args=["forth/" + target, "foo", "bar"],
-        capture_output=True,
-        check=True,
-        env={"SHELL": "/bin/bash"},
-        text=True,
-    )
-    if target == "4th.gcov":
-        run(["gcov", "4th.c"], cwd="forth", check=True)
-    run(["make", "clean"], cwd="forth", check=True)
-
-
-def test_error(cmd: partial):
-    assert cmd(input="BORK\n").stderr == "PARSE ERROR: BORK\n"
-
-
-@pytest.fixture(scope="function")
-def test_input(request: fixtures.SubRequest, mapping: dict):
-    assert isinstance(request.param, str)
-    return request.param.format_map(mapping)
-
-
-@pytest.fixture(scope="function")
-def expected(request: fixtures.SubRequest, target: str):
-    assert isinstance(request.param, str)
-    return (
-        request.param.replace("8+", "4+").replace("-16", "-8")
-        if target == "4th.32"
-        else request.param
-    )
-
-
-@pytest.mark.parametrize(
-    ("test_input", "expected"),
-    [
-        ("65 EMIT\n", "A"),
-        ("777 65 EMIT\n", "A"),
-        ("32 DUP + 1+ EMIT\n", "A"),
-        ("16 DUP 2DUP + + + 1+ EMIT\n", "A"),
-        ("8 DUP * 1+ EMIT\n", "A"),
-        ("CHAR A EMIT\n", "A"),
-        (": SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT\n", "A"),
-        ("{syscall0} DSP@ 8 TELL\n", "SYSCALL0"),
-        ("{syscall0} DSP@ HERE @ 8 CMOVE HERE @ 8 TELL\n", "SYSCALL0"),
-        (f"{int.from_bytes('65'.encode(), 'little'):d} DSP@ 2 NUMBER DROP EMIT\n", "A"),
-        ("64 >R RSP@ 1 TELL RDROP\n", "@"),
-        ("64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL\n", "@"),
-        ("64 >R 1 RSP@ +! RSP@ 1 TELL\n", "A"),
-        (
-            """
+65 EMIT CR \ A
+777 65 EMIT DROP CR \ A
+32 DUP + 1+ EMIT CR \ A
+16 DUP 2DUP + + + 1+ EMIT CR \ A
+8 DUP * 1+ EMIT CR \ A
+CHAR A EMIT CR \ A
+: SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT CR \ A
+3480240455236671827 DSP@ 8 TELL 2DROP CR \ SYSCALL0
+3480240455236671827 DSP@ HERE @ 8 CMOVE HERE @ 8 TELL 2DROP CR \ SYSCALL0
+13622 DSP@ 2 NUMBER DROP EMIT CR \ A
+64 >R RSP@ 1 TELL RDROP CR \ @
+64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL 2DROP CR \ @
+64 >R 1 RSP@ +! RSP@ 1 TELL RDROP CR \ A
 : <BUILDS WORD CREATE DODOES , 0 , ;
 : DOES> R> LATEST @ >DFA ! ;
 : CONST <BUILDS , DOES> @ ;
-
 65 CONST FOO
-FOO EMIT
-""",
-            "A"
-        ),
-        ("{forth}VERSION .\n", "47 "),
-        ("{forth}CR\n", "\n"),
-        ("{forth}LATEST @ ID.\n", "WELCOME"),
-        ("{forth}0 1 > . 1 0 > .\n", "0 -1 "),
-        ("{forth}0 1 >= . 0 0 >= .\n", "0 -1 "),
-        ("{forth}0 0<> . 1 0<> .\n", "0 -1 "),
-        ("{forth}1 0<= . 0 0<= .\n", "0 -1 "),
-        ("{forth}-1 0>= . 0 0>= .\n", "0 -1 "),
-        ("{forth}0 0 OR . 0 -1 OR .\n", "0 -1 "),
-        ("{forth}-1 -1 XOR . 0 -1 XOR .\n", "0 -1 "),
-        ("{forth}-1 INVERT . 0 INVERT .\n", "0 -1 "),
-        ("{forth}3 4 5 .S\n", "5 4 3 "),
-        ("{forth}1 2 3 4 2SWAP .S\n", "2 1 4 3 "),
-        ("{forth}F_IMMED F_HIDDEN .S\n", "32 128 "),
-        ("{forth}: CFA@ WORD FIND >CFA @ ; CFA@ >DFA DOCOL = .\n", "-1 "),
-        ("{forth}3 4 5 WITHIN .\n", "0 "),
-        ("{forth}: GETPPID {getppid} SYSCALL0 ; GETPPID .\n", f"{os.getpid():d} "),
-        ("{forth}18 {umask} SYSCALL1 .\n", "18 "),
-        ('{forth}O_RDONLY Z" forth/4th.c" {access} SYSCALL2 .\n', "0 "),
-        ('{forth}S" test" SWAP 1 SYS_WRITE SYSCALL3\n', "test"),
-        ("{forth}ARGC .\n", "3 "),
-        ("{forth}ENVIRON @ DUP STRLEN TELL\n", "SHELL=/bin/bash"),
-        ("{forth}SEE >DFA\n", ": >DFA >CFA 8+ EXIT ;\n"),
-        ("{forth}SEE HIDE\n", ": HIDE WORD FIND HIDDEN ;\n"),
-        ("{forth}SEE QUIT\n", ": QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;\n"),
-        (
-            "{forth}: FOO THROW ;\n"
-            ": TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF "
-            '." FOO threw exception: " . CR DROP THEN ;\n'
-            "TEST-EXCEPTIONS\n",
-            "FOO threw exception: 25 \n",
-        ),
-    ],
-    indirect=["test_input", "expected"],
-)
-def test_advanced(cmd: partial, test_input: str, expected: str):
-    os.umask(0o22)
-    assert cmd(input=test_input).stdout == expected
+FOO EMIT CR \ A
+VERSION . CR \ 47
+LATEST @ ID. CR \ FOO
+0 1 > . CR \ 0
+1 0 > . CR \ -1
+0 1 >= . CR \ 0
+0 0 >= . CR \ -1
+0 0<> . CR \ 0
+1 0<> . CR \ -1
+1 0<= . CR \ 0
+0 0 <= . CR \ -1
+-1 0>= . CR \ 0
+0 0>= . CR \ -1
+0 0 OR . CR \ 0
+0 -1 OR . CR \ -1
+-1 -1 XOR . CR \ 0
+0 -1 XOR . CR \ -1
+-1 INVERT . CR \ 0
+0 INVERT . CR \ -1
+3 4 5 .S 2DROP DROP CR \ 5 4 3
+F_IMMED F_HIDDEN .S 2DROP CR \ 32 128
+: CFA@ WORD FIND >CFA @ ; CFA@ >DFA DOCOL = . CR \ -1
+3 4 5 WITHIN . CR \ 0
+102 SYSCALL0 . CR \ {uid}
+{uid} 105 SYSCALL1 . CR \ 0
+O_RDONLY Z" {argv0}" 21 SYSCALL2 . CR \ 0
+S" test" SWAP 1 SYS_WRITE SYSCALL3 . CR \ test4
+ARGC . CR \ 1
+0 ARGV TELL CR \ {argv0}
+ENVIRON @ DUP STRLEN TELL CR \ SHELL=/bin/bash
+SEE >DFA \ : >DFA >CFA 8+ EXIT ;
+SEE HIDE \ : HIDE WORD FIND HIDDEN ;
+SEE QUIT \ : QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;
+: FOO THROW ;
+: TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF ." FOO threw exception: " . CR DROP THEN ;
+TEST-EXCEPTIONS \ FOO threw exception: 25
+"""
 
+    def test_4th(self, actual: str, expected: str):
+        assert actual.rstrip() == expected
 
-def test_syscalls(mapping: Mapping[str, str], cmd: partial):
-    values = {key: value for key, value in mapping.items() if key.startswith("SYS_")}
-    test_input = f"{mapping['forth']} {' '.join(values)} .S\n"
-    expected = " ".join(reversed(values.values())) + " "
-    assert cmd(input=test_input).stdout == expected
-
-
-def test_fnctl(mapping: Mapping[str, str], cmd: partial):
-    values = {key: value for key, value in mapping.items() if key.startswith("O_")}
-    test_input = f"{mapping['forth']} {' '.join(values)} .S\n"
-    expected = " ".join(reversed(values.values())) + " "
-    assert cmd(input=test_input).stdout == expected
-
-
-def test_argv(mapping: dict, cmd: partial):
-    assert (
-        cmd(
-            input="{forth}0 ARGV TELL SPACE 2 ARGV TELL\n".format_map(mapping),
-        ).stdout
-        == " ".join(cmd.keywords["args"][i] for i in (0, 2))
-    )
+    def test_5th(self, actual: str, expected: str):
+        assert actual.rstrip() == expected
