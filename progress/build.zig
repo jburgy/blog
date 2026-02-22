@@ -25,6 +25,7 @@ pub fn build(b: *std.Build) !void {
             lib_mod.addImport("python", py_mod);
 
             const lib = b.addLibrary(.{
+                .linkage = .dynamic,
                 .name = "binding",
                 .root_module = lib_mod,
             });
