@@ -98,11 +98,11 @@ var m_slots: [3]py.PyModuleDef_Slot = .{
 };
 
 var progressmodule: py.PyModuleDef = .{
-    .m_name = "progress",
+    .m_name = "binding",
     .m_methods = &m_methods,
     .m_slots = &m_slots,
 };
 
-pub export fn PyInit_progress() [*c]py.PyObject {
+pub export fn PyInit_binding() [*c]py.PyObject {
     return py.PyModuleDef_Init(&progressmodule);
 }

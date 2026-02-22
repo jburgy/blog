@@ -6,19 +6,34 @@ import pytest  # pyright: ignore[reportMissingImports]
 
 
 collect_ignore = [
+    ".venv",
     "aoc2024",
     "aoc2025",
+    "assets",
+    "build",
     "emsdk-cache",
+    "foo",
     "forth/combination.py",
     "forth/forth.py",
+    "forth/jansforth.py",
+    "forth/node_modules",
     "forth/test_4th_wasm.py",
     "fun/api_from.py",
     "fun/assemble.py",
     "fun/awslayer.py",
+    "fun/challenge.py",
+    "fun/html_elements.py",
+    "fun/oecd.py",
+    "fun/nbody.py",
     "fun/store_sa.py",
-    "progress/__init__.py",
-    "notebooks/dataframe_formatting.py",
-    "notebooks/nbody.py",
+    "jonesforth",
+    "linprog",
+    "lisp",
+    "node_modules",
+    "notebooks",
+    "progress",
+    "TinyBasic",
+    "xterm-pty",
 ]
 
 

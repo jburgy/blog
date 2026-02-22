@@ -3,7 +3,7 @@
 from sys import argv
 from itertools import permutations
 
-if len(argv) > 1:
+if __name__ == "__main__" and len(argv) > 1:
     with open("fun/corncob_lowercase.txt", "rt") as lines:
         words = set(map(str.rstrip, lines))
 

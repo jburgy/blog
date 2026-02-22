@@ -33,7 +33,7 @@ with open("aoc2024/day5input.txt", "rt") as lines:
                 for i, head in enumerate(update[:-1])
                 for tail in update[i:]
             ):
-                update.sort(key=key)  # pyright: ignore[reportPossiblyUnboundVariable]  # ty: ignore[unresolved-reference]
+                update.sort(key=key)  # pyright: ignore[reportPossiblyUnboundVariable]
                 incorrect += int(update[len(update) // 2])
             else:
                 correct += int(update[len(update) // 2])
