@@ -71,27 +71,28 @@ def _element(tag: str, empty: bool = False):
     return m
 
 
-html = _element("html")
-head = _element("head")
-body = _element("body")
-script = _element("script")
-a = _element("a")
-div = _element("div")
-form = _element("form")
-input = _element("input", empty=True)
-output = _element("output")
+if __name__ == "__main__":
+    html = _element("html")
+    head = _element("head")
+    body = _element("body")
+    script = _element("script")
+    a = _element("a")
+    div = _element("div")
+    form = _element("form")
+    input = _element("input", empty=True)
+    output = _element("output")
 
-listeners, structure = interactions(result=abc.a + abc.b)
+    listeners, structure = interactions(result=abc.a + abc.b)
 
-print(html(
-    head(script(script_template.format(
-        listeners=listeners, structure=structure
-    ))),
-    body(
-        form(
-            input(type="range", id="b", name="b", value="50"),
-            input(type="number", id="a", name="a", value="10"),
-            output("60", id="result", name="result", **{"for": "a b"})
+    print(html(
+        head(script(script_template.format(
+            listeners=listeners, structure=structure
+        ))),
+        body(
+            form(
+                input(type="range", id="b", name="b", value="50"),
+                input(type="number", id="a", name="a", value="10"),
+                output("60", id="result", name="result", **{"for": "a b"})
+            )
         )
-    )
-))
+    ))

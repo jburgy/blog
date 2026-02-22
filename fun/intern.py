@@ -27,12 +27,13 @@ BEGIN
 END;
 """.split("\n" * 2)
 
-records = [(k, x) for k in list("abcdef") for x in range(17)]
+if __name__ == "__main__":
+    records = [(k, x) for k in list("abcdef") for x in range(17)]
 
-with connect(":memory:") as conn:
-    c = conn.cursor()
-    for statement in statements:
-        c.execute(statement)
-    c.executemany("INSERT INTO facts(dimension, value) VALUES(?, ?)", records)
-    c.execute("SELECT dimension, SUM(value) AS value FROM facts GROUP BY dimension")
-    print(c.fetchall())
+    with connect(":memory:") as conn:
+        c = conn.cursor()
+        for statement in statements:
+            c.execute(statement)
+        c.executemany("INSERT INTO facts(dimension, value) VALUES(?, ?)", records)
+        c.execute("SELECT dimension, SUM(value) AS value FROM facts GROUP BY dimension")
+        print(c.fetchall())

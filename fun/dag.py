@@ -136,7 +136,8 @@ def fib(n):
     return a
 
 
-print("using WeakSetEntry:", timeit(lambda: fibw(42)))
-print("using PartialEntry:", timeit(lambda: fibp(42)))
-print("using DelegateEntry:", timeit(lambda: fibd(42)))
-print("no cache: ", timeit(lambda: fib(42)))
+if __name__ == "__main__":
+    print("using WeakSetEntry:", timeit(lambda: fibw(42)))
+    print("using PartialEntry:", timeit(lambda: fibp(42)))
+    print("using DelegateEntry:", timeit(lambda: fibd(42)))
+    print("no cache: ", timeit(lambda: fib(42)))

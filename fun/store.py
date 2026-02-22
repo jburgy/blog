@@ -25,15 +25,16 @@ select = """WITH RECURSIVE assemble_patches(id, object) AS (
 )
     SELECT * FROM assemble_patches ORDER BY id DESC LIMIT 1;"""
 
-with connect(":memory:") as conn:
-    cursor = conn.cursor()
-    cursor.execute(create)
-    cursor.executemany(insert, [
-        (0, '{"a": 1}'),
-        (1, '{"b": 2}'),
-        (2, '{"a": 3}'),
-        (3, '{"a": null}')
-    ])
-    res = cursor.execute(select)
+if __name__ == "__main__":
+    with connect(":memory:") as conn:
+        cursor = conn.cursor()
+        cursor.execute(create)
+        cursor.executemany(insert, [
+            (0, '{"a": 1}'),
+            (1, '{"b": 2}'),
+            (2, '{"a": 3}'),
+            (3, '{"a": null}')
+        ])
+        res = cursor.execute(select)
 
-print(next(res))
+    print(next(res))

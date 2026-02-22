@@ -10,4 +10,5 @@ def fib(n: int) -> int:
     return a
 
 
-print(fib(92))
+if __name__ == "__main__":
+    print(fib(92))
