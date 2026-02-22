@@ -30,7 +30,7 @@ def second_half(buttons: list[tuple[int]], joltages: list[tuple[int]]) -> int:
                 if bit == "1":
                     A_eq[i, j] = 1
         sol = optimize.linprog(
-            [1] * len(button), A_eq=A_eq, b_eq=joltage, integrality=1  # type: ignore
+            [1] * len(button), A_eq=A_eq, b_eq=joltage, integrality=1
         )
         assert sol.success
         total += int(sum(sol.x))  # ty: ignore[no-matching-overload]

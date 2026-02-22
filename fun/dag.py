@@ -12,7 +12,7 @@ class _BaseEntry(ABC):
     def __enter__(self):
         callers = self.callers
         self.update(callers[-1:])
-        callers.append(self)  # ty: ignore[invalid-argument-type]
+        callers.append(self)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):

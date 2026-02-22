@@ -32,7 +32,7 @@ def propagate(
     while np.equal(count, 1, out=where).any():  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[no-matching-overload]
         k = np.invert(possible[where])  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[invalid-argument-type]
         # ufunc.at performs *unbuffered* in place operation
-        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[invalid-argument-type]
+        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),  # pyright: ignore[reportArgumentType, reportCallIssue]
                           k[:, np.newaxis])
         if not _counts.take(possible, out=count).all():  # stay in sync
             return -1
