@@ -34,6 +34,9 @@ dev = [
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
 
+[tool.uv]
+no-build-isolation = true
+
 [[tool.uv.index]]
 url = "https://pypi.ampl.com/"
 
