@@ -37,6 +37,9 @@ addopts = ["--doctest-modules"]
 [tool.uv]
 no-build-isolation = true
 
+[tool.uv.extra-build-dependencies]
+blog = ["mesonpy"]
+
 [[tool.uv.index]]
 url = "https://pypi.ampl.com/"
 
