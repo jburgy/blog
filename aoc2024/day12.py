@@ -15,14 +15,14 @@ with open("aoc2024/day12input.txt", "rt") as io:
 
 m = len(lines)
 n = max(map(len, lines))
-regions: list[list[int | None]] = [[None] * len(line) for line in lines]
+regions = [[-1] * len(line) for line in lines]
 
 areas: list[int] = []
 
 k = 0
 for i, (line, region) in enumerate(zip(lines, regions)):
     for j, (crop, cell) in enumerate(zip(line, region)):
-        if cell is None:
+        if cell < 0:
             k = len(areas)
             area = 0
             q = [(i, j)]
@@ -31,7 +31,7 @@ for i, (line, region) in enumerate(zip(lines, regions)):
                 if (
                     0 <= s < m
                     and 0 <= t < n
-                    and regions[s][t] is None
+                    and regions[s][t] < 0
                     and lines[s][t] == crop
                 ):
                     area += 1
