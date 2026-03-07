@@ -19,6 +19,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
+      - run: uv build --wheel
       - run: uv sync
       - uses: astral-sh/ruff-action@v3
         with:
