@@ -48,11 +48,11 @@ def aho_corasick(*words):
         for digit in map(int, word.translate(MAP)):
             next = node[digit]
             if next is None:
-                node[digit] = next = [None] * WORD  # pyright: ignore[reportArgumentType, reportCallIssue]
+                node[digit] = next = [None] * WORD  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[invalid-assignment]
             node = next
         node.append(word)
 
-    root[FAIL] = root  # pyright: ignore[reportArgumentType, reportCallIssue]
+    root[FAIL] = root  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[invalid-assignment]
     stack = []
     append = stack.append
     for node in root[:FAIL]:
