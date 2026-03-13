@@ -29,7 +29,9 @@ jobs:
       - run: uv run pytest
         env:
           pytest_github_report: true
-      - uses: konsumer/install-wasi-sdk@v1
+      - uses: bytecodealliance/setup-wasi-sdk-action@v1
+        with:
+          version: 30
       - run: npm ci
         working-directory: ./forth
       - run: npm run test
