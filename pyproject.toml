@@ -31,6 +31,9 @@ dev = [
     "sympy",
 ]
 
+[tool.meson-python.args]
+compile = ["-j4"]
+
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
 

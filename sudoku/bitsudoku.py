@@ -36,7 +36,8 @@ def propagate(
                           k[:, np.newaxis])
         if not _counts.take(possible, out=count).all():  # stay in sync
             return -1
-        count[where] = ma.masked  # no need to visit again
+        # no need to visit again
+        count[where] = ma.masked  # ty: ignore[invalid-assignment]
     return count.count()
 
 
