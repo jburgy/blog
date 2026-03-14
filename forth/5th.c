@@ -662,7 +662,7 @@ int main(void)
 int main(int argc __attribute__((unused)), char *argv[])
 #endif
 {
-    intptr_t N = 0x2000;
+    intptr_t N = 0x100;
     intptr_t stack[N];
     union instr_t *return_stack[N];
     char *memory = sbrk(0x10000);
