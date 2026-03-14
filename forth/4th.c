@@ -34,7 +34,7 @@ code_##_label
 #define XSTR(x) STR(x)
 #define STR(x) #x
 
-#define STACK_SIZE (0x2000 / __SIZEOF_POINTER__) /* Number of elements in each stack */
+#define STACK_SIZE (0x400 / __SIZEOF_POINTER__) /* Number of elements in each stack */
 
 #ifdef EMSCRIPTEN
 #include <stdarg.h>
