@@ -1,0 +1,115 @@
+﻿!                           LINEAR PROGRAMMING
+!
+!   Let A = (aᵢⱼ) be an m × n matrix, B an array containing b₁, …, bₘ, and C an array 
+! containing c₁, …, cₙ where aᵢⱼ, bᵢ, cⱼ are real.  Consider the problem of finding nonnegative
+! values x₁, …, xₙ which maximize or minimize the function c₁x₁ + … + cₙxₙ subject to
+! the constraints:
+!
+!       a₁₁x₁ + … + a₁ₙxₙ {≤,=,≥} b₁
+!           ⋮
+!       aₘ₁x₁ + … + aₘₙxₙ {≤,=,≥} bₘ
+!
+! In each constraint
+!       aᵢ₁x₁ + … + aᵢₙxₙ {≤,=,≥} bᵢ
+! only one of the relations ≤,=,≥ is used, but the relation may vary from constraint to
+! constraint.  The following subroutines are available for solving this problem.
+!
+!       CALL SMPLX(A, B, C, ka, m, n, IND, IBASIS, X, z, ITER, MXITER,
+!                  NUMLE, NUMGE, BI, WK, IWK)
+!       CALL SSPLX(TA, ITA, JTA, B, C, m, n, IND, IBASIS, X, z, ITER, MXITER,
+!                  NUMLE, NUMGE, BI, WK, IWK)
+!
+!   It is assumed that m ≥ 2, n ≥ 2, and that each bᵢ ≥ 0. If SMPLX is called then ka is
+! the number of rows in the dimension statement for A in the calling program. Otherwise,
+! if SSPLX is called then TA, ITA, JTA are arrays containing the transpose matrix Aᵀ in
+! sparse form.
+!
+!   The constraints aᵢ₁x₁ + … + aᵢₙxₙ {≤,=,≥} bᵢ are assumed to be ordered so that the
+! ≤ constraints are followed by the ≥ constraints, and the = constraints come last. NUMLE
+! and NUMGE have the values:
+!       NUMLE = the number of ≤ constraints.
+!       NUMGE = the number of ≥ constraints.
+! It is assumed that NUMLE ≥, NUMGE ≥ 0, and NUMLE + NUMGE ≤ m
+!
+!   When SMPLX or SSPLX is called, the routine attempts to maximize Σⱼcⱼxⱼ subject
+! to the constaints. A modified form of the primal simplex algorithm is employed. Frequently
+! the procedure requires less than 5m iterations to perform the task. The argument MXITER
+! has the value:
+!       MXITER = the maximum number of iterations that may be performed.
+! This argument is provided by the user. The related argument ITER is a variable that is
+! set by the routine. When the routine terminates, ITER has for its value the number of
+! iterations that were performed.
+!
+!   IND is a variable and IBASIS an array of dimension m. IBASIS contains the indices
+! i of the current basis variables x and IND is used for input/output purposes.  On in-
+! put IND is normally set by the user to 0.  If IND is 0 then the routine selects its own
+! beginning basis and stores the appropriate indices in IBASIS. [The remainder of this para-
+! graph may be skipped by anyone not acquainted with the simplex algorithm.] If the user
+! wishes to use his own beginning basis, then IND must be set to 1 and the indices of
+! the initial basic variables stored in IBASIS. It is not required that the initial basis
+! be selected so that the basic variables are nonnegative. The initial basic variables may
+! be original, slack, surplus, or artificial variables. Slack and surplus variables are automat-
+! ically provided for the ≤ and ≥ constraints, and artificial variables for the = constraints.
+! The routine defines xₙ₊ᵢ to be the slack, surplus, or artificial variable for the iᵗʰ constraint
+! aᵢ₁x₁ + … + aᵢₙxₙ{≤,=,≥}bᵢ. If IND = 0 then the slack, surplus, and artificial variables
+! are the initial basic variables that are employed.
+!
+!   On output IND reports the status of the results. The routine assigns IND one of the
+! following values:
+!       IND = 0 The problem was solved.
+!       IND = 1 The problem has no solution.
+!       IND = 2 MXITER iterations were performed. More iterations are needed.
+!       IND = 3 Sufficient accuracy cannot be maintained to solve the problem.
+!       IND = 4 The problem has an unbounded solution.
+!       IND = 5 An input error was detected. (See below)
+!       IND - 6 A possible solution was obtained. The routine is not certain if the
+! solution is correct.
+! X is an array of dimension n + NUMLE + NUMGE and z is a variable. If IND = 0 or
+! IND = 6, then z has for its value the maximum value obtained for Σⱼcⱼxⱼ and X contains
+! the values obtained for the original, slack, and surplus variables. If IND ≠ 5 then IBASIS
+! contains the indices of the basic variables currently in effect when the routine terminates.
+!
+!   BI is an array of dimension m² that is used for storing the inverse of the basis matrix.
+! The order of the column vectors of the basis matrix corresponds to the order of the basic
+! variables given in IABIS. If IND ≠ 3,5 on output then BI contains the inverse of the basis
+! matrix currently in effect when the routine terminates.
+! WK is an array of dimension 2mn or larger, and IWK is an array of dimension 2m + n
+! or larger. WK and IWK are work spaces.
+!
+!   Input Errors. IND = 5 occurs on output when one of the following conditions is violated:
+!       (1) n ≥ 2 and ka ≥ m ≥ 2.
+!       (2) NUMLE + NUMGE ≤ m
+!       (3) Each bᵢ ≥ 0
+!       (4) The basis matrix specified by the user in IBASIS (whnen IND = 1 on input) is nonsin-
+!           gular and sufficiently well conditioned that its inverse can be computed.
+!
+! Remarks
+!       (1) A, B, C, TA, ITA, JTA are not modified by the routines.
+!       (2) The routines maximizes Σⱼcⱼxⱼ.  This function can be minimized by maximizing Σⱼ(-cⱼ)xⱼ
+!           and then changing the sign of the result.
+!
+! Source: https://github.com/jacobwilliams/nswc
+
+python module simplex ! in 
+    interface  ! in :smplx
+        subroutine smplx(a,b0,c,ka,m,n0,ind,ibasis,x,z,iter,mxiter,numle,numge,bi,wk,iwk) ! in :smplx:SMPLX.F
+            real intent(in), dimension(ka, n0) :: a
+            real intent(in), dimension(m) :: b0
+            real intent(in), dimension(n0), depend(n0) :: c
+            integer intent(hide), depend(a) :: ka = shape(a, 0)
+            integer intent(hide), depend(b0) :: m = shape(b0, 0)
+            integer intent(hide), depend(a) :: n0 = shape(a, 1)
+            integer intent(in, out), optional :: ind = 0
+            integer intent(in), optional, dimension(m), depend(m) :: ibasis
+            real intent(out), dimension(n0 + numle + numge), depend(n0, numle, numge) :: x
+            real intent(out) :: z
+            integer intent(out) :: iter
+            integer intent(in) :: mxiter
+            integer intent(in) :: numle
+            integer intent(in) :: numge
+            real intent(hide), dimension(m, m), depend(m) :: bi
+            real intent(hide), dimension(2 * m), depend(m) :: wk
+            integer intent(hide), dimension(2 * m + n0), depend(m, n0) :: iwk
+        end subroutine smplx
+    end interface 
+end python module smplx
