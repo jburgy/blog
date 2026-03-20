@@ -29,7 +29,7 @@
 ! and NUMGE have the values:
 !       NUMLE = the number of ≤ constraints.
 !       NUMGE = the number of ≥ constraints.
-! It is assumed that NUMLE ≥, NUMGE ≥ 0, and NUMLE + NUMGE ≤ m
+! It is assumed that NUMLE ≥ 0, NUMGE ≥ 0, and NUMLE + NUMGE ≤ m
 !
 !   When SMPLX or SSPLX is called, the routine attempts to maximize Σⱼcⱼxⱼ subject
 ! to the constaints. A modified form of the primal simplex algorithm is employed. Frequently
@@ -105,8 +105,8 @@ python module simplex ! in
             real intent(out) :: z
             integer intent(out) :: iter
             integer intent(in) :: mxiter
-            integer intent(in) :: numle
-            integer intent(in) :: numge
+            integer intent(in), optional :: numle = 0
+            integer intent(in), optional :: numge = 0
             real intent(hide), dimension(m, m), depend(m) :: bi
             real intent(hide), dimension(2 * m), depend(m) :: wk
             integer intent(hide), dimension(2 * m + n0), depend(m, n0) :: iwk
