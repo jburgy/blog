@@ -51,7 +51,7 @@
 ! be original, slack, surplus, or artificial variables. Slack and surplus variables are automat-
 ! ically provided for the ≤ and ≥ constraints, and artificial variables for the = constraints.
 ! The routine defines xₙ₊ᵢ to be the slack, surplus, or artificial variable for the iᵗʰ constraint
-! aᵢ₁x₁ + … + aᵢₙxₙ{≤,=,≥}bᵢ. If IND = 0 then the slack, surplus, and artificial variables
+! aᵢ₁x₁ + … + aᵢₙxₙ {≤,=,≥} bᵢ. If IND = 0 then the slack, surplus, and artificial variables
 ! are the initial basic variables that are employed.
 !
 !   On output IND reports the status of the results. The routine assigns IND one of the
@@ -71,7 +71,7 @@
 !
 !   BI is an array of dimension m² that is used for storing the inverse of the basis matrix.
 ! The order of the column vectors of the basis matrix corresponds to the order of the basic
-! variables given in IABIS. If IND ≠ 3,5 on output then BI contains the inverse of the basis
+! variables given in IBASIS. If IND ≠ 3,5 on output then BI contains the inverse of the basis
 ! matrix currently in effect when the routine terminates.
 ! WK is an array of dimension 2mn or larger, and IWK is an array of dimension 2m + n
 ! or larger. WK and IWK are work spaces.
@@ -104,7 +104,7 @@ python module simplex ! in
             real intent(out), dimension(n0 + numle + numge), depend(n0, numle, numge) :: x
             real intent(out) :: z
             integer intent(out) :: iter
-            integer intent(in) :: mxiter
+            integer intent(in), optional, depend(m) :: mxiter = 8 * m
             integer intent(in), optional :: numle = 0
             integer intent(in), optional :: numge = 0
             real intent(hide), dimension(m, m), depend(m) :: bi

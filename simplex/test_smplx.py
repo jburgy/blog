@@ -98,13 +98,23 @@ data = {
     "Strawberry Preserves": [6.4, 11, 0.4, 7, 0.2, 0.2, 0.4, 3, 0],
 }
 
+
 def test_smplx():
     sol = smplx(
         a=np.column_stack([*data.values()]),
         b0=np.r_[*nutrients.values()],
         c=-np.ones(len(data)),
         numge=len(nutrients),
-        mxiter=100,
     )
     assert sol[0] == 0
+    assert sol[1].size == len(nutrients) + len(data)
+    assert np.count_nonzero(sol[1]) == len(nutrients)
+    assert [a for a, b in zip(nutrients, sol[1][len(data) :]) if not b] == [
+        "Calories (kcal)",
+        "Calcium (g)",
+        "Vitamin A (KIU)",
+        "Vitamin B2 (mg)",
+        "Vitamin C (mg)",
+    ]
     assert sol[2] == pytest.approx(-0.10866227746009827)
+    assert sol[3] == 8
