@@ -1,6 +1,6 @@
-fourt2py_source = custom_target('fourt2pymodule.c',
-    input : ['fourt.pyf'],
-    output : ['fourt2pymodule.c'],
+simplex_source = custom_target('simplexmodule.c',
+    input : ['smplx.pyf'],
+    output : ['simplexmodule.c'],
     command: [py, '-m', 'numpy.f2py', '@INPUT@', '--build-dir', '@OUTDIR@'],
 )
 
@@ -9,9 +9,9 @@ include_directories = run_command(py,
     check : true
 ).stdout().split()
 
-py.extension_module('fourt2py',
-    'FOURT.F',
-    fourt2py_source,
+py.extension_module('simplex',
+    'SMPLX.F',
+    simplex_source,
     include_directories[1] / 'fortranobject.c',
     include_directories : include_directories,
     install : true,
