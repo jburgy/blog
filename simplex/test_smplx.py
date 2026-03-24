@@ -100,21 +100,21 @@ data = {
 
 
 def test_smplx():
-    sol = smplx(
+    ind, x, z, iter = smplx(
         a=np.column_stack([*data.values()]),
         b0=np.r_[*nutrients.values()],
         c=-np.ones(len(data)),
         numge=len(nutrients),
     )
-    assert sol[0] == 0
-    assert sol[1].size == len(nutrients) + len(data)
-    assert np.count_nonzero(sol[1]) == len(nutrients)
-    assert [a for a, b in zip(nutrients, sol[1][len(data) :]) if not b] == [
+    assert ind == 0
+    assert x.size == len(nutrients) + len(data)
+    assert np.count_nonzero(x) == len(nutrients)
+    assert [a for a, b in zip(nutrients, x[len(data) :]) if not b] == [
         "Calories (kcal)",
         "Calcium (g)",
         "Vitamin A (KIU)",
         "Vitamin B2 (mg)",
         "Vitamin C (mg)",
     ]
-    assert sol[2] == pytest.approx(-0.10866227746009827)
-    assert sol[3] == 8
+    assert z == pytest.approx(-0.10866227746009827)
+    assert iter == 8
