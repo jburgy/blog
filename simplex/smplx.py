@@ -1,9 +1,24 @@
-# ruff: noqa: E741, F821, F841
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "numpy>=2.4.3",
+# ]
+# ///
+
+# ruff: noqa: E501, E741, F821, F841
 
 # simplex.py
 import numpy as np
+import numpy.typing as npt
 
-def smplx(a, b0, c, ind=0, ibasis=None, mxiter=1000, numle=None, numge=None):
+def smplx(
+    a: np.ndarray[tuple[int, int], np.dtype[np.float64]],
+    b0: npt.ArrayLike,
+    c: npt.ArrayLike,
+    mxiter: int = 1000,
+    numle: int = 0,
+    numge: int = 0,
+) -> tuple[int, np.ndarray[tuple[int], np.dtype[np.float64]], float, int]:
     """
     Solve linear program:
         maximize c^T x
@@ -12,152 +27,98 @@ def smplx(a, b0, c, ind=0, ibasis=None, mxiter=1000, numle=None, numge=None):
     """
     # Infer dimensions
     m, n0 = a.shape
-    b0 = np.asarray(b0, dtype=float).ravel()
-    c = np.asarray(c, dtype=float).ravel()
-    if numge is None:
-        numge = 0
-    if numle is None:
-        numle = m - numge
+    b0 = np.asarray(b0, dtype=np.float64).ravel()
+    c = np.asarray(c, dtype=np.float64).ravel()
     ms = numle + numge
     # Validate input
     if m < 2 or n0 < 2 or ms > m or a.shape[0] < m or np.any(b0 < 0):
-        return 5, None, None, None
+        return 5, np.empty(0, dtype=np.float64), float("nan"), 0
 
     # Machine constants
-    eps0 = np.finfo(float).eps
+    finfo = np.finfo(np.float64)
+    eps0 = finfo.eps
     rerr_mn = 10.0 * eps0
     rerr_mx = 1e-4 if eps0 >= 1e-13 else 1e-5
-    xmax = np.finfo(float).max
+    xmax = finfo.max
+    rtol = rerr_mx * abs(c).min(initial=xmax, where=c != 0)
 
     # Work arrays
     ns = n0 + numle          # original + slack
     n = ns + numge           # + surplus
-    x = np.zeros(n)          # solution and reduced costs
-    bi = np.eye(m)           # basis inverse
-    xb = np.zeros(m)         # basic variable values
-    y = np.zeros(m)          # work array
-    basis = np.zeros(n, dtype=int)   # 1 if variable is basic
-    idx = np.zeros(m, dtype=int)     # work index array
+    x = np.zeros(n, dtype=np.float64)  # solution and reduced costs
+    bi = np.eye(m, dtype=np.float64)  # basis inverse
+    xb = b0.copy()  # basic variable values
+    y = np.zeros(m, dtype=np.float64)  # work array
+    basis = np.zeros(n, dtype=int)  # 1 if variable is basic
+    index = np.zeros(m, dtype=int)  # work index array
 
-    # Initial basis (slack variables)
-    if ind == 0:
-        ibasis_arr = np.arange(n0, n0 + m)
-        # Adjust for >= constraints
-        for j in range(numle, ms):
-            xb[j] = -b0[j]
-            bi[j, j] = -1.0
-    else:
-        ibasis_arr = np.asarray(ibasis, dtype=int) - 1   # convert to 0-index
-        # Reorder so non-original variables come first
-        ibeg, iend = 0, m - 1
-        reorder = np.zeros(m, dtype=int)
-        for i in range(m):
-            if ibasis_arr[i] >= n0:
-                reorder[ibeg] = ibasis_arr[i]
-                ibeg += 1
-            else:
-                reorder[iend] = ibasis_arr[i]
-                iend -= 1
-        ibasis_arr = reorder
-        # Reinvert basis
-        ierr, _ = _crout1(bi, iend, idx)
-        if ierr != 0:
-            return 5, None, None, None
-        # Recompute xb
-        for i in range(m):
-            xb[i] = np.dot(bi[i], b0)
-            if abs(xb[i]) < rerr_mx * max(abs(xb[i]), 0.0):
-                xb[i] = 0.0
-
+    # 30-42 Initial basis (slack variables)
+    ibasis = np.arange(n0, n0 + m)
     # Mark basic variables
-    for i in range(m):
-        basis[ibasis_arr[i]] = 1
+    basis[ibasis] = 1
+
+    # Adjust for >= constraints
+    xb[numle:ms] = -xb[numle:ms]
+    np.fill_diagonal(bi[numle:ms, numle:ms], -1.0)
 
     # Main algorithm
     nstep = 1
-    iter_count = 0
+    iter_count = icount = 0
     rerr = rerr_mn
     bflag = 0
     r = x   # alias
 
-    # Helper to compute reduced costs (phase-dependent)
-    def compute_reduced_costs():
-        nonlocal r, y, basis
-        if nstep == 1:
-            # Phase I: eliminate negative xb
-            neg_idx = np.where(xb < 0)[0]
-            if len(neg_idx) > 0:
-                y = np.sum(bi[neg_idx], axis=0)
-                # Zero small entries
-                y[np.abs(y) < rerr_mx * np.max(np.abs(y), initial=0)] = 0.0
-            else:
-                y.fill(0.0)
-            # Reduced costs for original variables
-            for j in range(n0):
-                if not basis[j]:
-                    r[j] = np.dot(y, a[:, j])
-            # Slack/surplus
-            if ns > n0:
-                r[n0:ns] = y[:numle] if numle else 0.0
-            if n > ns:
-                r[ns:n] = -y[numle:ms] if numge else 0.0
-        elif nstep == 2:
-            # Phase I: eliminate artificial variables
-            art_idx = np.where(ibasis_arr >= n)[0]
-            if len(art_idx) > 0:
-                y = -np.sum(bi[art_idx], axis=0)
-                y[np.abs(y) < rerr_mx * np.max(np.abs(y), initial=0)] = 0.0
-            else:
-                y.fill(0.0)
-            # Reduced costs (same as phase 1)
-            for j in range(n0):
-                if not basis[j]:
-                    r[j] = np.dot(y, a[:, j])
-            if ns > n0:
-                r[n0:ns] = y[:numle] if numle else 0.0
-            if n > ns:
-                r[ns:n] = -y[numle:ms] if numge else 0.0
-        else:  # nstep == 3
-            # Phase II: original objective
-            # y = C_b * BI
-            y = np.zeros(m)
-            for i in range(m):
-                if ibasis_arr[i] < n0:
-                    y += c[ibasis_arr[i]] * bi[i]
-            for j in range(n0):
-                if not basis[j]:
-                    rj = -c[j] + np.dot(y, a[:, j])
-                    r[j] = rj if rj < 0 and abs(rj) > rerr_mx * abs(c[j]) else 0.0
-            # Slack/surplus (same as phase 1 but using y)
-            if ns > n0:
-                r[n0:ns] = y[:numle] if numle else 0.0
-            if n > ns:
-                r[ns:n] = -y[numle:ms] if numge else 0.0
+    def compute_reduced_costs(step: int): # 600-700
+        nonlocal y
+        if step == 1:  # 601
+            # FIXME: side-effect on index
+            mask = np.reshape(xb < 0, (1, -1))
+            sumn = bi.sum(axis=0, where=mask & (bi < 0.0))
+            sump = bi.sum(axis=0, where=mask & (bi > 0.0))
+            np.where(mask[0, :], sumn + sump, 0.0, out=y)  # ty:ignore[no-matching-overload]
+            np.putmask(y, mask=abs(y) < rerr_mx * np.maximum(sumn, -sump), values=0.0)
+            # 650
+            np.where(basis[:n0], 0.0, a[:, :n0].T @ y, out=r[:n0])  # ty:ignore[no-matching-overload]
+        elif step == 2:  # 630
+            # FIXME: side-effect on index
+            mask = np.reshape(ibasis >= n, (1, -1))
+            sumn = bi.sum(axis=0, where=mask & (bi < 0.0))
+            sump = bi.sum(axis=0, where=mask & (bi > 0.0))
+            np.where(mask[0, :], -sumn - sump, 0.0, out=y)  # ty:ignore[no-matching-overload]
+            np.putmask(y, mask=abs(y) < rerr_mx * np.maximum(sumn, -sump), values=0.0)
+            # 650
+            np.where(basis[:n0], 0.0, a[:, :n0].T @ y, out=r[:n0])  # ty:ignore[no-matching-overload]
+        else:  # 680
+            y.fill(0.0)
+            y[:n0] = c
+            y = bi.T @ y[ibasis]
+            np.where(basis[:n0], 0.0, a[:, :n0].T @ y - c, out=r[:n0])  # ty:ignore[no-matching-overload]
+            r[r < rerr_mx * abs(c)] = 0.0
+        # 660
+        np.where(basis[n0:ns], 0.0, y[:numle], out=r[n0:ns])  # ty:ignore[no-matching-overload]
+        np.where(basis[ns:], 0.0, -y[numle:ms], out=r[ns:])  # ty:ignore[no-matching-overload]
 
-    # Main iteration loop
+    # 200 Main iteration loop
     while True:
-        # Find entering variable
-        jp = -1
-        rmin = 0.0
-        if nstep == 3:
-            rmin = -rerr_mx * min(abs(c[c != 0]), default=1.0)  # RTOL
-        for j in range(n):
-            if not basis[j] and r[j] < rmin:
-                jp = j
-                rmin = r[j]
-        if jp == -1:
+        # Find the next vector a[:, jp] to be inserted into the basis
+        rmin = -rtol if nstep == 3 else 0.0
+        rm = np.ma.array(r, mask=basis | (r >= rmin))
+        jp = -1 if rm[:n0].all() is np.ma.masked else rm[:n0].argmin()
+        rmin = rmin if jp < 0 else r[jp]
+        if n0 != n:
+            rmin *= 1.1
+            rm.mask = basis | (r >= rmin)
+            jp = rm[n0:n].argmin()
+        if jp < 0:
             # No entering variable -> optimal
             if nstep == 2:
-                # Phase I: check if artificials are zero
-                for i in range(m):
-                    if ibasis_arr[i] >= n and xb[i] > 0:
-                        return 1, None, None, None   # infeasible
-                nstep = 3
-                compute_reduced_costs()
+                # Completion of nstep = 2 case
+                if any((ibasis >= n) & (xb > 0)):
+                    return 1, x[:n], float("nan"), iter_count   # infeasible
+                compute_reduced_costs(nstep := 3)
                 continue
             elif nstep == 1:
-                nstep = 2
-                compute_reduced_costs()
+                compute_reduced_costs(nstep := 2)
                 continue
             else:  # nstep == 3
                 ind_out = 0
@@ -169,7 +130,7 @@ def smplx(a, b0, c, ind=0, ibasis=None, mxiter=1000, numle=None, numge=None):
             break
 
         iter_count += 1
-        ict = ict + 1 if 'ict' in locals() else 1  # iterations since last reinversion
+        icount += 1
 
         # Compute column of basis inverse * A(:, jp)
         if jp < n0:
@@ -185,7 +146,7 @@ def smplx(a, b0, c, ind=0, ibasis=None, mxiter=1000, numle=None, numge=None):
 
         # Check unboundedness
         if np.all(y <= 0):
-            if nstep == 2 and ict >= 5:
+            if nstep == 2 and icount >= 5:
                 ind_out = 4
                 break
             elif nstep != 2:
@@ -239,26 +200,26 @@ def smplx(a, b0, c, ind=0, ibasis=None, mxiter=1000, numle=None, numge=None):
         bi[ip] /= y[ip]
 
         # Update ibasis and basis
-        iout = ibasis_arr[ip]
-        ibasis_arr[ip] = jp
+        iout = ibasis[ip]
+        ibasis[ip] = jp
         basis[iout] = 0
         basis[jp] = 1
 
         # Check accuracy
         if rerr > 1e-2:
-            if ict >= 5:
+            if icount >= 5:
                 # Reinvert
                 ibeg, iend = 0, m - 1
                 reorder = np.zeros(m, dtype=int)
                 for i in range(m):
-                    if ibasis_arr[i] >= n0:
-                        reorder[ibeg] = ibasis_arr[i]
+                    if ibasis[i] >= n0:
+                        reorder[ibeg] = ibasis[i]
                         ibeg += 1
                     else:
-                        reorder[iend] = ibasis_arr[i]
+                        reorder[iend] = ibasis[i]
                         iend -= 1
-                ibasis_arr = reorder
-                ierr, _ = _crout1(bi, iend, idx)
+                ibasis = reorder
+                ierr, _ = _crout1(bi, iend, index)
                 if ierr != 0:
                     ind_out = 3
                     break
@@ -267,8 +228,8 @@ def smplx(a, b0, c, ind=0, ibasis=None, mxiter=1000, numle=None, numge=None):
                     if abs(xb[i]) < rerr_mx * max(abs(xb[i]), 0.0):
                         xb[i] = 0.0
                 bflag = 1
-                ict = 0
-                compute_reduced_costs()
+                icount = 0
+                compute_reduced_costs(nstep)
                 continue
 
         # Update reduced costs if in phase III
@@ -288,8 +249,8 @@ def smplx(a, b0, c, ind=0, ibasis=None, mxiter=1000, numle=None, numge=None):
 
     # Fill solution array
     for i in range(m):
-        if ibasis_arr[i] < n:
-            x[ibasis_arr[i]] = xb[i]
+        if ibasis[i] < n:
+            x[ibasis[i]] = xb[i]
     z = np.dot(c, x[:n0]) if nstep == 3 else 0.0
     return ind_out, x[:n], z, iter_count
 
@@ -572,6 +533,7 @@ def test_smplx():
         c=-np.ones(len(data)),
         numge=len(nutrients),
     )
+    print(ind)
     assert ind == 0
     assert x.size == len(nutrients) + len(data)
     assert np.count_nonzero(x) == len(nutrients)
