@@ -13,6 +13,7 @@ from numpy import typing as npt
 
 Matrix = np.ndarray[tuple[int, int], np.dtype[np.float64]]
 Vector = np.ndarray[tuple[int], np.dtype[np.float64]]
+Mask = np.ndarray[tuple[int], np.dtype[np.bool_]]
 Index = np.ndarray[tuple[int], np.dtype[np.int64]]
 
 
@@ -29,39 +30,40 @@ def reorder_basis(
     a: Matrix,
     numle: int,
     bi: Matrix,
-    xb: Vector,
-    y: Vector,
-    r: Vector,
     ibasis: Index,
-    basis: Index,
-    index: Index,
-):  # 100-200
+) -> float:  # 100-200
     m, n0 = a.shape
-    mask = ibasis <= n0
-    np.concatenate((ibasis[~mask], ibasis[mask][::-1]), out=ibasis)
-    iend = m - mask.sum()
-    # FIXME: bailout if mask.all()
+    where = ibasis < n0
+    np.concatenate((ibasis[~where], ibasis[where][::-1]), out=ibasis)
+    iend = m - where.sum()
+    # FIXME: bailout if where.all()
     bi.fill(0.0)
     bi[:, iend:] = a[:, ibasis[iend:]]
     np.fill_diagonal(bi[:iend, :iend], np.where(ibasis[:iend] < n0 + numle, 1.0, -1.0))
-    _crout1(bi, iend, index)
+    bi[:, :] = np.linalg.inv(bi)
+    # _crout1(bi, iend, index)
+    bnorm = np.amax(np.sum(abs(a[:, ibasis[iend:]]), axis=0), initial=0.0)
+    binorm = np.amax(np.sum(abs(bi), axis=0))
+    return bnorm * binorm
 
 
-def update_result(
+def setup_result(
     a: Matrix,
     c: Vector,
     bi: Matrix,
-    xb: Vector,
     y: Vector,
     r: Vector,
     ibasis: Index,
-    basis: Index,
+    basis: Mask,
     rerr_mx: float,
 ):  # 680
     _, n0 = a.shape
     where = ibasis < n0
     np.matmul(bi[where, :].T, c[ibasis[where]], out=y)
-    np.where(basis[:n0], 0.0, a.T @ y - c, out=r[:n0])  # ty:ignore[no-matching-overload]
+    r[:n0] = 0.0
+    where = ~basis[:n0]
+    np.matmul(a[:, where].T, y, out=r[:n0][where])
+    np.subtract(r[:n0], c, out=r[:n0], where=where)
     np.putmask(r[:n0], mask=r[:n0] < rerr_mx * abs(c[:n0]), values=0.0)
 
 
@@ -78,30 +80,39 @@ def refine_result(
     rerr_mx: float,
     rerr: np.float64,
     step: int,
-):  # 800
+) -> np.bool:  # 800
     m, n0 = a.shape
-    n = n0 + numle + numge
-    y.fill(0.0)
-    index = np.flatnonzero(ibasis < n0)
-    mask = ibasis >= n0
-    np.put(y[n0:], ibasis[mask], xb[mask])
-    np.negative(y[n:], out=y[n:])
-    np.subtract(b0, y + a[:, index] @ xb[: len(index)], out=r)
+    n = (ns := n0 + numle) + numge
+    y[:m] = 0.0
+    where = (n0 <= ibasis) & (ibasis < ns)
+    np.put(y, ibasis[where] - n0, xb[where])
+    where = (ns <= ibasis) & (ibasis < n)
+    np.put(y, ibasis[where] - n0, -xb[where])
+    where = ibasis < n0
+    if np.any(where):
+        np.subtract(b0, y + a[:, ibasis[where]] @ xb[where], out=r[:m])
+    else:
+        np.subtract(b0, y, out=r[:m])
+
     rerr1 = min(rerr_mx, rerr)
     t = np.empty(m)
     for i, xi in enumerate(xb):
-        np.multiply(bi[i, :], r, out=t)
+        np.multiply(bi[i, :], r[:m], out=t)
         sump = t.sum(where=t > 0.0, initial=max(xi, 0.0))
         sumn = t.sum(where=t < 0.0, initial=min(xi, 0.0))
         w = sump + sumn
         if w == 0 or np.sign(xi) != np.sign(w):
             continue
         y[i] = w if abs(xi) > rerr1 * max(sump, -sumn) else 0.0
-    if step == 1:
-        np.putmask(xb, mask=y >= 0.0, values=y)
-        np.putmask(y, mask=(y > -rerr_mx) & (y < 0.0), values=0.0)
-        # FIXME: if any y[i] < -rerr_mx GOTO 240 (bailout if icount >= 5)
-    # FIXME steps 2 and 3
+    flag = np.True_
+    if step == 1:  # Check the refinement (nstep = 1)
+        y.clip(0.0, None, out=y)
+        flag = np.any(y < -rerr_mx)
+    elif step == 2:
+        np.putmask(xb, mask=ibasis < n, values=y)
+        flag = np.any(xb[ibasis < n] > rerr_mx)
+    np.copyto(dst=xb, src=y)
+    return flag
 
 
 def smplx(
@@ -138,19 +149,20 @@ def smplx(
     rtol = rerr_mx * abs(c).min(initial=xmax, where=c != 0)
 
     # Work arrays
+    ind = 0
     n = (ns := n0 + numle) + numge
-    x = np.zeros(n, dtype=np.float64)  # solution and reduced costs
+    r = np.zeros(n, dtype=np.float64)  # solution and reduced costs
     bi = np.eye(m, dtype=np.float64)  # basis inverse
     xb = b0.copy()  # basic variable values
     y = np.zeros(m, dtype=np.float64)  # work array
     ratios = np.empty(m, dtype=np.float64)  # ratios for determining leaving variable
-    basis = np.zeros(n0 + m, dtype=int)  # 1 if variable is basic
+    basis = np.zeros(n0 + m, dtype=bool)  # 1 if variable is basic
     index = np.zeros(m, dtype=int)  # work index array
 
     # 30-42 Initial basis (slack variables)
     ibasis = np.arange(n0, num := n0 + m)
     # Mark basic variables
-    basis[ibasis] = 1
+    basis[ibasis] = True
 
     # Adjust for >= constraints
     xb[numle:ms] = -xb[numle:ms]
@@ -160,78 +172,125 @@ def smplx(
     nstep = 1
     iter_count = icount = 0
     rerr = rerr_mn
-    bflag = 0
-    r = x  # alias
+    bflag = False
+    ind = 0
+    setup = False
 
     while True:
-        if nstep == 1:  # 601
+        # Set up the r array
+        if nstep == 1:  # 601 for the nstep = 1 case
             # FIXME: side-effect on index
-            mask = np.reshape(xb < 0, (1, -1))
-            sumn = bi.sum(axis=0, where=mask & (bi < 0.0))
-            sump = bi.sum(axis=0, where=mask & (bi > 0.0))
-            np.where(mask[0, :], sumn + sump, 0.0, out=y)  # ty:ignore[no-matching-overload]
+            where = np.reshape(xb < 0, (1, -1))
+            if not np.any(where):
+                nstep = 2
+                continue
+            sumn = bi.sum(axis=0, where=where & (bi < 0.0))
+            sump = bi.sum(axis=0, where=where & (bi > 0.0))
+            y.fill(0.0)
+            np.add(sumn, sump, out=y, where=where[0, :])
             np.putmask(y, mask=abs(y) < rerr_mx * np.maximum(sumn, -sump), values=0.0)
             # 650
-            np.where(basis[:n0], 0.0, a.T @ y, out=r[:n0])  # ty:ignore[no-matching-overload]
-        elif nstep == 2:  # 630
-            if n == num:
-                update_result(a, c, bi, xb, y, r, ibasis, basis, rerr_mx)
+            r[:n0] = np.where(basis[:n0], 0.0, a.T @ y)
+            # 660
+            r[n0:ns] = np.where(basis[n0:ns], 0.0, y[:numle])
+            r[ns:] = np.where(basis[ns:], 0.0, -y[numle : numle + numge])
+        elif nstep == 2:  # 630 for the nstep = 2 case
+            if n == num or setup:
+                setup = False
+                setup_result(a, c, bi, y, r, ibasis, basis, rerr_mx)
             else:
                 # FIXME: side-effect on index
                 mask = np.reshape(ibasis >= n, (1, -1))
                 sumn = bi.sum(axis=0, where=mask & (bi < 0.0))
                 sump = bi.sum(axis=0, where=mask & (bi > 0.0))
-                np.where(mask[0, :], -sumn - sump, 0.0, out=y)  # ty:ignore[no-matching-overload]
-                np.putmask(y, mask=abs(y) < rerr_mx * np.maximum(sumn, -sump), values=0.0)
+                y.fill(0.0)
+                np.add(sumn, sump, out=y, where=mask[0, :])
+                np.negative(y, out=y)
+                np.putmask(
+                    y, mask=abs(y) < rerr_mx * np.maximum(sumn, -sump), values=0.0
+                )
                 # 650
-                np.where(basis[:n0], 0.0, a.T @ y, out=r[:n0])  # ty:ignore[no-matching-overload]
-        else:  # 700
-            y.fill(0.0)
-            y[:n0] = c
-            y = bi.T @ y[ibasis]
-            np.where(basis[:n0], 0.0, a.T @ y - c, out=r[:n0])  # ty:ignore[no-matching-overload]
-            np.putmask(r[:n0], mask=r[:n0] < rerr_mx * abs(c[:n0]), values=0.0)
-        # 660
-        np.where(basis[n0:ns], 0.0, y[:numle], out=r[n0:ns])  # ty:ignore[no-matching-overload]
-        np.where(basis[ns:], 0.0, -y[numle : numle + numge], out=r[ns:])  # ty:ignore[no-matching-overload]
+                r[:n0] = np.where(basis[:n0], 0.0, a.T @ y)
+            # 660
+            r[n0:ns] = np.where(basis[n0:ns], 0.0, y[:numle])
+            r[ns:] = np.where(basis[ns:], 0.0, -y[numle : numle + numge])
+        else:  # 700 for the nstep = 3 case
+            const = r[jp]
+            r[:n0] = np.where(basis[:n0], 0.0, r[:n0] - const * bi[ip, :] @ a)
+            np.putmask(
+                r[:n0],
+                mask=(r[:n0] < 0.0) & (abs(r[:n0]) < rerr_mx * abs(c[:n0])),
+                values=0.0,
+            )
+            r[n0:ns] = np.where(basis[n0:ns], 0.0, r[n0:ns] - const * bi[ip, n0:ns])
+            r[ns:] = np.where(basis[ns:], 0.0, r[ns:] + const * bi[ip, ns:])
 
         # Find the next vector a[:, jp] to be inserted into the basis
+        # 200
         rmin = -rtol if nstep == 3 else 0.0
         rm = np.ma.array(r, mask=basis | (r >= rmin), fill_value=rmin)
         rm.mask[n0:] = basis[n0:] | (r[n0:] >= min(r[:n0]) * 1.1)  # ty:ignore[invalid-assignment]
         if rm.all() is np.ma.masked:
-            # No entering variable -> optimal
             if nstep == 1:
-                refine_result(a, b0, numle, numge, bi, xb, y, r, ibasis, rerr_mx, rerr, step=1)
+                if refine_result(
+                    a, b0, numle, numge, bi, xb, y, r, ibasis, rerr_mx, rerr, nstep
+                ):
+                    break
             elif nstep == 2:  # 230
                 # Completion of nstep = 2 case
-                if np.any((ibasis >= n) & (xb > 0)):  # 800
-                    refine_result(a, b0, numle, numge, bi, xb, y, r, ibasis, rerr_mx, rerr, step=2)
+                if np.any((ibasis >= n) & (xb > 0)):
+                    if refine_result(
+                        a, b0, numle, numge, bi, xb, y, r, ibasis, rerr_mx, rerr, nstep
+                    ):
+                        break
                 else:  # 680
-                    return 1, x[:n], float("nan"), iter_count  # infeasible
+                    setup = True
+                    continue
                 nstep = 3
                 continue
-            elif nstep == 1:
-                nstep = 2
+            elif rerr <= 1e-2:
+                ind = 0
+                if refine_result(
+                    a, b0, numle, numge, bi, xb, y, r, ibasis, rerr_mx, rerr, nstep
+                ):
+                    break
+            elif icount >= 5:
+                t = reorder_basis(a, numle, bi, ibasis)
+                rerr = max(rerr, eps0 * t)
+                if rerr > 1e-2:
+                    ip = np.argmax(ibasis == jp)
+                    ibasis[ip] = iout
+                    basis[jp] = 0
+                    basis[iout] = 1
+                    num += iout >= n
                 continue
             else:  # nstep == 3
-                ind_out = 0
-            break
+                ind = 6
+                if refine_result(
+                    a, b0, numle, numge, bi, xb, y, r, ibasis, rerr_mx, rerr, nstep
+                ):
+                    break
         else:
             jp = rm.argmin()
 
-        # Iteration limit
+        # If mxiter iterations have not been performed then
+        # begin the next iteration.  Compute the jp-th column
+        # of bi @ a and store it in y.
         if iter_count >= mxiter:
-            ind_out = 2
+            ind = 2
             break
+        iter_count += 1
+        icount += 1
 
         if jp < n0:
             amax = np.amax(abs(a[:, jp]))
             if amax == 0.0:
-                ind_out = 4
+                ind = 4
                 break
             np.matmul(bi, a[:, jp], out=y)
-            np.putmask(y, mask=abs(y) < rerr_mx * amax * np.amax(abs(bi), axis=1), values=0.0)
+            np.putmask(
+                y, mask=abs(y) < rerr_mx * amax * np.amax(abs(bi), axis=1), values=0.0
+            )
         elif jp < ns:
             np.take(bi, jp - n0, axis=1, out=y)
         else:
@@ -245,10 +304,11 @@ def smplx(
             r[jp] = 0.0
             continue
 
-        np.divide(xb, y, out=ratios)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            np.divide(xb, y, out=ratios)
         # Finding the variable xb[ip] to be made nonbasic
         where = (
-            (xb >= 0.0) & (y > 0.0)
+            np.isfinite(ratios) & (ratios >= 0.0)
             if nstep == 1  # for the nstep = 1 case
             else y > 0.0
             if nstep == 2  # for the nstep = 2 case
@@ -260,12 +320,12 @@ def smplx(
         where &= ratios == epsi
 
         if not np.any(where):
-            ind_out = 4
+            ind = 4
             break
 
         # Tie breaking procedure
         ip = (
-            np.ma.array(np.r_[c, b0[:numle], -b0[numle:]], mask=~where).argmin()
+            np.r_[c, b0[:numle], -b0[numle:]].take(ibasis[where]).argmin()
             if np.count_nonzero(where) > 1
             else where.argmax()
         )
@@ -277,14 +337,15 @@ def smplx(
 
         # Transformation of bi
         const = bi[ip, :] / y[ip]
-        bi -= const * y
-        bi[ip, :] = const
+        where = bi[ip, :] != 0.0
+        bi[:, where] -= np.reshape(const * y, (-1, 1))
+        bi[ip, where] = const[where]
 
         # Updating ibasis and basis
         iout = ibasis[ip]
         ibasis[ip] = jp
-        basis[iout] = 0
-        basis[jp] = 1
+        basis[iout] = False
+        basis[jp] = True
         num -= 1
 
         # Check the accuracy of bi and reset rerr
@@ -296,13 +357,24 @@ def smplx(
                 continue
         # The accuracy criteria are not satisfied
         if icount >= 5:
-            bflag = True
-            reorder_basis(a, numle, bi, xb, y, r, ibasis, basis, index)
+            t = reorder_basis(a, numle, bi, ibasis)
+            rerr = max(rerr, eps0 * t)
+            if rerr > 1e-2:
+                ip = np.argmax(ibasis == jp)
+                ibasis[ip] = iout
+                basis[jp] = 0
+                basis[iout] = 1
+                num += iout >= n
 
-    # Fill solution array
-    x[ibasis] = xb
-    z = np.dot(c, x[:n0]) if nstep == 3 else 0.0
-    return ind_out, x[:n], z, iter_count
+    # 880 Compute z
+    where = ibasis < n0
+    z = y[where].dot(c[ibasis[where]])
+    np.copyto(dst=xb[:m], src=y[where])
+    # 220 Insert the values of the original, slack, and surplus
+    # variables into r.  Then terminate
+    r.fill(0.0)
+    r[ibasis] = xb
+    return ind, r, z, iter_count
 
 
 def _crout1(A, iend, index):
@@ -599,4 +671,5 @@ def test_smplx():
     assert iter == 8
 
 
-test_smplx()
+if __name__ == "__main__":
+    test_smplx()
