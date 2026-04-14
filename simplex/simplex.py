@@ -7,7 +7,6 @@
 
 # ruff: noqa: E501, E741, F821, F841
 
-# simplex.py
 import numpy as np
 from numpy import typing as npt
 
@@ -30,7 +29,7 @@ def reorder_basis(
     jp: np.int64,
     iout: int,
     attempts: int = 2,
-) -> float:  # 100-200
+) -> bool:  # 100-200
     m, n0 = a.shape
     for _ in range(attempts):
         where = ibasis < n0
@@ -42,8 +41,8 @@ def reorder_basis(
         np.fill_diagonal(
             bi[:iend, :iend], np.where(ibasis[:iend] < n0 + numle, 1.0, -1.0)
         )
-        bi[:, :] = np.linalg.inv(bi)
-        # _crout1(bi, iend, index)
+        if crout1(bi, iend):
+            return True
         bnorm = np.amax(np.sum(abs(a[:, ibasis[iend:]]), axis=0), initial=0.0)
         binorm = np.amax(np.sum(abs(bi), axis=0))
         rerr = max(rerr_mn, eps0 * bnorm * binorm)
@@ -110,7 +109,7 @@ def smplx(
     """
     Solve linear program:
         maximize c^T x
-        subject to A x (<=, =, >=) b0, x >= 0.
+        subject to a x (<=, =, >=) b0, x >= 0.
     Constraints: first numle are <=, next numge are >=, rest are =.
     """
     # Infer dimensions
@@ -220,8 +219,8 @@ def smplx(
         # 200
         rmin = -rtol if nstep == 3 else 0.0
         rm = np.ma.array(r, mask=basis | (r >= rmin), fill_value=rmin)
-        rm.mask[n0:] = basis[n0:] | (   # ty:ignore[invalid-assignment]
-            r[n0:] >= min(r[:n0]) * 1.1
+        rm.mask[n0:] = (  # ty: ignore[invalid-assignment]
+            basis[n0:] | (r[n0:] >= min(r[:n0]) * 1.1)
         )
         if rm.all() is np.ma.masked:
             if nstep == 2 and np.all((ibasis >= n) & (xb <= 0)):
@@ -357,179 +356,129 @@ def smplx(
     return ind, r, z, iter_count
 
 
-def _crout1(A, iend, index):
-    """Crout's method for matrix inversion (in-place). Returns (ierr, jp)."""
-    m = A.shape[0]
-    n = m
-    # Work in column-major order for simplicity
-    a = A.T.flatten()
-    ka = n
-    max_idx = ka * n
-    mcol = iend * ka
+def crout1(a: Matrix, iend: int) -> bool:
+    """
+    Crout procedure for inverting a matrix in place.
 
-    if iend > 0:
-        kcol = 0
-        for k in range(iend):
-            kk = kcol + k
-            nk = kcol + n
-            for lk in range(kk, nk):
-                if abs(a[lk]) > 0:
-                    l = lk - kcol
-                    index[k] = l
-                    if k != l:
-                        lj0 = mcol + l
-                        for lj in range(lj0, max_idx, ka):
-                            a[lj] = -a[lj]
-                        for kj in range(kk, max_idx, ka):
-                            c = a[kj]
-                            a[kj] = a[lk + (kj - kk)]
-                            a[lk + (kj - kk)] = c
-                    break
-            kcol += ka
+    Parameters
+    ----------
+    a : numpy.ndarray, shape (N, N)
+        Input matrix. On output, contains the inverse if successful.
+    iend : int
+        Number of leading columns that contain exactly one nonzero element,
+        which is either 1 or -1 (assumed).
 
-    jp = 0
-    ierr = 0
+    Returns
+    -------
+    ierr : bool
+        False if successful, True if matrix is singular.
+    """
+    a = a.astype(np.float64, copy=False)
+    n, _ = a.shape
+    index = np.zeros(n - 1, dtype=int)  # row interchange records (0‑based)
+    temp = np.zeros(n)
+
+    # ------------------------------------------------------------------
+    # Process the first iend columns
+    # ------------------------------------------------------------------
+    for k in range(iend):
+        col_k = a[k:, k]
+        j = np.argmax(col_k != 0.0)
+        if col_k[j] == 0.0:
+            return True
+        L = j + k  # absolute row index (0‑based)
+        if a[L, k] < 0:
+            a[L, iend:] = -a[L, iend:]  # flip sign of entire row L
+        index[k] = L
+        if L != k:
+            # Swap rows k and L for columns k .. n-1
+            a[[k, L], iend:] = a[  # ty:ignore[invalid-argument-type]
+                [L, k], iend:
+            ]  # ty:ignore[invalid-assignment]
+
+    # ------------------------------------------------------------------
+    # LU decomposition (Crout with partial pivoting) for the remaining part
+    # ------------------------------------------------------------------
     pmin = 0.0
-    ibeg = iend
-    if ibeg == n:
+    for k in range(iend, n - 1):
+        # Pivot search in column k, rows k..n-1
+        col_k = a[k:, k]
+        abs_col = np.abs(col_k)
+        max_loc = np.argmax(abs_col)
+        L = k + max_loc
+        s = abs_col[max_loc]
+        if k > iend and s >= pmin:
+            pass
+        elif (pmin := s) == 0.0:
+            return True
+        index[k] = L
+        if L != k:
+            # Swap rows k and L for columns iend .. n-1
+            a[[k, L], iend:] = a[  # ty:ignore[invalid-argument-type]
+                [L, k], iend:
+            ]  # ty:ignore[invalid-assignment]
+
+        # Compute k‑th row of U (columns > k)
+        if k == iend:
+            if k + 1 < n:
+                a[k, k + 1 :] = a[k, k + 1 :] / a[k, k]
+        else:
+            # Store column k of L (rows iend..k-1) in temp
+            temp[iend:k] = a[iend:k, k]
+            L_col = a[iend:k, k]
+            U_block = a[iend:k, k + 1 :]
+            sums = L_col @ U_block
+            a[k, k + 1 :] = (a[k, k + 1 :] - sums) / a[k, k]
+
+        # Compute k‑th column of L (rows > k)
+        if k + 1 < n:
+            # Store row k of U (columns iend..k-1) in temp
+            temp[iend:k] = a[k, iend:k]
+            sums = a[k + 1 :, iend:k] @ temp[iend:k]
+            a[k + 1 :, k] = a[k + 1 :, k] - sums
+
+    # Check the last pivot
+    last_pivot = a[n - 1, n - 1]
+    if abs(last_pivot) > pmin:
         pass
-    else:
-        k = ibeg
-        km1 = iend
-        kp1 = k + 1
-        kcol = mcol
-        kk = kcol + k
-        for kcount in range(ibeg, n - 1):
-            l = k
-            s = abs(a[kk])
-            for i in range(kp1, n):
-                ik = kcol + i
-                c = abs(a[ik])
-                if s < c:
-                    l = i
-                    s = c
-            if k > ibeg and s >= pmin:
-                pass
-            else:
-                jp = k
-                pmin = s
-                if s == 0.0:
-                    ierr = 1
-                    return ierr, jp
-            index[k] = l
-            if k != l:
-                kj0 = mcol + k
-                lj = mcol + l
-                for kj in range(kj0, max_idx, ka):
-                    c = a[kj]
-                    a[kj] = a[lj]
-                    a[lj] = c
-                    lj += ka
-            c = a[kk]
-            if k > ibeg:
-                kl = mcol + k
-                temp = np.zeros(n)
-                for l in range(ibeg, km1):
-                    temp[l] = a[kl]
-                    kl += ka
-                kj0 = kk + ka
-                for kj in range(kj0, max_idx, ka):
-                    jcol = kj - k
-                    dsum = -a[kj]
-                    for l in range(ibeg, km1):
-                        lj = jcol + l
-                        dsum += temp[l] * a[lj]
-                    a[kj] = -dsum / c
-            else:
-                kj0 = kk + ka
-                for kj in range(kj0, max_idx, ka):
-                    a[kj] = a[kj] / c
-            km1 = k
-            k = kp1
-            kp1 = k + 1
-            kcol += ka
-            kk = kcol + k
-            for l in range(ibeg, km1):
-                lk = kcol + l
-                temp[l] = a[lk]
-            for i in range(k, n):
-                il = mcol + i
-                dsum = 0.0
-                for l in range(ibeg, km1):
-                    dsum += a[il] * temp[l]
-                    il += ka
-                a[il] -= dsum
+    elif last_pivot == 0.0:
+        return True
 
-    ncol = max_idx - ka
-    nn = ncol + n
-    if n > 1:
-        c = abs(a[nn])
-        if c <= pmin:
-            jp = n
-            if c == 0.0:
-                ierr = 1
-                return ierr, jp
+    # ------------------------------------------------------------------
+    # Replace L (lower triangular) with its inverse
+    # ------------------------------------------------------------------
+    for j in range(iend, n - 1):
+        a[j, j] = 1.0 / a[j, j]
+        temp[j] = a[j, j]
+        for k in range(j + 1, n):
+            sum_val = np.dot(a[k, j:k], temp[j:k])
+            a[k, j] = -sum_val / a[k, k]
+            temp[k] = a[k, j]
+    a[n - 1, n - 1] = 1.0 / a[n - 1, n - 1]
 
-    # Replace L with inverse of L
-    if ibeg < n:
-        jj = mcol + ibeg
-        inc = ka + 1
-        for j in range(ibeg, n - 1):
-            a[jj] = 1.0 / a[jj]
-            temp_j = a[jj]
-            kj = jj
-            for km1 in range(j, n - 1):
-                k = km1 + 1
-                kj += 1
-                dsum = 0.0
-                kl = kj
-                for l in range(j, km1):
-                    dsum += a[kl] * temp_l
-                    kl += ka
-                a[kj] = -dsum / a[kl]
-                temp_l = a[kj]
-            jj += inc
-        a[nn] = 1.0 / a[nn]
-    else:
-        a[nn] = 1.0 / a[nn]
+    if n == 1:
+        return False
 
-    # Solve UX = Y where Y is inverse of L
-    for nmk in range(1, n):
-        k = n - nmk
-        lmin = max(ibeg, k + 1)
-        kl = (lmin - 1) * ka + k
-        temp = np.zeros(n)
-        for l in range(lmin, n):
-            temp[l] = a[kl]
-            a[kl] = 0.0
-            kl += ka
-        kj0 = mcol + k
-        for kj in range(kj0, max_idx, ka):
-            dsum = -a[kj]
-            lj = (kj - k) + lmin
-            for l in range(lmin, n):
-                dsum += temp[l] * a[lj]
-                lj += 1
-            a[kj] = -dsum
+    # ------------------------------------------------------------------
+    # Solve U * X = inv(L)   (U is unit upper triangular)
+    # ------------------------------------------------------------------
+    for k in range(n - 1, -1, -1):
+        lmin = max(iend, k + 1)
+        if lmin < n:
+            temp[lmin:] = a[k, lmin:]
+            a[k, lmin:] = 0.0
+            sums = temp[lmin:] @ a[lmin:, iend:]
+            a[k, iend:] = a[k, iend:] - sums
 
-    # Column interchanges
-    jcol = ncol - ka
-    for nmj in range(1, n):
-        j = n - nmj
+    # ------------------------------------------------------------------
+    # Apply column interchanges (inverse of row interchanges)
+    # ------------------------------------------------------------------
+    for j in range(n - 2, -1, -1):
         k = index[j]
         if j != k:
-            ij = jcol
-            ik = (k - 1) * ka
-            for i in range(n):
-                ij += 1
-                ik += 1
-                c = a[ij]
-                a[ij] = a[ik]
-                a[ik] = c
-        jcol -= ka
+            a[:, [j, k]] = a[:, [k, j]]
 
-    A[:] = a.reshape((n, n), order="F").T
-    return ierr, jp
+    return False
 
 
 # Nutrient minimums.
@@ -538,7 +487,7 @@ nutrients = {
     "Protein (g)": 70,
     "Calcium (g)": 0.8,
     "Iron (mg)": 12,
-    "Vitamin A (KIU)": 5,
+    "Vitamin a (KIU)": 5,
     "Vitamin B1 (mg)": 1.8,
     "Vitamin B2 (mg)": 2.7,
     "Niacin (mg)": 18,
@@ -546,7 +495,7 @@ nutrients = {
 }
 
 # Commodity, Unit, 1939 price (cents), Calories (kcal), Protein (g),
-# Calcium (g), Iron (mg), Vitamin A (KIU), Vitamin B1 (mg), Vitamin B2 (mg),
+# Calcium (g), Iron (mg), Vitamin a (KIU), Vitamin B1 (mg), Vitamin B2 (mg),
 # Niacin (mg), Vitamin C (mg)
 data = {
     "Wheat Flour (Enriched)": [44.7, 1411, 2, 365, 0, 55.4, 33.3, 441, 0],
@@ -642,7 +591,7 @@ def test_smplx():
     assert [a for a, b in zip(nutrients, x[len(data) :]) if not b] == [
         "Calories (kcal)",
         "Calcium (g)",
-        "Vitamin A (KIU)",
+        "Vitamin a (KIU)",
         "Vitamin B2 (mg)",
         "Vitamin C (mg)",
     ]
