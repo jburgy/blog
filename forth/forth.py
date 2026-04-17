@@ -189,7 +189,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
 
     def emit_define(self, word):
         self.func_name = word
-        self.emit_default = self.emit_literal
+        self.emit_default = self.emit_literal  # ty: ignore[invalid-assignment]
         return ()
 
     def compile(self, func):

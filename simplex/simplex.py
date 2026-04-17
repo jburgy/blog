@@ -461,7 +461,7 @@ def crout1(a: Matrix, iend: int) -> bool:
 
 # Overwrite above definition with a fast FORTRAN implementation
 try:
-    from _simplex import smplx  # ty: ignore[unresolved-import]
+    from _simplex import smplx  # noqa: F401 # ty: ignore[unresolved-import]
 except ImportError:
     pass
 
