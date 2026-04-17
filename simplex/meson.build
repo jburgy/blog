@@ -1,6 +1,6 @@
-simplex_source = custom_target('simplexmodule.c',
+simplex_source = custom_target('_simplexmodule.c',
     input : ['smplx.pyf'],
-    output : ['simplexmodule.c'],
+    output : ['_simplexmodule.c'],
     command: [py, '-m', 'numpy.f2py', '@INPUT@', '--build-dir', '@OUTDIR@'],
 )
 

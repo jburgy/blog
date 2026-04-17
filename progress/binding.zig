@@ -6,13 +6,15 @@ const ProgressObject = extern struct {
     index: std.Progress.Node.OptionalIndex,
 };
 
+var static_threaded_io: std.Io.Threaded = .init_single_threaded;
+
 fn tp_init(op: *py.PyObject, args: [*c]py.PyObject, kwds: [*c]py.PyObject) callconv(.c) c_int {
     const keywords: [1][*c]u8 = .{null};
     if (py.PyArg_ParseTupleAndKeywords(args, kwds, ":__init__", @constCast(&keywords)) == 0)
         return -1;
 
     const self: *ProgressObject = @ptrCast(op);
-    self.index = std.Progress.start(.{}).index;
+    self.index = std.Progress.start(static_threaded_io.io(), .{}).index;
     return 0;
 }
 

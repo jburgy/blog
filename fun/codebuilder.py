@@ -60,7 +60,7 @@ class CodeBuilderBase:
             0,  # kwonlyargcount
             len(self.varnames),
             stacksize,  # stacksize
-            (CompilerFlags.OPTIMIZED | CompilerFlags.NEWLOCALS),  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-attribute]
+            (CompilerFlags.OPTIMIZED | CompilerFlags.NEWLOCALS),  # pyright: ignore[reportAttributeAccessIssue]
             code,
             tuple(self.consts),  # insertion order
             tuple(self.names),

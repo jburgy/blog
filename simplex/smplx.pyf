@@ -90,7 +90,7 @@
 !
 ! Source: https://github.com/jacobwilliams/nswc
 
-python module simplex ! in 
+python module _simplex ! in 
     interface  ! in :smplx
         subroutine smplx(a,b0,c,ka,m,n0,ind,ibasis,x,z,iter,mxiter,numle,numge,bi,wk,iwk) ! in :smplx:SMPLX.F
             real intent(in), dimension(ka, n0) :: a
@@ -112,4 +112,4 @@ python module simplex ! in
             integer intent(hide), dimension(2 * m + n0), depend(m, n0) :: iwk
         end subroutine smplx
     end interface 
-end python module smplx
+end python module _simplex
