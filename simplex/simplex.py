@@ -100,7 +100,7 @@ def refine_result(
 
 def smplx(
     a: np.ndarray[tuple[int, int], np.dtype[np.float64]],
-    b: npt.ArrayLike,
+    b0: npt.ArrayLike,
     c: npt.ArrayLike,
     mxiter: int = 1000,
     numle: int = 0,
@@ -115,7 +115,7 @@ def smplx(
     # Infer dimensions
     m, n0 = a.shape
     mcheck = min(5, m // 15 + 1)
-    b0 = np.asarray(b, dtype=np.float64).ravel()
+    b0 = np.asarray(b0, dtype=np.float64).ravel()
     c = np.asarray(c, dtype=np.float64).ravel()
     ms = numle + numge
     # Validate input
@@ -159,15 +159,12 @@ def smplx(
     while True:
         # Set up the r array
         if nstep == 1:  # 601 for the nstep = 1 case
-            where = np.reshape(xb < 0, (1, -1))
+            where = xb < 0
             if not np.any(where):
                 nstep = 2
                 continue
-            sumn = bi.sum(axis=0, where=where & (bi < 0.0))
-            sump = bi.sum(axis=0, where=where & (bi > 0.0))
             y.fill(0.0)
-            np.add(sumn, sump, out=y, where=where[0, :])
-            np.putmask(y, mask=abs(y) < rerr_mx * np.maximum(sumn, -sump), values=0.0)
+            bi.sum(axis=0, where=where, out=y)
             # 650
             np.vecmat(y, a, out=r[:n0])
             # 660
@@ -189,15 +186,10 @@ def smplx(
                     values=0.0,
                 )
             else:
-                mask = np.reshape(ibasis >= n, (1, -1))
-                sumn = bi.sum(axis=0, where=mask & (bi < 0.0))
-                sump = bi.sum(axis=0, where=mask & (bi > 0.0))
+                where = ibasis >= n
                 y.fill(0.0)
-                np.add(sumn, sump, out=y, where=mask[0, :])
+                bi.sum(axis=0, where=where, out=y)
                 np.negative(y, out=y)
-                np.putmask(
-                    y, mask=abs(y) < rerr_mx * np.maximum(sumn, -sump), values=0.0
-                )
                 # 650
                 np.vecmat(y, a, out=r[:n0])
             # 660
@@ -386,14 +378,14 @@ def crout1(a: Matrix, iend: int) -> bool:
         j = np.argmax(col_k != 0.0)
         if col_k[j] == 0.0:
             return True
-        L = j + k  # absolute row index (0‑based)
-        if a[L, k] < 0:
-            a[L, iend:] = -a[L, iend:]  # flip sign of entire row L
-        index[k] = L
-        if L != k:
-            # Swap rows k and L for columns k .. n-1
-            a[[k, L], iend:] = a[  # ty:ignore[invalid-argument-type]
-                [L, k], iend:
+        j += k
+        if a[j, k] < 0:
+            a[j, iend:] = -a[j, iend:]  # flip sign of entire row j
+        index[k] = j
+        if j != k:
+            # Swap rows k and j for columns k .. n-1
+            a[[k, j], iend:] = a[  # ty:ignore[invalid-argument-type]
+                [j, k], iend:
             ]  # ty:ignore[invalid-assignment]
 
     # ------------------------------------------------------------------
@@ -402,43 +394,32 @@ def crout1(a: Matrix, iend: int) -> bool:
     pmin = 0.0
     for k in range(iend, n - 1):
         # Pivot search in column k, rows k..n-1
-        col_k = a[k:, k]
-        abs_col = np.abs(col_k)
+        abs_col = np.abs(a[k:, k])
         max_loc = np.argmax(abs_col)
-        L = k + max_loc
+        j = k + max_loc
         s = abs_col[max_loc]
         if k > iend and s >= pmin:
             pass
         elif (pmin := s) == 0.0:
             return True
-        index[k] = L
-        if L != k:
-            # Swap rows k and L for columns iend .. n-1
-            a[[k, L], iend:] = a[  # ty:ignore[invalid-argument-type]
-                [L, k], iend:
+        index[k] = j
+        if j != k:
+            # Swap rows k and j for columns iend .. n-1
+            a[[k, j], iend:] = a[  # ty:ignore[invalid-argument-type]
+                [j, k], iend:
             ]  # ty:ignore[invalid-assignment]
 
+        kp1 = k + 1
+        ik = slice(iend, k)
         # Compute k‑th row of U (columns > k)
-        if k == iend:
-            if k + 1 < n:
-                a[k, k + 1 :] = a[k, k + 1 :] / a[k, k]
-        else:
-            # Store column k of L (rows iend..k-1) in temp
-            temp[iend:k] = a[iend:k, k]
-            L_col = a[iend:k, k]
-            U_block = a[iend:k, k + 1 :]
-            sums = L_col @ U_block
-            a[k, k + 1 :] = (a[k, k + 1 :] - sums) / a[k, k]
-
+        a[k, kp1:] -= np.vecmat(a[ik, k], a[ik, kp1:])
+        a[k, kp1:] /= a[k, k]
         # Compute k‑th column of L (rows > k)
-        if k + 1 < n:
-            # Store row k of U (columns iend..k-1) in temp
-            temp[iend:k] = a[k, iend:k]
-            sums = a[k + 1 :, iend:k] @ temp[iend:k]
-            a[k + 1 :, k] = a[k + 1 :, k] - sums
+        a[kp1:, k] -= np.matvec(a[kp1:, ik], a[k, ik])
 
     # Check the last pivot
-    last_pivot = a[n - 1, n - 1]
+    nm1 = n - 1
+    last_pivot = a[nm1, nm1]
     if abs(last_pivot) > pmin:
         pass
     elif last_pivot == 0.0:
@@ -447,14 +428,12 @@ def crout1(a: Matrix, iend: int) -> bool:
     # ------------------------------------------------------------------
     # Replace L (lower triangular) with its inverse
     # ------------------------------------------------------------------
-    for j in range(iend, n - 1):
-        a[j, j] = 1.0 / a[j, j]
-        temp[j] = a[j, j]
+    for j in range(iend, nm1):
+        temp[j] = a[j, j] = 1.0 / a[j, j]
         for k in range(j + 1, n):
-            sum_val = np.dot(a[k, j:k], temp[j:k])
-            a[k, j] = -sum_val / a[k, k]
+            a[k, j] = -np.dot(a[k, j:k], temp[j:k]) / a[k, k]
             temp[k] = a[k, j]
-    a[n - 1, n - 1] = 1.0 / a[n - 1, n - 1]
+    a[nm1, nm1] = 1.0 / a[nm1, nm1]
 
     if n == 1:
         return False
@@ -462,18 +441,17 @@ def crout1(a: Matrix, iend: int) -> bool:
     # ------------------------------------------------------------------
     # Solve U * X = inv(L)   (U is unit upper triangular)
     # ------------------------------------------------------------------
-    for k in range(n - 1, -1, -1):
+    for k in range(nm1, -1, -1):
         lmin = max(iend, k + 1)
         if lmin < n:
             temp[lmin:] = a[k, lmin:]
             a[k, lmin:] = 0.0
-            sums = temp[lmin:] @ a[lmin:, iend:]
-            a[k, iend:] = a[k, iend:] - sums
+            a[k, iend:] -= np.vecmat(temp[lmin:], a[lmin:, iend:])
 
     # ------------------------------------------------------------------
     # Apply column interchanges (inverse of row interchanges)
     # ------------------------------------------------------------------
-    for j in range(n - 2, -1, -1):
+    for j in range(nm1 - 1, -1, -1):
         k = index[j]
         if j != k:
             a[:, [j, k]] = a[:, [k, j]]
@@ -481,123 +459,9 @@ def crout1(a: Matrix, iend: int) -> bool:
     return False
 
 
-# Nutrient minimums.
-nutrients = {
-    "Calories (kcal)": 3,
-    "Protein (g)": 70,
-    "Calcium (g)": 0.8,
-    "Iron (mg)": 12,
-    "Vitamin a (KIU)": 5,
-    "Vitamin B1 (mg)": 1.8,
-    "Vitamin B2 (mg)": 2.7,
-    "Niacin (mg)": 18,
-    "Vitamin C (mg)": 75,
-}
+# Overwrite above definition with a fast FORTRAN implementation
+try:
+    from _simplex import smplx  # ty: ignore[unresolved-import]
+except ImportError:
+    pass
 
-# Commodity, Unit, 1939 price (cents), Calories (kcal), Protein (g),
-# Calcium (g), Iron (mg), Vitamin a (KIU), Vitamin B1 (mg), Vitamin B2 (mg),
-# Niacin (mg), Vitamin C (mg)
-data = {
-    "Wheat Flour (Enriched)": [44.7, 1411, 2, 365, 0, 55.4, 33.3, 441, 0],
-    "Macaroni": [11.6, 418, 0.7, 54, 0, 3.2, 1.9, 68, 0],
-    "Wheat Cereal (Enriched)": [11.8, 377, 14.4, 175, 0, 14.4, 8.8, 114, 0],
-    "Corn Flakes": [11.4, 252, 0.1, 56, 0, 13.5, 2.3, 68, 0],
-    "Corn Meal": [36.0, 897, 1.7, 99, 30.9, 17.4, 7.9, 106, 0],
-    "Hominy Grits": [28.6, 680, 0.8, 80, 0, 10.6, 1.6, 110, 0],
-    "Rice": [21.2, 460, 0.6, 41, 0, 2, 4.8, 60, 0],
-    "Rolled Oats": [25.3, 907, 5.1, 341, 0, 37.1, 8.9, 64, 0],
-    "White Bread (Enriched)": [15.0, 488, 2.5, 115, 0, 13.8, 8.5, 126, 0],
-    "Whole Wheat Bread": [12.2, 484, 2.7, 125, 0, 13.9, 6.4, 160, 0],
-    "Rye Bread": [12.4, 439, 1.1, 82, 0, 9.9, 3, 66, 0],
-    "Pound Cake": [8.0, 130, 0.4, 31, 18.9, 2.8, 3, 17, 0],
-    "Soda Crackers": [12.5, 288, 0.5, 50, 0, 0, 0, 0, 0],
-    "Milk": [6.1, 310, 10.5, 18, 16.8, 4, 16, 7, 177],
-    "Evaporated Milk (can)": [8.4, 422, 15.1, 9, 26, 3, 23.5, 11, 60],
-    "Butter": [10.8, 9, 0.2, 3, 44.2, 0, 0.2, 2, 0],
-    "Oleomargarine": [20.6, 17, 0.6, 6, 55.8, 0.2, 0, 0, 0],
-    "Eggs": [2.9, 238, 1.0, 52, 18.6, 2.8, 6.5, 1, 0],
-    "Cheese (Cheddar)": [7.4, 448, 16.4, 19, 28.1, 0.8, 10.3, 4, 0],
-    "Cream": [3.5, 49, 1.7, 3, 16.9, 0.6, 2.5, 0, 17],
-    "Peanut Butter": [15.7, 661, 1.0, 48, 0, 9.6, 8.1, 471, 0],
-    "Mayonnaise": [8.6, 18, 0.2, 8, 2.7, 0.4, 0.5, 0, 0],
-    "Crisco": [20.1, 0, 0, 0, 0, 0, 0, 0, 0],
-    "Lard": [41.7, 0, 0, 0, 0.2, 0, 0.5, 5, 0],
-    "Sirloin Steak": [2.9, 166, 0.1, 34, 0.2, 2.1, 2.9, 69, 0],
-    "Round Steak": [2.2, 214, 0.1, 32, 0.4, 2.5, 2.4, 87, 0],
-    "Rib Roast": [3.4, 213, 0.1, 33, 0, 0, 2, 0, 0],
-    "Chuck Roast": [3.6, 309, 0.2, 46, 0.4, 1, 4, 120, 0],
-    "Plate": [8.5, 404, 0.2, 62, 0, 0.9, 0, 0, 0],
-    "Liver (Beef)": [2.2, 333, 0.2, 139, 169.2, 6.4, 50.8, 316, 525],
-    "Leg of Lamb": [3.1, 245, 0.1, 20, 0, 2.8, 3.9, 86, 0],
-    "Lamb Chops (Rib)": [3.3, 140, 0.1, 15, 0, 1.7, 2.7, 54, 0],
-    "Pork Chops": [3.5, 196, 0.2, 30, 0, 17.4, 2.7, 60, 0],
-    "Pork Loin Roast": [4.4, 249, 0.3, 37, 0, 18.2, 3.6, 79, 0],
-    "Bacon": [10.4, 152, 0.2, 23, 0, 1.8, 1.8, 71, 0],
-    "Ham, smoked": [6.7, 212, 0.2, 31, 0, 9.9, 3.3, 50, 0],
-    "Salt Pork": [18.8, 164, 0.1, 26, 0, 1.4, 1.8, 0, 0],
-    "Roasting Chicken": [1.8, 184, 0.1, 30, 0.1, 0.9, 1.8, 68, 46],
-    "Veal Cutlets": [1.7, 156, 0.1, 24, 0, 1.4, 2.4, 57, 0],
-    "Salmon, Pink (can)": [5.8, 705, 6.8, 45, 3.5, 1, 4.9, 209, 0],
-    "Apples": [5.8, 27, 0.5, 36, 7.3, 3.6, 2.7, 5, 544],
-    "Bananas": [4.9, 60, 0.4, 30, 17.4, 2.5, 3.5, 28, 498],
-    "Lemons": [1.0, 21, 0.5, 14, 0, 0.5, 0, 4, 952],
-    "Oranges": [2.2, 40, 1.1, 18, 11.1, 3.6, 1.3, 10, 1998],
-    "Green Beans": [2.4, 138, 3.7, 80, 69, 4.3, 5.8, 37, 862],
-    "Cabbage": [2.6, 125, 4.0, 36, 7.2, 9, 4.5, 26, 5369],
-    "Carrots": [2.7, 73, 2.8, 43, 188.5, 6.1, 4.3, 89, 608],
-    "Celery": [0.9, 51, 3.0, 23, 0.9, 1.4, 1.4, 9, 313],
-    "Lettuce": [0.4, 27, 1.1, 22, 112.4, 1.8, 3.4, 11, 449],
-    "Onions": [5.8, 166, 3.8, 59, 16.6, 4.7, 5.9, 21, 1184],
-    "Potatoes": [14.3, 336, 1.8, 118, 6.7, 29.4, 7.1, 198, 2522],
-    "Spinach": [1.1, 106, 0, 138, 918.4, 5.7, 13.8, 33, 2755],
-    "Sweet Potatoes": [9.6, 138, 2.7, 54, 290.7, 8.4, 5.4, 83, 1912],
-    "Peaches (can)": [3.7, 20, 0.4, 10, 21.5, 0.5, 1, 31, 196],
-    "Pears (can)": [3.0, 8, 0.3, 8, 0.8, 0.8, 0.8, 5, 81],
-    "Pineapple (can)": [2.4, 16, 0.4, 8, 2, 2.8, 0.8, 7, 399],
-    "Asparagus (can)": [0.4, 33, 0.3, 12, 16.3, 1.4, 2.1, 17, 272],
-    "Green Beans (can)": [1.0, 54, 2, 65, 53.9, 1.6, 4.3, 32, 431],
-    "Pork and Beans (can)": [7.5, 364, 4, 134, 3.5, 8.3, 7.7, 56, 0],
-    "Corn (can)": [5.2, 136, 0.2, 16, 12, 1.6, 2.7, 42, 218],
-    "Peas (can)": [2.3, 136, 0.6, 45, 34.9, 4.9, 2.5, 37, 370],
-    "Tomatoes (can)": [1.3, 63, 0.7, 38, 53.2, 3.4, 2.5, 36, 1253],
-    "Tomato Soup (can)": [1.6, 71, 0.6, 43, 57.9, 3.5, 2.4, 67, 862],
-    "Peaches, Dried": [8.5, 87, 1.7, 173, 86.8, 1.2, 4.3, 55, 57],
-    "Prunes, Dried": [12.8, 99, 2.5, 154, 85.7, 3.9, 4.3, 65, 257],
-    "Raisins, Dried": [13.5, 104, 2.5, 136, 4.5, 6.3, 1.4, 24, 136],
-    "Peas, Dried": [20.0, 1367, 4.2, 345, 2.9, 28.7, 18.4, 162, 0],
-    "Lima Beans, Dried": [17.4, 1055, 3.7, 459, 5.1, 26.9, 38.2, 93, 0],
-    "Navy Beans, Dried": [26.9, 1691, 11.4, 792, 0, 38.4, 24.6, 217, 0],
-    "Coffee": [0, 0, 0, 0, 0, 4, 5.1, 50, 0],
-    "Tea": [0, 0, 0, 0, 0, 0, 2.3, 42, 0],
-    "Cocoa": [8.7, 237, 3, 72, 0, 2, 11.9, 40, 0],
-    "Chocolate": [8.0, 77, 1.3, 39, 0, 0.9, 3.4, 14, 0],
-    "Sugar": [34.9, 0, 0, 0, 0, 0, 0, 0, 0],
-    "Corn Syrup": [14.7, 0, 0.5, 74, 0, 0, 0, 5, 0],
-    "Molasses": [9.0, 0, 10.3, 244, 0, 1.9, 7.5, 146, 0],
-    "Strawberry Preserves": [6.4, 11, 0.4, 7, 0.2, 0.2, 0.4, 3, 0],
-}
-
-
-def test_smplx():
-    ind, x, z, iter = smplx(
-        a=np.column_stack([*data.values()]),
-        b=np.r_[*nutrients.values()],
-        c=-np.ones(len(data)),
-        numge=len(nutrients),
-    )
-    assert ind == 0
-    assert x.size == len(nutrients) + len(data)
-    assert np.count_nonzero(x) == len(nutrients)
-    assert [a for a, b in zip(nutrients, x[len(data) :]) if not b] == [
-        "Calories (kcal)",
-        "Calcium (g)",
-        "Vitamin a (KIU)",
-        "Vitamin B2 (mg)",
-        "Vitamin C (mg)",
-    ]
-    assert np.isclose(z, -0.10866227746009827)
-    assert iter == 8
-
-
-if __name__ == "__main__":
-    test_smplx()

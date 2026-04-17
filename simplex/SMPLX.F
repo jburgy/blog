@@ -246,7 +246,7 @@ C
 C
 C                 RECALCULATION OF XB
 C
-  180 DO 183 I = 1,M
+      DO 183 I = 1,M
          DSUMP = 0.D0
          DSUMN = 0.D0
          DO 182 L = 1,M
@@ -256,9 +256,9 @@ C
                GO TO 182
   181       DSUMP = DSUMP + DT
   182    CONTINUE
-         XB(I) = DSUMP + DSUMN
-         S = DSUMP
-         T = DSUMN
+         XB(I) = REAL(DSUMP + DSUMN,4)
+         S = REAL(DSUMP,4)
+         T = REAL(DSUMN,4)
          TOL = RERRMX*AMAX1(S,-T)
          IF (ABS(XB(I)) .LT. TOL) XB(I) = 0.0
   183 CONTINUE
@@ -351,7 +351,7 @@ C
             L = INDEX(LL)
             DSUM = DSUM + DBLE(BI(I,L)*A(L,JP))
   311    CONTINUE
-         Y(I) = DSUM
+         Y(I) = REAL(DSUM,4)
          IF (ABS(Y(I)) .GE. 5.E-3) GO TO 313
          BMAX = 0.0
          DO 312 L = 1,M
@@ -595,9 +595,9 @@ C
             GO TO 622
   621       DSUMP = DSUMP + DBLE(BI(L,J))
   622    CONTINUE
-         Y(J) = DSUMP + DSUMN
-         S = DSUMP
-         T = DSUMN
+         Y(J) = REAL(DSUMP + DSUMN,4)
+         S = REAL(DSUMP,4)
+         T = REAL(DSUMN,4)
          TOL = RERRMX*AMAX1(S,-T)
          IF (ABS(Y(J)) .LT. TOL) Y(J) = 0.0
   623 CONTINUE
@@ -624,9 +624,9 @@ C
             GO TO 642
   641       DSUMP = DSUMP + DBLE(BI(L,J))
   642    CONTINUE
-         Y(J) = -(DSUMP + DSUMN)
-         S = DSUMP
-         T = DSUMN
+         Y(J) = REAL(-(DSUMP + DSUMN),4)
+         S = REAL(DSUMP,4)
+         T = REAL(DSUMN,4)
          TOL = RERRMX*AMAX1(S,-T)
          IF (ABS(Y(J)) .LT. TOL) Y(J) = 0.0
   643 CONTINUE
@@ -667,7 +667,7 @@ C
             IL = IBASIS(L)
             IF (IL .LE. N0) DSUM = DSUM + DBLE(C(IL)*BI(L,J))
   681    CONTINUE
-  682    Y(J) = DSUM
+  682    Y(J) = REAL(DSUM,4)
 C
       DO 691 J = 1,N0
          R(J) = 0.0
@@ -676,7 +676,7 @@ C
          DO 690 L = 1,M
             IF (A(L,J) .NE. 0.0) DSUM = DSUM + DBLE(Y(L)*A(L,J))
   690    CONTINUE
-         R(J) = DSUM
+         R(J) = REAL(DSUM,4)
          IF (R(J) .GE. 0.0) GO TO 691
          TOL = RERRMX*ABS(C(J))
          IF (ABS(R(J)) .LT. TOL) R(J) = 0.0
@@ -700,7 +700,7 @@ C
          IF (ABS(R(J)) .LT. TOL) R(J) = 0.0
   703 CONTINUE
 C
-  710 IF (N0 .EQ. NS) GO TO 720
+      IF (N0 .EQ. NS) GO TO 720
       JMIN = N0 + 1
       DO 712 J = JMIN,NS
          IF (BASIS(J) .EQ. 0) GO TO 711
@@ -758,7 +758,7 @@ C
             KJ = IBASIS(J)
             DSUM = DSUM + DBLE(A(I,KJ)*XB(J))
   842    CONTINUE
-         R(I) = B0(I) - DSUM
+         R(I) = REAL(B0(I) - DSUM,4)
   843 CONTINUE
 C
   850 RERR1 = AMIN1(RERRMX,RERR)
@@ -779,11 +779,11 @@ C
                GO TO 855
   854       DSUMP = DSUMP + DT
   855    CONTINUE
-         W = DSUMP + DSUMN
+         W = REAL(DSUMP + DSUMN,4)
          IF (W .EQ. 0.0) GO TO 856
          IF (SGN .NE. SIGN(1.0,W)) GO TO 856
-         S = DSUMP
-         T = DSUMN
+         S = REAL(DSUMP,4)
+         T = REAL(DSUMN,4)
          TOL = RERR1*AMAX1(S,-T)
          IF (ABS(W) .GT. TOL) Y(I) = W
   856 CONTINUE
@@ -815,7 +815,7 @@ C
          IF (KI .GT. N0) GO TO 881
          DSUM = DSUM + DBLE(C(KI)*Y(I))
   881    XB(I) = Y(I)
-      Z = DSUM
+      Z = REAL(DSUM,4)
       GO TO 220
       END
       REAL FUNCTION SPMPAR (I)
@@ -1444,7 +1444,7 @@ C
         DO 170 L = IBEG,KM1
         DSUM = DSUM + DBLE(A(IL))*DBLE(TEMP(L))
   170   IL = IL + KA
-  171 A(IL) = DBLE(A(IL)) - DSUM
+  171 A(IL) = REAL(DBLE(A(IL)) - DSUM,4)
   172 CONTINUE
 C
 C           CHECK THE N-TH PIVOT ELEMENT
@@ -1497,7 +1497,7 @@ C
           DO 240 L = LMIN,N
           DSUM = DSUM + DBLE(TEMP(L)*A(LJ))
   240     LJ = LJ + 1
-  241   A(KJ) = -DSUM
+  241   A(KJ) = REAL(-DSUM,4)
   242 CONTINUE
 C
 C                 COLUMN INTERCHANGES
