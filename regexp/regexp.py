@@ -244,7 +244,7 @@ class Graph(dict):
                 node, next = stack.pop()
                 head.update(node)
                 rest = tuple((head if n is node else n, p) for n, p in next) + rest
-            elif isinstance(token, str):  # help mypy
+            elif isinstance(token, str):
                 stack.append((head, rest))
                 head = super().__new__(cls)
                 rest = ((head, token),)

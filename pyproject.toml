@@ -21,13 +21,12 @@ dev = [
     "jupyter>=1.1.1",
     "matplotlib",
     "pandas",
-    "pandas-stubs",
+    "pandas-stubs>=3.0.0.260204",
     "pytest",
     "pytest-github-report",
     "scipy",
-    "scipy-stubs",
+    "scipy-stubs>=1.17.1.4",
     "sqlalchemy",
-    "sqlalchemy[mypy]",
     "sympy",
 ]
 
