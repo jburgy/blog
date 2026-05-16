@@ -1,4 +1,4 @@
-""" recursive alternative
+"""recursive alternative
 
 >>> import functools
 >>> @functools.cache
@@ -38,7 +38,7 @@ while q:
     else:
         half, rest = divmod(len(stone), 2)
         if rest:
-            stones = str(int(stone) * 2024),
+            stones = (str(int(stone) * 2024),)
         else:
             stones = (stone[:half], str(int(stone[half:])))
     n = m - 1
@@ -47,7 +47,7 @@ while q:
         cache[stone] = sum(counts)  # pyright: ignore[reportCallIssue, reportArgumentType]
     else:
         q.append(t)
-        q.extend(zip(repeat(n), compress(stones, map(not_, counts))))  # pyright: ignore[reportArgumentType]
+        q.extend(zip(repeat(n), compress(stones, map(not_, counts))))  # ty: ignore[invalid-argument-type]
 
 print(sum(caches[25].values()))
 print(sum(caches[75].values()))

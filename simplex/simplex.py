@@ -59,45 +59,6 @@ def reorder_basis(
     return False
 
 
-def refine_result(
-    a: Matrix,
-    b0: Vector,
-    numle: int,
-    numge: int,
-    bi: Matrix,
-    xb: Vector,
-    y: Vector,
-    r: Vector,
-    ibasis: Index,
-    rerr_mx: float,
-    rerr: np.float64,
-):  # 800
-    m, n0 = a.shape
-    n = (ns := n0 + numle) + numge
-    y[:m] = 0.0
-    where = (n0 <= ibasis) & (ibasis < ns)
-    np.put(y, ibasis[where] - n0, xb[where])
-    where = (ns <= ibasis) & (ibasis < n)
-    np.put(y, ibasis[where] - n0, -xb[where])
-    where = ibasis < n0
-    if np.any(where):
-        np.subtract(b0, y + a[:, ibasis[where]] @ xb[where], out=r[:m])
-    else:
-        np.subtract(b0, y, out=r[:m])
-
-    rerr1 = min(rerr_mx, rerr)
-    t = np.empty(m)
-    for i, xi in enumerate(xb):
-        np.multiply(bi[i, :], r[:m], out=t)
-        sump = t.sum(where=t > 0.0, initial=max(xi, 0.0))
-        sumn = t.sum(where=t < 0.0, initial=min(xi, 0.0))
-        w = sump + sumn
-        if w == 0 or np.sign(xi) != np.sign(w):
-            continue
-        y[i] = w if abs(xi) > rerr1 * max(sump, -sumn) else 0.0
-    np.copyto(dst=xb, src=y)
-
-
 def smplx(
     a: np.ndarray[tuple[int, int], np.dtype[np.float64]],
     b0: npt.ArrayLike,
@@ -221,7 +182,26 @@ def smplx(
             elif nstep == 3:
                 ind = 0 if rerr <= 1e-2 else 6
             # Refine xb and store the result in y
-            refine_result(a, b0, numle, numge, bi, xb, y, r, ibasis, rerr_mx, rerr)
+            # 800
+            y[:m] = 0.0
+            where = (n0 <= ibasis) & (ibasis < ns)
+            np.put(y, ibasis[where] - n0, xb[where])
+            where = (ns <= ibasis) & (ibasis < n)
+            np.put(y, ibasis[where] - n0, -xb[where])
+            where = ibasis < n0
+            np.subtract(b0, y + a[:, ibasis[where]] @ xb[where], out=r[:m])
+
+            rerr1 = min(rerr_mx, rerr)
+            t = np.empty(m)
+            for i, xi in enumerate(xb):
+                np.multiply(bi[i, :], r[:m], out=t)
+                sump = t.sum(where=t > 0.0, initial=max(xi, 0.0))
+                sumn = t.sum(where=t < 0.0, initial=min(xi, 0.0))
+                w = sump + sumn
+                if w == 0 or np.sign(xi) != np.sign(w):
+                    continue
+                y[i] = w if abs(xi) > rerr1 * max(sump, -sumn) else 0.0
+            np.copyto(dst=xb, src=y)
             if nstep == 1:  # 860 Check the refinement (nstep = 1)
                 if np.all(y >= -rerr_mx):
                     np.clip(y, a_min=0.0, a_max=None, out=xb[:m])
