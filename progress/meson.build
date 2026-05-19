@@ -6,6 +6,7 @@ custom_target(
         '-m',
         'ziglang',
         'build',
+        '-Dversion=' + py.get_variable('VERSION'),
         '-Dinclude=' + py.get_path('include'),
         '-Dstdlib=' + py.get_path('stdlib'),
         '--prefix',
