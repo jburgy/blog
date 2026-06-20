@@ -786,7 +786,7 @@ inline fn _syscall3(sp: [*]i32) [*]i32 {
         .open => {
             const p: usize = @abs(sp[1]);
             const file_path: [*:0]u8 = @ptrFromInt(p);
-            const mode: std.c.mode_t = @abs(sp[3]);
+            const mode: std.c.mode_t = @truncate(@abs(sp[3]));
             sp[3] = std.c.openat(std.c.AT.FDCWD, file_path, openFlags(@abs(sp[2])), mode);
         },
         .read => {
@@ -965,67 +965,60 @@ const primitives = [_]*const Code{
     wrap(_syscall0),
 };
 
-const numBytes = @sizeOf(Header) + @sizeOf(Word.Data) * 107 + 30 * @sizeOf(Address.Data);
-fn defwords() [numBytes]u8 {
-    @setEvalBranchQuota(4_000);
+fn defwords(buffer: []u8) !usize {
+    const names =
+        \\DROP SWAP DUP OVER ROT -ROT 2DRO 2DUP 2SWAP ?DUP 1+ 1- 4+ 4- + - * /MOD = <> < > <= >= 0= 0<> 0< 0> 0<= 0>=
+        \\AND OR XOR INVERT EXIT LIT ! @ +! -! C! C@ C@C! CMOVE STATE HERE LATEST S0 BASE (ARGC) VERSION R0 DOCOL
+        \\F_IMMED F_HIDDEN F_LENMASK SYS_EXIT SYS_OPEN SYS_CLOSE SYS_READ SYS_WRITE SYS_CREAT SYS_BRK
+        \\O_RDONLY O_WRONLY O_RDWR O_CREAT O_EXCL O_TRUNC O_APPEND O_NONBLOCK >R R> RSP@ RSP! RDROP DSP@ DSP!
+        \\KEY EMIT WORD NUMBER FIND >CFA >DFA CREATE , [ ] IMMEDIATE HIDDEN HIDE : ; ' BRANCH 0BRANCH LITSTRING TELL
+        \\INTERPRET QUIT CHAR EXECUTE SYSCALL3 SYSCALL2 SYSCALL1 SYSCALL0
+    ;
+    const immediate = "[ IMMEDIATE ;";
+    const composite: std.StaticStringMap([]const u8) = .initComptime(.{
+        .{ ">DFA", ">CFA 4+ EXIT" },
+        .{ ":", "WORD CREATE LIT 0 , LATEST @ HIDDEN ] EXIT" },
+        .{ ";", "LIT EXIT , LATEST @ HIDDEN [ EXIT" },
+        .{ "HIDE", "WORD FIND HIDDEN EXIT" },
+        .{ "QUIT", "R0 RSP! INTERPRET BRANCH -8" },
+    });
     var latest: u32 = 0;
-    var buffer: [numBytes]u8 = undefined;
-    var writer: std.Io.Writer = .fixed(&buffer);
+    var code: u32 = 1;
+    var writer: std.Io.Writer = .fixed(buffer);
     writer.advance(@sizeOf(Header));
-    for (0..107) |i| {
-        const code: Word = @enumFromInt(switch (i) {
-            0...83 => i + 1, // skip DOCOL
-            85...90 => i, // >DFA is composite
-            94...99 => i - 3, // : ; and HIDE are composite
-            101...106 => i - 4, // QUIT is composite
-            else => 0,
-        });
-        const name = switch (i) {
-            84 => ">DFA",
-            91 => ":",
-            92 => ";",
-            93 => "HIDE",
-            100 => "QUIT",
-            else => @tagName(code),
-        };
+
+    var iter_name = mem.tokenizeAny(u8, names, " \n");
+    while (iter_name.next()) |name| {
+        const definition = composite.get(name) orelse "";
         var word: Word.Data = .{
             .link = @enumFromInt(latest),
-            .flag = @truncate(name.len | switch (i) {
-                87, 89, 92 => @intFromEnum(Flag.IMMED),
-                else => 0,
-            }),
+            .flag = @truncate(name.len | if (mem.find(u8, immediate, name)) |_| @intFromEnum(Flag.IMMED) else 0),
             .name = @splat(0),
-            .code = code,
+            .code = @enumFromInt(if (definition.len > 0) 0 else code),
         };
         @memcpy(word.name[0..name.len], name);
         latest = @truncate(writer.end);
-        writer.writeStruct(word, .native) catch unreachable;
+        code += if (definition.len > 0) 0 else 1;
+        try writer.writeStruct(word, .native);
 
-        var it = mem.tokenizeScalar(u8, switch (i) {
-            84 => ">CFA 4+ EXIT",
-            91 => "WORD CREATE LIT 0 , LATEST @ HIDDEN ] EXIT",
-            92 => "LIT EXIT , LATEST @ HIDDEN [ EXIT",
-            93 => "WORD FIND HIDDEN EXIT",
-            100 => "R0 RSP! INTERPRET BRANCH -8",
-            else => "",
-        }, ' ');
+        var it = mem.tokenizeScalar(u8, definition, ' ');
 
         while (it.next()) |item| {
             if (fmt.parseInt(i32, item, 10)) |num| {
                 try writer.writeInt(i32, num, .native);
             } else |_| {
                 var node = latest;
-                while (buffer[node + 4] & F_LENMASK != item.len or !mem.eql(u8, buffer[node + 5 ..][0..item.len], item))
-                    node = mem.readInt(u32, buffer[node..][0..4], .native);
-                writer.writeInt(u32, node + @offsetOf(Word.Data, "code"), .native) catch unreachable;
+                while (writer.buffer[node + 4] & F_LENMASK != item.len or !mem.eql(u8, writer.buffer[node + 5 ..][0..item.len], item))
+                    node = @bitCast(writer.buffer[node..][0..4].*);
+                try writer.writeInt(u32, node + @offsetOf(Word.Data, "code"), .native);
             }
         }
     }
-    std.debug.assert(writer.end == numBytes);
+    const here = writer.end;
 
     var quit = latest;
-    while (buffer[quit + 4] != 4 or !mem.eql(u8, buffer[quit + 5 ..][0..4], "QUIT"))
-        quit = mem.readInt(u32, buffer[quit..][0..4], .native);
+    while (writer.buffer[quit + 4] != 4 or !mem.eql(u8, writer.buffer[quit + 5 ..][0..4], "QUIT"))
+        quit = @bitCast(writer.buffer[quit..][0..4].*);
 
     const header: Header = .{
         .stack = @splat(0),
@@ -1033,23 +1026,25 @@ fn defwords() [numBytes]u8 {
         .input_buffer = @splat(0),
         .output_buffer = @splat(0),
         .state = 0,
-        .here = numBytes,
+        .here = @truncate(here),
         .latest = latest,
         .s0 = 0x2_000,
         .base = 10,
         .buffer = @splat(0),
         .cold_start = .{quit + @offsetOf(Word.Data, "code")},
     };
-    writer.undo(numBytes); // rewind to start
-    writer.writeStruct(header, .native) catch unreachable;
-    return buffer;
+    writer.undo(here); // rewind to start
+    try writer.writeStruct(header, .native);
+    return here;
 }
 
-const initial: [numBytes]u8 align(4) = defwords();
-
 test "defwords" {
+    const numBytes = @sizeOf(Header) + @sizeOf(Word.Data) * 107 + 30 * @sizeOf(Address.Data);
+    var initial: [numBytes]u8 align(4) = @splat(0);
+    const here = try defwords(&initial);
     const start = @sizeOf(Header);
     const words: [*]const Word.Data = @ptrCast(initial[start..]);
+    try testing.expectEqual(numBytes, here);
     try testing.expectEqual(.sentinel, words[0].link);
     try testing.expectEqualSlices(u8, "DROP", words[0].name[0..words[0].flag]);
     try testing.expectEqual(.DROP, words[0].code);
@@ -1078,8 +1073,7 @@ fn cold_start(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) ca
 
 pub fn main(init: std.process.Init) !void {
     var memory: std.array_list.AlignedManaged(u8, .@"4") = try .initCapacity(init.gpa, 0x20_000);
-    defer memory.deinit();
-    try memory.appendSlice(initial[0..]);
+    try memory.resize(try defwords(memory.allocatedSlice()));
     var header: *Header = @ptrCast(memory.items.ptr);
     var stdin_reader = std.Io.File.stdin().reader(init.io, header.input_buffer[0..]);
     var stdout_writer = std.Io.File.stdout().writer(init.io, header.output_buffer[0..]);
