@@ -147,3 +147,7 @@ TEST-EXCEPTIONS \ FOO threw exception: 25
 
     def test_5th(self, actual: str, expected: str):
         assert actual.rstrip() == expected
+
+    def test_6th(self, actual: str, expected: str):
+        assert actual.rstrip() == expected
+

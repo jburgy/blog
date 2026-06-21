@@ -21,7 +21,7 @@ def first_half(desired: list[int], buttons: list[tuple[int]]):
     return total
 
 
-def second_half(buttons: list[tuple[int]], joltages: list[tuple[int]]) -> int:
+def second_half(buttons: list[tuple[int, ...]], joltages: list[tuple[int, ...]]) -> int:
     total = 0
     for button, joltage in zip(buttons, joltages):
         A_eq = sparse.dok_array((len(joltage), len(button)))

@@ -43,6 +43,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         target = {
             "test_4th": "4th",
             "test_5th": "5th.ll",
+            "test_6th": "zig-out/bin/6th",
         }[metafunc.function.__name__]
         scenarios = scenarios.format(
             argv0=f"./{target}",
