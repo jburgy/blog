@@ -965,7 +965,9 @@ const primitives = [_]*const Code{
     wrap(_syscall0),
 };
 
-fn defwords(buffer: []u8) !usize {
+const numBytes = @sizeOf(Header) + @sizeOf(Word.Data) * 107 + 30 * @sizeOf(Address.Data);
+fn defwords() align(4) [numBytes]u8 {
+    @setEvalBranchQuota(8_650);
     const names =
         \\DROP SWAP DUP OVER ROT -ROT 2DRO 2DUP 2SWAP ?DUP 1+ 1- 4+ 4- + - * /MOD = <> < > <= >= 0= 0<> 0< 0> 0<= 0>=
         \\AND OR XOR INVERT EXIT LIT ! @ +! -! C! C@ C@C! CMOVE STATE HERE LATEST S0 BASE (ARGC) VERSION R0 DOCOL
@@ -984,7 +986,8 @@ fn defwords(buffer: []u8) !usize {
     });
     var latest: u32 = 0;
     var code: u32 = 1;
-    var writer: std.Io.Writer = .fixed(buffer);
+    var buffer: [numBytes]u8 align(4) = @splat(0);
+    var writer: std.Io.Writer = .fixed(&buffer);
     writer.advance(@sizeOf(Header));
 
     var iter_name = mem.tokenizeAny(u8, names, " \n");
@@ -999,18 +1002,17 @@ fn defwords(buffer: []u8) !usize {
         @memcpy(word.name[0..name.len], name);
         latest = @truncate(writer.end);
         code += if (definition.len > 0) 0 else 1;
-        try writer.writeStruct(word, .native);
+        writer.writeStruct(word, .native) catch unreachable;
 
         var it = mem.tokenizeScalar(u8, definition, ' ');
-
         while (it.next()) |item| {
             if (fmt.parseInt(i32, item, 10)) |num| {
-                try writer.writeInt(i32, num, .native);
+                writer.writeInt(i32, num, .native) catch unreachable;
             } else |_| {
                 var node = latest;
                 while (writer.buffer[node + 4] & F_LENMASK != item.len or !mem.eql(u8, writer.buffer[node + 5 ..][0..item.len], item))
                     node = @bitCast(writer.buffer[node..][0..4].*);
-                try writer.writeInt(u32, node + @offsetOf(Word.Data, "code"), .native);
+                writer.writeInt(u32, node + @offsetOf(Word.Data, "code"), .native) catch unreachable;
             }
         }
     }
@@ -1034,17 +1036,16 @@ fn defwords(buffer: []u8) !usize {
         .cold_start = .{quit + @offsetOf(Word.Data, "code")},
     };
     writer.undo(here); // rewind to start
-    try writer.writeStruct(header, .native);
-    return here;
+    writer.writeStruct(header, .native) catch unreachable;
+    return buffer;
 }
 
 test "defwords" {
-    const numBytes = @sizeOf(Header) + @sizeOf(Word.Data) * 107 + 30 * @sizeOf(Address.Data);
-    var initial: [numBytes]u8 align(4) = @splat(0);
-    const here = try defwords(&initial);
+    const buffer: [numBytes]u8 align(4) = comptime defwords();
     const start = @sizeOf(Header);
-    const words: [*]const Word.Data = @ptrCast(initial[start..]);
-    try testing.expectEqual(numBytes, here);
+    const header: *const Header = @ptrCast(buffer[0..start]);
+    const words: [*]const Word.Data = @ptrCast(buffer[start..]);
+    try testing.expectEqual(numBytes, header.here);
     try testing.expectEqual(.sentinel, words[0].link);
     try testing.expectEqualSlices(u8, "DROP", words[0].name[0..words[0].flag]);
     try testing.expectEqual(.DROP, words[0].code);
@@ -1061,10 +1062,10 @@ test "defwords" {
     try testing.expectEqual(@as(Address, @enumFromInt(codeFieldAddress(words[84].link))), words[85].link);
 
     var node: u32 = @offsetOf(Header, "cold_start"); // points to CFA of "QUIT"
-    node = mem.readInt(u32, initial[node..][0..4], .native);
-    try testing.expectEqual(0, mem.readInt(u32, initial[node..][0..4], .native)); // CFA of "QUIT" is DOCOL ✓
-    node = mem.readInt(u32, initial[node + 4 ..][0..4], .native); // follow link to CFA of "R0"
-    try testing.expectEqual(@intFromEnum(Word.R0), mem.readInt(u32, initial[node..][0..4], .native)); // CFA of "R0" is R0 ✓
+    node = mem.readInt(u32, buffer[node..][0..4], .native);
+    try testing.expectEqual(0, mem.readInt(u32, buffer[node..][0..4], .native)); // CFA of "QUIT" is DOCOL ✓
+    node = mem.readInt(u32, buffer[node + 4 ..][0..4], .native); // follow link to CFA of "R0"
+    try testing.expectEqual(@intFromEnum(Word.R0), mem.readInt(u32, buffer[node..][0..4], .native)); // CFA of "R0" is R0 ✓
 }
 
 fn cold_start(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callconv(conv) void {
@@ -1073,7 +1074,7 @@ fn cold_start(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) ca
 
 pub fn main(init: std.process.Init) !void {
     var memory: std.array_list.AlignedManaged(u8, .@"4") = try .initCapacity(init.gpa, 0x20_000);
-    try memory.resize(try defwords(memory.allocatedSlice()));
+    try memory.appendSlice(comptime defwords()[0..]);
     var header: *Header = @ptrCast(memory.items.ptr);
     var stdin_reader = std.Io.File.stdin().reader(init.io, header.input_buffer[0..]);
     var stdout_writer = std.Io.File.stdout().writer(init.io, header.output_buffer[0..]);
