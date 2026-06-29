@@ -562,7 +562,7 @@ fn _ccopy(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callco
 
     const memory = self.memory.items.ptr;
     memory[q] = memory[p];
-    self.next(sp + 8, rsp, ip, target);
+    self.next(sp + 4, rsp, ip, target);
 }
 
 fn _cmove(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callconv(conv) void {
@@ -754,7 +754,7 @@ fn _interpret(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) ca
             self.append(.{ .word = .LIT });
             self.append(.{ .literal = a });
         } else {
-            s = sp - 4;
+            s -= 4;
             self.writeInt(s, a);
         }
     } else |_| {
@@ -912,7 +912,7 @@ const primitives = [_]*const Code{
     value(@offsetOf(Header, "base")),
     _argc,
     value(47),
-    value(0x4_000),
+    value(@offsetOf(Header, "input_buffer")),
     value(0),
     value(@intFromEnum(Flag.IMMED)),
     value(@intFromEnum(Flag.HIDDEN)),
@@ -969,7 +969,7 @@ const numBytes = @sizeOf(Header) + @sizeOf(Word.Data) * 107 + 30 * @sizeOf(Addre
 fn defwords() align(4) [numBytes]u8 {
     @setEvalBranchQuota(8_650);
     const names =
-        \\DROP SWAP DUP OVER ROT -ROT 2DRO 2DUP 2SWAP ?DUP 1+ 1- 4+ 4- + - * /MOD = <> < > <= >= 0= 0<> 0< 0> 0<= 0>=
+        \\DROP SWAP DUP OVER ROT -ROT 2DROP 2DUP 2SWAP ?DUP 1+ 1- 4+ 4- + - * /MOD = <> < > <= >= 0= 0<> 0< 0> 0<= 0>=
         \\AND OR XOR INVERT EXIT LIT ! @ +! -! C! C@ C@C! CMOVE STATE HERE LATEST S0 BASE (ARGC) VERSION R0 DOCOL
         \\F_IMMED F_HIDDEN F_LENMASK SYS_EXIT SYS_OPEN SYS_CLOSE SYS_READ SYS_WRITE SYS_CREAT SYS_BRK
         \\O_RDONLY O_WRONLY O_RDWR O_CREAT O_EXCL O_TRUNC O_APPEND O_NONBLOCK >R R> RSP@ RSP! RDROP DSP@ DSP!
@@ -1030,7 +1030,7 @@ fn defwords() align(4) [numBytes]u8 {
         .state = 0,
         .here = @truncate(here),
         .latest = latest,
-        .s0 = 0x2_000,
+        .s0 = @offsetOf(Header, "return_stack"),
         .base = 10,
         .buffer = @splat(0),
         .cold_start = .{quit + @offsetOf(Word.Data, "code")},
@@ -1040,7 +1040,7 @@ fn defwords() align(4) [numBytes]u8 {
     return buffer;
 }
 
-test "defwords" {
+test defwords {
     const buffer: [numBytes]u8 align(4) = comptime defwords();
     const start = @sizeOf(Header);
     const header: *const Header = @ptrCast(buffer[0..start]);
@@ -1068,12 +1068,153 @@ test "defwords" {
     try testing.expectEqual(@intFromEnum(Word.R0), mem.readInt(u32, buffer[node..][0..4], .native)); // CFA of "R0" is R0 ✓
 }
 
+test Interp {
+    const input =
+        \\: / /MOD SWAP DROP ;
+        \\: '\n' 10 ;
+        \\: BL 32 ;
+        \\: CR '\n' EMIT ;
+        \\: SPACE BL EMIT ;
+        \\: NEGATE 0 SWAP - ;
+        \\: TRUE 1 ;
+        \\: FALSE 0 ;
+        \\: LITERAL IMMEDIATE ' LIT , , ;
+        \\: ':' [ CHAR : ] LITERAL ;
+        \\: ';' [ CHAR ; ] LITERAL ;
+        \\: '"' [ CHAR " ] LITERAL ;
+        \\: 'A' [ CHAR A ] LITERAL ;
+        \\: '0' [ CHAR 0 ] LITERAL ;
+        \\: '-' [ CHAR - ] LITERAL ;
+        \\: [COMPILE] IMMEDIATE WORD FIND >CFA , ;
+        \\: RECURSE   IMMEDIATE LATEST @ >CFA , ;
+        \\: IF        IMMEDIATE ' 0BRANCH , HERE @ 0 , ;
+        \\: THEN      IMMEDIATE DUP HERE @ SWAP - SWAP ! ;
+        \\: ELSE      IMMEDIATE ' BRANCH , HERE @ 0 , SWAP DUP HERE @ SWAP - SWAP ! ;
+        \\: BEGIN     IMMEDIATE HERE @ ;
+        \\: AGAIN     IMMEDIATE ' BRANCH , HERE @ - , ;
+        \\: WHILE     IMMEDIATE ' 0BRANCH , HERE @ 0 , ;
+        \\: REPEAT    IMMEDIATE ' BRANCH , SWAP HERE @ - , DUP HERE @ SWAP - SWAP ! ;
+        \\: NIP SWAP DROP ;
+        \\: PICK 1+ 4 * DSP@ + @ ;
+        \\: SPACES BEGIN DUP 0> WHILE SPACE 1- REPEAT DROP ;
+        \\: U. BASE @ /MOD ?DUP IF RECURSE THEN DUP 10 < IF '0' ELSE 10 - 'A' THEN + EMIT ;
+        \\: .S DSP@ BEGIN DUP S0 @ < WHILE DUP @ U. 4+ SPACE REPEAT DROP ;
+        \\: UWIDTH BASE @ / ?DUP IF RECURSE 1+ ELSE 1 THEN ;
+        \\: U.R SWAP DUP UWIDTH ROT SWAP - SPACES U. ;
+        \\: .R SWAP DUP 0< IF NEGATE 1 SWAP ROT 1- ELSE 0 SWAP ROT THEN SWAP DUP UWIDTH ROT SWAP - SPACES SWAP IF '-' EMIT THEN U. ;
+        \\: . 0 .R SPACE ;
+        \\: U. U. SPACE ;
+        \\: WITHIN -ROT OVER <= IF > IF TRUE ELSE FALSE THEN ELSE 2DROP FALSE THEN ;
+        \\: ALIGNED 3 + -4 AND ;
+        \\: ALIGN HERE @ ALIGNED HERE ! ;
+        \\: C, HERE @ C! 1 HERE +! ;
+        \\: S" IMMEDIATE STATE @ IF
+        \\  ' LITSTRING , HERE @ 0 , BEGIN KEY DUP '"' <> WHILE C, REPEAT DROP DUP HERE @ SWAP - 4- SWAP ! ALIGN ELSE
+        \\  HERE @ BEGIN KEY DUP '"' <> WHILE OVER C! 1+ REPEAT DROP HERE @ - HERE @ SWAP THEN ;
+        \\: ." IMMEDIATE STATE @ IF [COMPILE] S" ' TELL , ELSE BEGIN KEY DUP '"' = IF DROP EXIT THEN EMIT AGAIN THEN ;
+        \\: CELLS 4 * ;
+        \\: ID. 4+ DUP C@ F_LENMASK AND BEGIN DUP 0> WHILE SWAP 1+ DUP C@ EMIT SWAP 1- REPEAT 2DROP ;
+        \\: ?IMMEDIATE 4+ C@ F_IMMED AND ;
+        \\: CASE    IMMEDIATE 0 ;
+        \\: OF      IMMEDIATE ' OVER , ' = , [COMPILE] IF ' DROP , ;
+        \\: ENDOF   IMMEDIATE [COMPILE] ELSE ;
+        \\: ENDCASE IMMEDIATE ' DROP , BEGIN ?DUP WHILE [COMPILE] THEN REPEAT ;
+        \\: CFA> LATEST @ BEGIN ?DUP WHILE 2DUP SWAP < IF NIP EXIT THEN @ REPEAT DROP 0 ;
+        \\: SEE WORD FIND HERE @ LATEST @ BEGIN 2 PICK OVER <> WHILE NIP DUP @ REPEAT DROP SWAP
+        \\  ':' EMIT SPACE DUP ID. SPACE DUP ?IMMEDIATE IF ." IMMEDIATE " THEN >DFA
+        \\  BEGIN 2DUP > WHILE DUP @
+        \\      CASE
+        \\          ' LIT OF 4+ DUP @ . ENDOF
+        \\          ' LITSTRING OF [ CHAR S ] LITERAL EMIT '"' EMIT SPACE 4+ DUP @ SWAP 4+ SWAP 2DUP TELL '"' EMIT SPACE + ALIGNED 4- ENDOF
+        \\          ' 0BRANCH OF ." 0BRANCH ( " 4+ DUP @ . ." ) " ENDOF
+        \\          '  BRANCH OF  ." BRANCH ( " 4+ DUP @ . ." ) " ENDOF
+        \\          ' ' OF [ CHAR ' ] LITERAL EMIT SPACE 4+ DUP CFA> ID. SPACE ENDOF
+        \\          ' EXIT OF 2DUP 4+ <> IF ." EXIT " THEN ENDOF
+        \\          DUP CFA> ID. SPACE
+        \\      ENDCASE
+        \\      4+
+        \\  REPEAT
+        \\ ';' EMIT CR 2DROP ;
+        \\: ['] IMMEDIATE ' LIT , ;
+        \\: EXCEPTION-MARKER RDROP 0 ;
+        \\: CATCH DSP@ 4+ >R ' EXCEPTION-MARKER 4+ >R EXECUTE ;
+        \\: THROW ?DUP IF RSP@ BEGIN DUP R0 4- < WHILE DUP @ ' EXCEPTION-MARKER 4+ = IF 4+ RSP! DUP DUP DUP R> 4- SWAP OVER ! DSP! EXIT THEN 4+ REPEAT
+        \\  DROP CASE 0 1- OF ." ABORTED" CR ENDOF ." UNCAUGHT THROW " DUP . CR ENDCASE QUIT THEN ;
+        \\: STRLEN DUP BEGIN DUP C@ 0<> WHILE 1+ REPEAT SWAP - ;
+        \\ 65 EMIT CR \ A
+        \\ 777 65 EMIT DROP CR \ A
+        \\ 32 DUP + 1+ EMIT CR \ A
+        \\ 16 DUP 2DUP + + + 1+ EMIT CR \ A
+        \\ 8 DUP * 1+ EMIT CR \ A
+        \\ CHAR A EMIT CR \ A
+        \\ : SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT CR \ A
+        \\ 1179010630 DSP@ 4 TELL 2DROP CR \ FFFF
+        \\ 1179010630 DSP@ HERE @ 4 CMOVE HERE @ 4 TELL 2DROP CR \ FFFF
+        \\ 13622 DSP@ 2 NUMBER DROP EMIT CR \ A
+        \\ 64 >R RSP@ 1 TELL RDROP CR \ @
+        \\ 64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL 2DROP CR \ @
+        \\ 64 >R 1 RSP@ +! RSP@ 1 TELL RDROP CR \ A
+        \\ VERSION . CR \ 47 
+        \\ LATEST @ ID. CR \ SLOW
+        \\ 0 1 > . CR \ 0 
+        \\ 1 0 > . CR \ -1 
+        \\ 0 1 >= . CR \ 0 
+        \\ 0 0 >= . CR \ -1 
+        \\ 0 0<> . CR \ 0 
+        \\ 1 0<> . CR \ -1 
+        \\ 1 0<= . CR \ 0 
+        \\ 0 0 <= . CR \ -1 
+        \\ -1 0>= . CR \ 0 
+        \\ 0 0>= . CR \ -1 
+        \\ 0 0 OR . CR \ 0 
+        \\ 0 -1 OR . CR \ -1 
+        \\ -1 -1 XOR . CR \ 0 
+        \\ 0 -1 XOR . CR \ -1 
+        \\ -1 INVERT . CR \ 0 
+        \\ 0 INVERT . CR \ -1 
+        \\ F_IMMED F_HIDDEN .S 2DROP CR \ 32 128 
+        \\ : CFA@ WORD FIND >CFA @ ; CFA@ >DFA DOCOL = . CR \ -1 
+        \\ 3 4 5 .S 2DROP DROP CR \ 5 4 3 
+        \\ 3 4 5 WITHIN . CR \ 0 
+        \\ SEE >DFA \ : >DFA >CFA 4+ ;
+        \\ SEE HIDE \ : HIDE WORD FIND HIDDEN ;
+        \\ SEE QUIT \ : QUIT R0 RSP! INTERPRET BRANCH ( -8 ) ;
+        \\ : FOO THROW ;
+        \\ : TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF ." FOO threw exception: " . CR DROP THEN ;
+        \\ TEST-EXCEPTIONS \ FOO threw exception: 25 
+    ;
+    var output: [1024]u8 = undefined;
+    var reader: std.Io.Reader = .fixed(input);
+    var writer: std.Io.Writer = .fixed(output[0..]);
+    var memory: std.array_list.AlignedManaged(u8, .@"4") = try .initCapacity(testing.allocator, 0x20_000);
+    defer memory.deinit();
+    try memory.appendSlice(comptime defwords()[0..]);
+    var env: Interp = .init(memory, &reader, &writer);
+
+    cold_start(
+        &env,
+        @offsetOf(Header, "return_stack"),
+        @offsetOf(Header, "input_buffer"),
+        @offsetOf(Header, "cold_start"),
+        0,
+    );
+
+    var expected = mem.tokenizeScalar(u8, input, '\n');
+    var actual = mem.tokenizeScalar(u8, output[0..writer.end], '\n');
+    while (expected.next()) |line| {
+        if (mem.cut(u8, line, " \\ ")) |cut| {
+            try testing.expectEqualStrings(cut.@"1", actual.next() orelse "");
+        }
+    }
+}
+
 fn cold_start(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callconv(conv) void {
     self.next(sp, rsp, ip, target);
 }
 
 pub fn main(init: std.process.Init) !void {
     var memory: std.array_list.AlignedManaged(u8, .@"4") = try .initCapacity(init.gpa, 0x20_000);
+    defer memory.deinit();
     try memory.appendSlice(comptime defwords()[0..]);
     var header: *Header = @ptrCast(memory.items.ptr);
     var stdin_reader = std.Io.File.stdin().reader(init.io, header.input_buffer[0..]);

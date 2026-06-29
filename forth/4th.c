@@ -2,7 +2,6 @@
 
 #if __has_include ("cosmopolitan.h")  /* https://justine.lol/ape.html */
 #include "cosmopolitan.h"
-#define __NR_brk __NR_linux_brk
 #else
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
@@ -10,7 +9,7 @@
 #include <stdio.h>  /* EOF, getchar_unlocked, putchar_unlocked */
 #include <stdlib.h>  /* exit, strtol, syscall */
 #include <string.h>  /* memcmp, memmove, memcpy */
-#include <sys/syscall.h>  /* __NR_exit, __NR_open, __NR_close, __NR_read, __NR_write, __NR_creat, __NR_brk */
+#include <sys/syscall.h>  /* SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk */
 #include <unistd.h>  /* read, write, intptr_t */
 #endif
 
@@ -40,7 +39,7 @@ code_##_label
 #include <stdarg.h>
 
 /* https://github.com/emscripten-core/emscripten/issues/6708 */
-enum SYS {__NR_read, __NR_write, __NR_open, __NR_close, __NR_brk=0x0c, __NR_exit=0x3c, __NR_creat=0x55};
+enum SYS {SYS_read, SYS_write, SYS_open, SYS_close, SYS_brk=0x0c, SYS_exit=0x3c, SYS_creat=0x55};
 int syscall(int sysno, ...)
 {
     va_list ap;
@@ -49,17 +48,23 @@ int syscall(int sysno, ...)
 
     switch(sysno)
     {
-    case __NR_read : status = read(va_arg(ap, int), va_arg(ap, void *), va_arg(ap, size_t)); break;
-    case __NR_write: status = write(va_arg(ap, int), va_arg(ap, const void *), va_arg(ap, size_t)); break;
-    case __NR_open : status = open(va_arg(ap, const char *), va_arg(ap, int), va_arg(ap, mode_t)); break;
-    case __NR_close: status = close(va_arg(ap, int)); break;
-    case __NR_brk  : status = (intptr_t)va_arg(ap, void *); status = status ? brk((void *)status) : (intptr_t)sbrk(0); break;
-    case __NR_exit : status = va_arg(ap, int); va_end(ap); exit(status);
-    case __NR_creat: status = creat(va_arg(ap, const char *), va_arg(ap, mode_t)); break;
+    case SYS_read : status = read(va_arg(ap, int), va_arg(ap, void *), va_arg(ap, size_t)); break;
+    case SYS_write: status = write(va_arg(ap, int), va_arg(ap, const void *), va_arg(ap, size_t)); break;
+    case SYS_open : status = open(va_arg(ap, const char *), va_arg(ap, int), va_arg(ap, mode_t)); break;
+    case SYS_close: status = close(va_arg(ap, int)); break;
+    case SYS_brk  : status = (intptr_t)va_arg(ap, void *); status = status ? brk((void *)status) : (intptr_t)sbrk(0); break;
+    case SYS_exit : status = va_arg(ap, int); va_end(ap); exit(status);
+    case SYS_creat: status = creat(va_arg(ap, const char *), va_arg(ap, mode_t)); break;
     }
     va_end(ap);
     return status;
 }
+#endif
+
+#ifdef __APPLE__
+#define SYS_creat 0x55
+#define SYS_brk 0x0c
+#define fflush_unlocked fflush
 #endif
 
 enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
@@ -398,13 +403,13 @@ DEFCONST(__DOCOL, 0, "DODOES", __DODOES, &&DODOES);
 DEFCONST(__DODOES, 0, "F_IMMED", __F_IMMED, F_IMMED);
 DEFCONST(__F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN);
 DEFCONST(__F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK);
-DEFCONST(__F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, __NR_exit);
-DEFCONST(SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, __NR_open);
-DEFCONST(SYS_OPEN, 0, "SYS_CLOSE", SYS_CLOSE, __NR_close);
-DEFCONST(SYS_CLOSE, 0, "SYS_READ", SYS_READ, __NR_read);
-DEFCONST(SYS_READ, 0, "SYS_WRITE", SYS_WRITE, __NR_write);
-DEFCONST(SYS_WRITE, 0, "SYS_CREAT", SYS_CREAT, __NR_creat);
-DEFCONST(SYS_CREAT, 0, "SYS_BRK", SYS_BRK, __NR_brk);
+DEFCONST(__F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, SYS_exit);
+DEFCONST(SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, SYS_open);
+DEFCONST(SYS_OPEN, 0, "SYS_CLOSE", SYS_CLOSE, SYS_close);
+DEFCONST(SYS_CLOSE, 0, "SYS_READ", SYS_READ, SYS_read);
+DEFCONST(SYS_READ, 0, "SYS_WRITE", SYS_WRITE, SYS_write);
+DEFCONST(SYS_WRITE, 0, "SYS_CREAT", SYS_CREAT, SYS_creat);
+DEFCONST(SYS_CREAT, 0, "SYS_BRK", SYS_BRK, SYS_brk);
 DEFCONST(SYS_BRK, 0, "O_RDONLY", __O_RDONLY, O_RDONLY);
 DEFCONST(__O_RDONLY, 0, "O_WRONLY", __O_WRONLY, O_WRONLY);
 DEFCONST(__O_WRONLY, 0, "O_RDWR", __O_RDWR, O_RDWR);

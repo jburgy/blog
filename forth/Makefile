@@ -1,6 +1,6 @@
 CC = gcc
 EC ?= emcc
-CFLAGS ?= -Wall -Wextra -Os -DNDEBUG -fomit-frame-pointer
+CFLAGS ?= -Wall -Wextra -Os -DNDEBUG -fomit-frame-pointer -Wno-deprecated-declarations
 ARFLAGS = -m32 -S -fverbose-asm
 EFLAGS = -O -Wall -Wextra -sEXIT_RUNTIME=1 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1
 CPPFLAGS = -include cosmopolitan.h -I.

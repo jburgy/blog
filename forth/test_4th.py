@@ -127,9 +127,9 @@ LATEST @ ID. CR \ FOO
 F_IMMED F_HIDDEN .S 2DROP CR \ 32 128
 : CFA@ WORD FIND >CFA @ ; CFA@ >DFA DOCOL = . CR \ -1
 3 4 5 WITHIN . CR \ 0
-102 SYSCALL0 . CR \ {uid}
-{uid} 105 SYSCALL1 . CR \ 0
-O_RDONLY Z" {argv0}" 21 SYSCALL2 . CR \ 0
+{getuid} SYSCALL0 . CR \ {uid}
+{uid} {setuid} SYSCALL1 . CR \ 0
+O_RDONLY Z" {argv0}" {access} SYSCALL2 . CR \ 0
 S" test" SWAP 1 SYS_WRITE SYSCALL3 . CR \ test4
 ARGC . CR \ 1
 0 ARGV TELL CR \ {argv0}
@@ -147,7 +147,3 @@ TEST-EXCEPTIONS \ FOO threw exception: 25
 
     def test_5th(self, actual: str, expected: str):
         assert actual.rstrip() == expected
-
-    def test_6th(self, actual: str, expected: str):
-        assert actual.rstrip() == expected
-

@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syscall.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #ifdef EMSCRIPTEN
@@ -12,6 +12,11 @@
 
 /* https://github.com/emscripten-core/emscripten/issues/6708 */
 enum SYS {SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk};
+#endif
+
+#ifdef __APPLE__
+#define SYS_creat 24
+#define SYS_brk 214
 #endif
 
 #define NEXT __attribute__((musttail)) return ip->word->code(env, sp, rsp, ip + 1, ip->word)
