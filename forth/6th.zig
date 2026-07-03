@@ -37,108 +37,6 @@ const Flag = enum(u8) { IMMED = 0x80, HIDDEN = ' ', ZERO = 0x0 };
 
 // https://matklad.github.io/2025/12/23/zig-newtypes-index-pattern.html
 const Word = enum(u32) {
-    DROP = 1,
-    SWAP,
-    DUP,
-    OVER,
-    ROT,
-    @"-ROT",
-    @"2DROP",
-    @"2DUP",
-    @"2SWAP",
-    @"?DUP",
-    @"1+",
-    @"1-",
-    @"4+",
-    @"4-",
-    @"+",
-    @"-",
-    @"*",
-    @"/MOD",
-    @"=",
-    @"<>",
-    @"<",
-    @">",
-    @"<=",
-    @">=",
-    @"0=",
-    @"0<>",
-    @"0<",
-    @"0>",
-    @"0<=",
-    @"0>=",
-    AND,
-    OR,
-    XOR,
-    INVERT,
-    EXIT,
-    LIT,
-    @"!",
-    @"@",
-    @"+!",
-    @"-!",
-    @"C!",
-    @"C@",
-    @"C@C!",
-    CMOVE,
-    STATE,
-    HERE,
-    LATEST,
-    S0,
-    BASE,
-    @"(ARGC)",
-    VERSION,
-    R0,
-    DOCOL,
-    F_IMMED,
-    F_HIDDEN,
-    F_LENMASK,
-    SYS_EXIT,
-    SYS_OPEN,
-    SYS_CLOSE,
-    SYS_READ,
-    SYS_WRITE,
-    SYS_CREAT,
-    SYS_BRK,
-    O_RDONLY,
-    O_WRONLY,
-    O_RDWR,
-    O_CREAT,
-    O_EXCL,
-    O_TRUNC,
-    O_APPEND,
-    O_NONBLOCK,
-    @">R",
-    @"R>",
-    @"RSP@",
-    @"RSP!",
-    RDROP,
-    @"DSP@",
-    @"DSP!",
-    KEY,
-    EMIT,
-    WORD,
-    NUMBER,
-    FIND,
-    @">CFA",
-    CREATE,
-    @",",
-    @"[",
-    @"]",
-    IMMEDIATE,
-    HIDDEN,
-    @"'",
-    BRANCH,
-    @"0BRANCH",
-    LITSTRING,
-    TELL,
-    INTERPRET,
-    CHAR,
-    EXECUTE,
-    SYSCALL3,
-    SYSCALL2,
-    SYSCALL1,
-    SYSCALL0,
     _,
 
     /// The layout of this `struct` is very important for introspection to work.
@@ -1048,13 +946,12 @@ test defwords {
     try testing.expectEqual(numBytes, header.here);
     try testing.expectEqual(.sentinel, words[0].link);
     try testing.expectEqualSlices(u8, "DROP", words[0].name[0..words[0].flag]);
-    try testing.expectEqual(.DROP, words[0].code);
+    for (words[0..84], 1..) |word, i|
+        try testing.expectEqual(i, @intFromEnum(word.code));
     try testing.expectEqual(@as(Address, @enumFromInt(start)), words[1].link);
     try testing.expectEqualSlices(u8, "SWAP", words[1].name[0..words[1].flag]);
-    try testing.expectEqual(.LIT, words[35].code);
-    try testing.expectEqual(.R0, words[51].code);
+    try testing.expectEqualSlices(u8, "R0", words[51].name[0..words[51].flag]);
     try testing.expectEqualSlices(u8, "DOCOL", words[52].name[0..words[52].flag]);
-    try testing.expectEqual(.@">CFA", words[83].code);
     try testing.expectEqualSlices(u8, ">DFA", words[84].name[0..words[84].flag]);
     try testing.expectEqual(0, @intFromEnum(words[84].code));
     // This is a kludge.  >DFA is composite so its code field is followed by 3 data field.
@@ -1065,7 +962,7 @@ test defwords {
     node = mem.readInt(u32, buffer[node..][0..4], .native);
     try testing.expectEqual(0, mem.readInt(u32, buffer[node..][0..4], .native)); // CFA of "QUIT" is DOCOL ✓
     node = mem.readInt(u32, buffer[node + 4 ..][0..4], .native); // follow link to CFA of "R0"
-    try testing.expectEqual(@intFromEnum(Word.R0), mem.readInt(u32, buffer[node..][0..4], .native)); // CFA of "R0" is R0 ✓
+    try testing.expectEqual(52, mem.readInt(u32, buffer[node..][0..4], .native)); // CFA of "R0" is R0 ✓
 }
 
 test Interp {
