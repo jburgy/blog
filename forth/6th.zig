@@ -864,7 +864,7 @@ const primitives = [_]*const Code{
 };
 
 const numBytes = @sizeOf(Header) + @sizeOf(Word.Data) * 107 + 30 * @sizeOf(Address.Data);
-fn defwords() align(4) [numBytes]u8 {
+fn defwords() [numBytes]u8 {
     @setEvalBranchQuota(8_650);
     const names =
         \\DROP SWAP DUP OVER ROT -ROT 2DROP 2DUP 2SWAP ?DUP 1+ 1- 4+ 4- + - * /MOD = <> < > <= >= 0= 0<> 0< 0> 0<= 0>=
