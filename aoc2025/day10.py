@@ -5,7 +5,7 @@ from operator import xor
 from scipy import optimize, sparse
 
 
-def first_half(desired: list[int], buttons: list[tuple[int]]):
+def first_half(desired: list[int], buttons: list[tuple[int, ...]]):
     total = 0
     for goal, switches in zip(desired, buttons):
         for n in range(1, len(buttons) + 1):

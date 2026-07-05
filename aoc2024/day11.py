@@ -1,4 +1,4 @@
-""" recursive alternative
+"""recursive alternative
 
 >>> import functools
 >>> @functools.cache
@@ -38,7 +38,7 @@ while q:
     else:
         half, rest = divmod(len(stone), 2)
         if rest:
-            stones = str(int(stone) * 2024),
+            stones = (str(int(stone) * 2024),)
         else:
             stones = (stone[:half], str(int(stone[half:])))
     n = m - 1
