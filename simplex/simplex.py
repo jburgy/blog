@@ -70,7 +70,7 @@ def refine_result(
     r: Vector,
     ibasis: Index,
     rerr_mx: float,
-    rerr: np.float64,
+    rerr: float,
 ):  # 800
     m, n0 = a.shape
     n = (ns := n0 + numle) + numge
