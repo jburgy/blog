@@ -177,6 +177,7 @@ class Instructions(list):
         for char in string:
             n = []
             for p in c:
+                assert isinstance(p, int)
                 try:
                     op = self[p]  # str to match or jump targets
                 except IndexError:
