@@ -18,6 +18,7 @@ const syscalls = os.linux.syscalls;
 const testing = std.testing;
 const builtin = @import("builtin");
 const arch = builtin.cpu.arch;
+const native = arch.endian();
 
 const conv: std.builtin.CallingConvention = switch (arch) {
     .x86_64 => .winapi,
@@ -135,11 +136,11 @@ const Interp = struct {
     }
 
     pub inline fn writeInt(self: Self, address: usize, val: i32) void {
-        mem.writeInt(i32, self.memory.items[address..][0..4], val, .native);
+        mem.writeInt(i32, self.memory.items[address..][0..4], val, native);
     }
 
     pub inline fn readInt(self: Self, address: usize) i32 {
-        return mem.readInt(i32, self.memory.items[address..][0..4], .native);
+        return mem.readInt(i32, self.memory.items[address..][0..4], native);
     }
 
     pub fn find(self: Self, name: []const u8) ?*const Word.Data {
@@ -893,24 +894,24 @@ fn defwords() [numBytes]u8 {
         const definition = composite.get(name) orelse "";
         var word: Word.Data = .{
             .link = @enumFromInt(latest),
-            .flag = @truncate(name.len | if (mem.find(u8, immediate, name)) |_| @intFromEnum(Flag.IMMED) else 0),
+            .flag = @truncate(name.len | if (mem.indexOf(u8, immediate, name)) |_| @intFromEnum(Flag.IMMED) else 0),
             .name = @splat(0),
             .code = @enumFromInt(if (definition.len > 0) 0 else code),
         };
         @memcpy(word.name[0..name.len], name);
         latest = @truncate(writer.end);
         code += if (definition.len > 0) 0 else 1;
-        writer.writeStruct(word, .native) catch unreachable;
+        writer.writeStruct(word, native) catch unreachable;
 
         var it = mem.tokenizeScalar(u8, definition, ' ');
         while (it.next()) |item| {
             if (fmt.parseInt(i32, item, 10)) |num| {
-                writer.writeInt(i32, num, .native) catch unreachable;
+                writer.writeInt(i32, num, native) catch unreachable;
             } else |_| {
                 var node = latest;
                 while (writer.buffer[node + 4] & F_LENMASK != item.len or !mem.eql(u8, writer.buffer[node + 5 ..][0..item.len], item))
                     node = @bitCast(writer.buffer[node..][0..4].*);
-                writer.writeInt(u32, node + @offsetOf(Word.Data, "code"), .native) catch unreachable;
+                writer.writeInt(u32, node + @offsetOf(Word.Data, "code"), native) catch unreachable;
             }
         }
     }
@@ -934,7 +935,7 @@ fn defwords() [numBytes]u8 {
         .cold_start = .{quit + @offsetOf(Word.Data, "code")},
     };
     writer.undo(here); // rewind to start
-    writer.writeStruct(header, .native) catch unreachable;
+    writer.writeStruct(header, native) catch unreachable;
     return buffer;
 }
 
@@ -959,10 +960,10 @@ test defwords {
     try testing.expectEqual(@as(Address, @enumFromInt(codeFieldAddress(words[84].link))), words[85].link);
 
     var node: u32 = @offsetOf(Header, "cold_start"); // points to CFA of "QUIT"
-    node = mem.readInt(u32, buffer[node..][0..4], .native);
-    try testing.expectEqual(0, mem.readInt(u32, buffer[node..][0..4], .native)); // CFA of "QUIT" is DOCOL ✓
-    node = mem.readInt(u32, buffer[node + 4 ..][0..4], .native); // follow link to CFA of "R0"
-    try testing.expectEqual(52, mem.readInt(u32, buffer[node..][0..4], .native)); // CFA of "R0" is R0 ✓
+    node = mem.readInt(u32, buffer[node..][0..4], native);
+    try testing.expectEqual(0, mem.readInt(u32, buffer[node..][0..4], native)); // CFA of "QUIT" is DOCOL ✓
+    node = mem.readInt(u32, buffer[node + 4 ..][0..4], native); // follow link to CFA of "R0"
+    try testing.expectEqual(52, mem.readInt(u32, buffer[node..][0..4], native)); // CFA of "R0" is R0 ✓
 }
 
 test Interp {
@@ -1109,13 +1110,16 @@ fn cold_start(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) ca
     self.next(sp, rsp, ip, target);
 }
 
-pub fn main(init: std.process.Init) !void {
-    var memory: std.array_list.AlignedManaged(u8, .@"4") = try .initCapacity(init.gpa, 0x20_000);
+pub fn main() !void {
+    const gpa = std.heap.c_allocator;
+    var memory: std.array_list.AlignedManaged(u8, .@"4") = try .initCapacity(gpa, 0x20_000);
     defer memory.deinit();
     try memory.appendSlice(comptime defwords()[0..]);
     var header: *Header = @ptrCast(memory.items.ptr);
-    var stdin_reader = std.Io.File.stdin().reader(init.io, header.input_buffer[0..]);
-    var stdout_writer = std.Io.File.stdout().writer(init.io, header.output_buffer[0..]);
+    // var stdin_reader = std.Io.File.stdin().reader(init.io, header.input_buffer[0..]);
+    // var stdout_writer = std.Io.File.stdout().writer(init.io, header.output_buffer[0..]);
+    var stdin_reader = std.fs.File.stdin().reader(header.input_buffer[0..]);
+    var stdout_writer = std.fs.File.stdout().writer(header.output_buffer[0..]);
     var env: Interp = .init(memory, &stdin_reader.interface, &stdout_writer.interface);
 
     cold_start(
@@ -1125,4 +1129,14 @@ pub fn main(init: std.process.Init) !void {
         @offsetOf(Header, "cold_start"),
         0,
     );
+}
+
+fn mainWithoutEnv(c_argc: c_int, c_argv: [*][*:0]c_char) callconv(.c) c_int {
+    _ = @as([*][*:0]u8, @ptrCast(c_argv))[0..@as(usize, @intCast(c_argc))];
+    @call(.always_inline, main, .{}) catch std.debug.panic("main failed", .{});
+    return 0;
+}
+
+comptime {
+    @export(&mainWithoutEnv, .{ .name = "__main_argc_argv" });
 }
