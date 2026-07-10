@@ -166,7 +166,7 @@ for name in names:
         print(f"[{offset}] = 0", end="")
         for item in code:
             offset += 1
-            print(f", [{offset}] = {offsets.get(item, item)} << 2", end="")  # ty: ignore[no-matching-overload]
+            print(f", [{offset}] = {offsets.get(item, item)} << 2", end="")
         print(",")
     else:
         offset += 1
