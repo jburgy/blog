@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 import subprocess
 
@@ -43,10 +44,14 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         target = {
             "test_4th": "4th",
             "test_5th": "5th.ll",
+            "test_6th": "zig-out/bin/6th",
         }[metafunc.function.__name__]
         scenarios = scenarios.format(
             argv0=f"./{target}",
             uid=os.getuid(),
+            getuid=24 if platform.system() == "Darwin" else 102,
+            setuid=23 if platform.system() == "Darwin" else 105,
+            access=33 if platform.system() == "Darwin" else 21,
         )
         subprocess.run(["make", target], cwd="forth", check=True)
         cp = subprocess.run(
@@ -63,6 +68,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             ["actual", "expected"],
             zip(
                 cp.stdout.splitlines(),
-                re.findall(r"(?<=\\ )(.+)$", scenarios, re.M),
+                re.findall(r"(?<=\\ )(.+)$", scenarios, flags=re.M),
             ),
+            ids=re.findall(r"^(.+?)(?= \\ )", scenarios, flags=re.M),
         )

@@ -1,6 +1,6 @@
 CC = gcc
 EC ?= emcc
-CFLAGS ?= -Wall -Wextra -Os -DNDEBUG -fomit-frame-pointer
+CFLAGS ?= -Wall -Wextra -Os -DNDEBUG -fomit-frame-pointer -Wno-deprecated-declarations
 ARFLAGS = -m32 -S -fverbose-asm
 EFLAGS = -O -Wall -Wextra -sEXIT_RUNTIME=1 -sFORCE_FILESYSTEM=1 -sASSERTIONS=1
 CPPFLAGS = -include cosmopolitan.h -I.
@@ -56,7 +56,7 @@ cosmopolitan-amalgamation-2.2.zip :
 	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
 zig-out/bin/6th : 6th.zig
-	uv run --with ziglang python -m ziglang build
+	uvx --from ziglang==0.15.2 python-zig build
 
 jansforth : jansforth.c
 	$(CC) -m32 -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^

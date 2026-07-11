@@ -22,11 +22,11 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
             .root_source_file = b.path("6th.zig"),
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
         .linkage = .static,
     });
     lib.rdynamic = true;
-    lib.linkLibC();
 
     const emcc = b.addSystemCommand(&.{"emcc"});
     emcc.addArg("-mtail-call");
@@ -57,6 +57,7 @@ fn buildNative(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) 
             .root_source_file = b.path("6th.zig"),
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
         .use_llvm = true,
     });
