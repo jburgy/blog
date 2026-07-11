@@ -56,7 +56,7 @@ cosmopolitan-amalgamation-2.2.zip :
 	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
 zig-out/bin/6th : 6th.zig
-	uvx --from ziglang python-zig build
+	uvx --from ziglang==0.15.2 python-zig build
 
 jansforth : jansforth.c
 	$(CC) -m32 -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^

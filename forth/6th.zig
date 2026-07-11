@@ -60,7 +60,7 @@ inline fn codeFieldAddress(w: Address) usize {
 
 inline fn openFlags(flags: usize) std.c.O {
     return switch (builtin.os.tag) {
-        .emscripten => .{
+        .linux, .emscripten => .{
             .ACCMODE = @enumFromInt(flags & O_RDWR),
             .CREAT = (flags & O_CREAT) != 0,
             .EXCL = (flags & O_EXCL) != 0,
@@ -1084,10 +1084,10 @@ test Interp {
     var output: [1024]u8 = undefined;
     var reader: std.Io.Reader = .fixed(input);
     var writer: std.Io.Writer = .fixed(output[0..]);
-    var memory: std.array_list.AlignedManaged(u8, .@"4") = try .initCapacity(testing.allocator, 0x20_000);
-    defer memory.deinit();
+    var memory: std.array_list.AlignedManaged(u8, .of(u32)) = try .initCapacity(testing.allocator, 0x20_000);
     try memory.appendSlice(comptime defwords()[0..]);
     var env: Interp = .init(memory, &reader, &writer);
+    defer env.memory.deinit();
 
     cold_start(
         &env,
@@ -1100,8 +1100,8 @@ test Interp {
     var expected = mem.tokenizeScalar(u8, input, '\n');
     var actual = mem.tokenizeScalar(u8, output[0..writer.end], '\n');
     while (expected.next()) |line| {
-        if (mem.cut(u8, line, " \\ ")) |cut| {
-            try testing.expectEqualStrings(cut.@"1", actual.next() orelse "");
+        if (mem.indexOf(u8, line, " \\ ")) |index| {
+            try testing.expectEqualStrings(line[index + 3 ..], actual.next() orelse "");
         }
     }
 }
@@ -1112,8 +1112,7 @@ fn cold_start(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) ca
 
 pub fn main() !void {
     const gpa = std.heap.c_allocator;
-    var memory: std.array_list.AlignedManaged(u8, .@"4") = try .initCapacity(gpa, 0x20_000);
-    defer memory.deinit();
+    var memory: std.array_list.AlignedManaged(u8, .of(u32)) = try .initCapacity(gpa, 0x20_000);
     try memory.appendSlice(comptime defwords()[0..]);
     var header: *Header = @ptrCast(memory.items.ptr);
     // var stdin_reader = std.Io.File.stdin().reader(init.io, header.input_buffer[0..]);
@@ -1121,6 +1120,7 @@ pub fn main() !void {
     var stdin_reader = std.fs.File.stdin().reader(header.input_buffer[0..]);
     var stdout_writer = std.fs.File.stdout().writer(header.output_buffer[0..]);
     var env: Interp = .init(memory, &stdin_reader.interface, &stdout_writer.interface);
+    defer env.memory.deinit();
 
     cold_start(
         &env,
