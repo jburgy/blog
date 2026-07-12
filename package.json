@@ -1,9 +1,8 @@
 {
   "devDependencies": {
-    "@types/node": "^24.5.2",
-    "@xterm/xterm": "^5.5.0",
-    "assemblyscript": "^0.28.8",
-    "tsup": "^8.5.0",
-    "typescript": "^5.9.2"
+    "@xterm/xterm": "^6.0.0",
+    "assemblyscript": "^0.28.19",
+    "tsdown": "^0.22.5",
+    "typescript": "^6.0.3"
   }
 }
