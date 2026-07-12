@@ -16,7 +16,6 @@ jobs:
         with:
           submodules: true
       - uses: actions/setup-node@v5
-      - run: npm ci 
       - uses: pyodide/setup-emsdk@v15
         with:
           version: 4.0.15

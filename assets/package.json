@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "https://justine.lol/sectorlisp/ in https://www.assemblyscript.org/",
   "scripts": {
-    "asbuild:lisp": "asc --config ../lisp/asconfig.json ../lisp/assembly/index.ts -o lisp.wasm --target release",
-    "asbuild:TinyBasic": "asc --config ../TinyBasic/asconfig.json ../TinyBasic/assembly/index.ts -o TinyBasic.wasm --target release",
-    "build": "tsdown"
+    "asbuild:lisp": "npx -y --package assemblyscript asc --config ../lisp/asconfig.json ../lisp/assembly/index.ts -o lisp.wasm --target release",
+    "asbuild:TinyBasic": "npx -y --package assemblyscript asc --config ../TinyBasic/asconfig.json ../TinyBasic/assembly/index.ts -o TinyBasic.wasm --target release",
+    "build": "npx -y --package tsdown --package typescript@^6.0.3 tsdown"
   },
   "author": "Jan Burgy",
   "license": "ISC",
