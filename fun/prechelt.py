@@ -23,7 +23,7 @@ def overlapping(haystack: str, needle: str, n: int) -> Iterator[str]:
         i = haystack.find(pattern, i + 1)
         if i < 0:
             break
-        yield haystack[:i] + needle + haystack[i + n:]
+        yield haystack[:i] + needle + haystack[i + n :]
 
 
 def replaceall(haystack: str, needle: str, *needles: str) -> Iterator[str]:

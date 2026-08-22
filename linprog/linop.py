@@ -6,7 +6,6 @@
 # ///
 
 from bisect import bisect_left
-from typing import cast
 
 import numpy as np
 from scipy import sparse
@@ -80,7 +79,7 @@ def sumby(by: list[tuple[int, ...]]):
 def matmul(
     a: sparse.csr_array, b: sparse.csc_array | sparse.csr_array
 ) -> sparse.csr_array:
-    r""" Sparse multiplication of CSR with CSC or CSR.
+    r"""Sparse multiplication of CSR with CSC or CSR.
 
     >>> sparse.csr_array([[11., 12.], [21., 22.]])  # doctest: +NORMALIZE_WHITESPACE
     <Compressed Sparse Row sparse array of dtype 'float64'
@@ -98,7 +97,7 @@ def matmul(
 
     assert isinstance(b, sparse.csc_array)
 
-    n, k = cast(tuple[int, int], a.shape)  # ty: ignore[redundant-cast]
+    n, k = a.shape
     l, m = b.shape  # noqa E741
     assert k == l
 

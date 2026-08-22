@@ -5,7 +5,7 @@
 # ]
 # ///
 
-""" Proof of concept HTML generator in pure python
+"""Proof of concept HTML generator in pure python
 
 You don't need jinja2 to generate HTML from python, higher-order
 functions do the job just fine.  This script also leverages sympy
@@ -13,6 +13,7 @@ to generate simple javascript.
 
 Generate https://developer.mozilla.org/en-US/docs/Web/HTML/Element/output
 """
+
 from json import dumps
 from typing import cast
 
@@ -53,21 +54,22 @@ def interactions(**kwds: Expr) -> tuple[str, str]:
         listeners[target] = f"({', '.join(args)}) => ({jscode(expr)})"
 
         structure.append(dict(argIds=args, targetId=target))
-    return ",\n        ".join(
-        f"{key}: {val}" for key, val in listeners.items()
-    ), dumps(structure)
+    return ",\n        ".join(f"{key}: {val}" for key, val in listeners.items()), dumps(
+        structure
+    )
 
 
 def _element(tag: str, empty: bool = False):
     """Generic function to create HTML string fragments"""
+
     def m(*args, **kwds):
-        attrs = " ".join(
-            f'{key}="{val}"' for key, val in kwds.items()
-        )
+        attrs = " ".join(f'{key}="{val}"' for key, val in kwds.items())
         return (
-            f"<{tag} {attrs} />" if empty else
-            f"<{tag} {attrs}>{''.join(child for child in args)}</{tag}>"
+            f"<{tag} {attrs} />"
+            if empty
+            else f"<{tag} {attrs}>{''.join(child for child in args)}</{tag}>"
         )
+
     return m
 
 
@@ -84,15 +86,17 @@ if __name__ == "__main__":
 
     listeners, structure = interactions(result=abc.a + abc.b)
 
-    print(html(
-        head(script(script_template.format(
-            listeners=listeners, structure=structure
-        ))),
-        body(
-            form(
-                input(type="range", id="b", name="b", value="50"),
-                input(type="number", id="a", name="a", value="10"),
-                output("60", id="result", name="result", **{"for": "a b"})
-            )
+    print(
+        html(
+            head(
+                script(script_template.format(listeners=listeners, structure=structure))
+            ),
+            body(
+                form(
+                    input(type="range", id="b", name="b", value="50"),
+                    input(type="number", id="a", name="a", value="10"),
+                    output("60", id="result", name="result", **{"for": "a b"}),
+                )
+            ),
         )
-    ))
+    )

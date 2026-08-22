@@ -6,14 +6,15 @@ from time import perf_counter
 
 
 def neighbors(i: int, j: int) -> npt.NDArray[np.uint8]:
-    """ row, col, and block (`i`, `j`) belongs to *excluding* (`i`, `j`)
-
-    """
-    k, l = (i//3)*3, (j//3)*3  # noqa E741
-    return np.array([
-        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],
-        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],
-    ], dtype=np.uint8)
+    """row, col, and block (`i`, `j`) belongs to *excluding* (`i`, `j`)"""
+    k, l = (i // 3) * 3, (j // 3) * 3  # noqa E741
+    return np.array(
+        [
+            np.r_[i:i:8j, 0:i, i + 1 : 9, np.repeat(np.r_[k:i, i + 1 : k + 3], 2)],
+            np.r_[0:j, j + 1 : 9, j:j:8j, np.tile(np.r_[l:j, j + 1 : l + 3], 2)],
+        ],
+        dtype=np.uint8,
+    )
 
 
 _neighbors = np.array(
@@ -24,7 +25,7 @@ _neighbors = np.array(
 def propagate(
     possible: npt.NDArray[np.uint8], count: ma.MaskedArray, where: ma.MaskedArray
 ) -> int:
-    """ Enforce consistency by removing solved values from neighboring sites.
+    """Enforce consistency by removing solved values from neighboring sites.
 
     Iterate as long as sites accept a single value.  Note that removing solved
     values can reveal infeasibility.  When this happens, `count` has zeros.
@@ -54,7 +55,7 @@ def propagate(
 
 
 def solve(given: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
-    """ Solve a sudo puzzle using backtracking
+    """Solve a sudo puzzle using backtracking
 
     >>> i = np.loadtxt(io.StringIO('''
     ... 5 3 0 0 7 0 0 0 0
@@ -114,7 +115,8 @@ def solve(given: npt.NDArray[np.uint8]) -> npt.NDArray[np.uint8]:
 
 
 if __name__ == "__main__":
-    s = np.loadtxt(io.StringIO("""
+    s = np.loadtxt(
+        io.StringIO("""
 8 0 0 0 0 0 0 0 0
 0 0 3 6 0 0 0 0 0
 0 7 0 0 9 0 2 0 0
@@ -124,18 +126,20 @@ if __name__ == "__main__":
 0 0 1 0 0 0 0 6 8
 0 0 8 5 0 0 0 1 0
 0 9 0 0 0 0 4 0 0
-"""), dtype=np.uint8)
-#     s = np.loadtxt(io.StringIO("""
-# 5 3 0 0 7 0 0 0 0
-# 6 0 0 1 9 5 0 0 0
-# 0 9 8 0 0 0 0 6 0
-# 8 0 0 0 6 0 0 0 3
-# 4 0 0 8 0 3 0 0 1
-# 7 0 0 0 2 0 0 0 6
-# 0 6 0 0 0 0 2 8 0
-# 0 0 0 4 1 9 0 0 5
-# 0 0 0 0 8 0 0 7 9
-# """), dtype=np.uint8)
+"""),
+        dtype=np.uint8,
+    )
+    #     s = np.loadtxt(io.StringIO("""
+    # 5 3 0 0 7 0 0 0 0
+    # 6 0 0 1 9 5 0 0 0
+    # 0 9 8 0 0 0 0 6 0
+    # 8 0 0 0 6 0 0 0 3
+    # 4 0 0 8 0 3 0 0 1
+    # 7 0 0 0 2 0 0 0 6
+    # 0 6 0 0 0 0 2 8 0
+    # 0 0 0 4 1 9 0 0 5
+    # 0 0 0 0 8 0 0 7 9
+    # """), dtype=np.uint8)
     t = perf_counter()
     s = solve(s)
     t = perf_counter() - t

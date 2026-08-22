@@ -24,10 +24,7 @@ def visit(grid: tuple[tuple[int, ...], ...], start: complex) -> complex:
 
 
 with open("aoc2024/day10input.txt", "rt") as lines:
-    grid = tuple(
-        tuple(map(int, line.rstrip()))
-        for line in lines
-    )
+    grid = tuple(tuple(map(int, line.rstrip())) for line in lines)
 
 score = 0j
 for i, line in enumerate(grid):

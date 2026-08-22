@@ -2,7 +2,7 @@
 #
 # -*- coding: utf8 -*-
 # /// script
-# requires-python = "<=3.9"
+# requires-python = "~=3.9"
 # dependencies = []
 # ///
 
@@ -67,7 +67,7 @@ def assemble(func: Callable):
                 varnames[oparg] = argrepr
         else:
             codestring.append(0)
-    code = CodeType(  # pyright: ignore[reportCallIssue]  # ty: ignore[missing-argument]
+    code = CodeType(  # pyright: ignore[reportCallIssue]
         func.__code__.co_argcount,  # ty: ignore[unresolved-attribute]
         func.__code__.co_posonlyargcount,  # ty: ignore[unresolved-attribute]
         func.__code__.co_kwonlyargcount,  # ty: ignore[unresolved-attribute]
@@ -83,71 +83,71 @@ def assemble(func: Callable):
         func.__code__.co_filename,  # ty: ignore[unresolved-attribute]
         func.__code__.co_name,  # ty: ignore[unresolved-attribute]
         func.__code__.co_firstlineno,  # ty: ignore[unresolved-attribute]
-        bytes(lnotab),  # ty: ignore[invalid-argument-type]
+        bytes(lnotab),
     )
     return FunctionType(code, func.__globals__)  # ty: ignore[unresolved-attribute]
 
 
 def fibonacci(n: int) -> int:
     """
-  1           0 LOAD_CONST               1 (1)
-              2 LOAD_FAST                0 (n)
-              4 LOAD_METHOD              0 (bit_length)
-              6 CALL_METHOD              0
-              8 LOAD_CONST               1 (1)
-             10 BINARY_SUBTRACT
-             12 BINARY_LSHIFT
-             14 STORE_FAST               1 (m)
+     1           0 LOAD_CONST               1 (1)
+                 2 LOAD_FAST                0 (n)
+                 4 LOAD_METHOD              0 (bit_length)
+                 6 CALL_METHOD              0
+                 8 LOAD_CONST               1 (1)
+                10 BINARY_SUBTRACT
+                12 BINARY_LSHIFT
+                14 STORE_FAST               1 (m)
 
-  2          16 LOAD_CONST               2 (0)
-             18 LOAD_CONST               1 (1)
+     2          16 LOAD_CONST               2 (0)
+                18 LOAD_CONST               1 (1)
 
-  3          20 LOAD_FAST                1 (m)
-        >>   22 POP_JUMP_IF_FALSE       84
+     3          20 LOAD_FAST                1 (m)
+           >>   22 POP_JUMP_IF_FALSE       84
 
-  4          24 DUP_TOP_TWO
-             26 INPLACE_MULTIPLY
-             28 DUP_TOP
-             30 INPLACE_ADD
+     4          24 DUP_TOP_TWO
+                26 INPLACE_MULTIPLY
+                28 DUP_TOP
+                30 INPLACE_ADD
 
-  5          32 ROT_TWO
-             34 DUP_TOP
-             36 INPLACE_MULTIPLY
+     5          32 ROT_TWO
+                34 DUP_TOP
+                36 INPLACE_MULTIPLY
 
-  6          38 ROT_THREE
-             40 ROT_THREE
-             42 DUP_TOP
-             44 INPLACE_MULTIPLY
+     6          38 ROT_THREE
+                40 ROT_THREE
+                42 DUP_TOP
+                44 INPLACE_MULTIPLY
 
-  7          46 DUP_TOP
-             48 ROT_THREE
-             50 INPLACE_ADD
+     7          46 DUP_TOP
+                48 ROT_THREE
+                50 INPLACE_ADD
 
-  8          52 ROT_THREE
-             54 INPLACE_ADD
+     8          52 ROT_THREE
+                54 INPLACE_ADD
 
-  9          56 LOAD_FAST                0 (n)
-             58 LOAD_FAST                1 (m)
-             60 INPLACE_AND
-             62 POP_JUMP_IF_FALSE       70
+     9          56 LOAD_FAST                0 (n)
+                58 LOAD_FAST                1 (m)
+                60 INPLACE_AND
+                62 POP_JUMP_IF_FALSE       70
 
- 10          64 DUP_TOP
-             66 ROT_THREE
-             68 INPLACE_ADD
+    10          64 DUP_TOP
+                66 ROT_THREE
+                68 INPLACE_ADD
 
- 11     >>   70 ROT_TWO
+    11     >>   70 ROT_TWO
 
- 12          72 LOAD_FAST                1 (m)
-             74 LOAD_CONST               1 (1)
-             76 INPLACE_RSHIFT
-             78 DUP_TOP
-             80 STORE_FAST               1 (m)
+    12          72 LOAD_FAST                1 (m)
+                74 LOAD_CONST               1 (1)
+                76 INPLACE_RSHIFT
+                78 DUP_TOP
+                80 STORE_FAST               1 (m)
 
- 13          82 JUMP_ABSOLUTE           22
+    13          82 JUMP_ABSOLUTE           22
 
- 14     >>   84 POP_TOP
-             86 RETURN_VALUE
-"""
+    14     >>   84 POP_TOP
+                86 RETURN_VALUE
+    """
     m = 1 << (n.bit_length() - 1)
     Fn = 0
     Fnm1 = 1

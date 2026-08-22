@@ -7,7 +7,7 @@ import numpy as np
 
 class Vectorizer(ast.NodeTransformer):
     def visit_ListComp(self, node):
-        """ transform
+        """transform
             [elt for gen.target in gen.iter]
         into
             gen.target = np.asarray(gen.iter); elt
@@ -18,17 +18,17 @@ class Vectorizer(ast.NodeTransformer):
         """
         ctx = ast.Load()
         func = ast.Attribute(
-            value=ast.Name(id="np", ctx=ctx), attr="asarray", ctx=ctx,
+            value=ast.Name(id="np", ctx=ctx),
+            attr="asarray",
+            ctx=ctx,
         )
         return [
             ast.Assign(
                 targets=[gen.target],
-                value=ast.Call(func=func, args=[gen.iter], keywords=[])
+                value=ast.Call(func=func, args=[gen.iter], keywords=[]),
             )
             for gen in node.generators
-        ] + [
-            node.elt
-        ]
+        ] + [node.elt]
 
     def generic_visit(self, node):  # pyright: ignore[reportIncompatibleMethodOverride]
         result = node  # new
@@ -68,6 +68,7 @@ def numpify(func):
 
 
 if __name__ == "__main__":
+
     def f(x):
         s = [t * 2 for t in x]
         return s

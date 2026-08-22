@@ -444,4 +444,3 @@ try:
     from _simplex import smplx  # noqa: F401 # ty: ignore[unresolved-import]
 except ImportError:
     pass
-

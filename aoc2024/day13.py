@@ -28,8 +28,7 @@ with open("aoc2024/day13input.txt", "rt") as lines:
 
             cost += (
                 c0.numerator * 3 + c1.numerator
-                if c0.is_integer()
-                and c1.is_integer()
+                if c0.is_integer() and c1.is_integer()
                 else 0
             )
 

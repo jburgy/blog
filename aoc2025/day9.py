@@ -9,6 +9,7 @@ from itertools import combinations
 import numpy as np
 import shapely  # pyright: ignore[reportMissingModuleSource]  # ty: ignore[unresolved-import]
 
+
 def first_half(tiles: np.ndarray) -> int:
     areas = []
     for i, j in combinations(range(len(tiles)), 2):

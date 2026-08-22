@@ -49,7 +49,6 @@ words = {
         "(i32.store offset=8 (global.get $sp) (local.get 0))",
         "(i32.store offset=4 (global.get $sp) (local.get 3))",
         "(i32.store offset=0 (global.get $sp) (local.get 2))",
-
     ],
     "?DUP": [
         "(local i32)",
@@ -184,7 +183,7 @@ words = {
     "]": ["(i32.store (global.get $state) (i32.const 1))"],
     "IMMEDIATE": [
         "(local $latest i32)",
-        "(i32.store8 offset=4 (local.tee $latest (i32.load (global.get $latest))) (i32.xor (i32.load8_u offset=4 (local.get $latest)) (global.get $f_immed)))"
+        "(i32.store8 offset=4 (local.tee $latest (i32.load (global.get $latest))) (i32.xor (i32.load8_u offset=4 (local.get $latest)) (global.get $f_immed)))",
     ],
     "HIDDEN": [
         "(local $p i32)",
@@ -202,7 +201,9 @@ words = {
         "(call $push (i32.load (global.get $ip)))",
         "(global.set $ip (i32.add (global.get $ip) (i32.const 4)))",
     ],
-    "BRANCH": ["(global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))"],
+    "BRANCH": [
+        "(global.set $ip (i32.add (global.get $ip) (i32.load (global.get $ip))))"
+    ],
     "0BRANCH": [
         "(if (call $pop)",
         "    (then (global.set $ip (i32.add (global.get $ip) (i32.const 4))))",
@@ -268,7 +269,7 @@ words = {
     ],
     "EXECUTE": [
         "(global.set $cfa (call $pop))",
-        "(return_call_indirect (type 0) (i32.load (global.get $cfa)))"
+        "(return_call_indirect (type 0) (i32.load (global.get $cfa)))",
     ],
     "SYSCALL3": ["unreachable"],
     "SYSCALL2": ["unreachable"],
@@ -303,13 +304,23 @@ for name, code in words.items():
         0 if isinstance(code, str) else index,
         *(offsets[arg] for arg in args),
     )
-    chars = "".join(chr(byte) if 5 <= i < 5 + len(name) else f"\\{byte:02x}" for i, byte in enumerate(data))
+    chars = "".join(
+        chr(byte) if 5 <= i < 5 + len(name) else f"\\{byte:02x}"
+        for i, byte in enumerate(data)
+    )
     print(f'    (data (i32.const 0x{offset:x}) "{chars}")')
 
     if isinstance(code, list):
-        print(f"    (func ${overrides.get(name, name).lower()} (type 0)", *code, "(return_call $next)", sep="\n        ")
+        print(
+            f"    (func ${overrides.get(name, name).lower()} (type 0)",
+            *code,
+            "(return_call $next)",
+            sep="\n        ",
+        )
         print("    )")
-        print(f"    (elem (i32.const 0x{index:x}) ${overrides.get(name, name).lower()})")
+        print(
+            f"    (elem (i32.const 0x{index:x}) ${overrides.get(name, name).lower()})"
+        )
         index += 1
     if name not in {"HIDE", ":"}:
         print("")
@@ -321,9 +332,24 @@ for name, code in words.items():
         print(f'    (data (i32.const 0x{offset:x}) "PARSE ERROR: \\0A\\00\\00")')
         offset += 16
 
-print('  (data (i32.const 0x5004) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)), '")', sep="")
-print('  (data (i32.const 0x5008) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)), '")', sep="")
-print('  (data (i32.const 0x5040) "', "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offsets["QUIT"])), '")', sep="")
-print(f';; "PARSE ERROR:" 0x{offsets["QUIT"] - 0x1c:04x}')
-print(f';; "\\n"           0x{offsets["QUIT"] - 0x0f:04x}')
+print(
+    '  (data (i32.const 0x5004) "',
+    "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offset)),
+    '")',
+    sep="",
+)
+print(
+    '  (data (i32.const 0x5008) "',
+    "".join(f"\\{byte:02x}" for byte in struct.pack("<I", link)),
+    '")',
+    sep="",
+)
+print(
+    '  (data (i32.const 0x5040) "',
+    "".join(f"\\{byte:02x}" for byte in struct.pack("<I", offsets["QUIT"])),
+    '")',
+    sep="",
+)
+print(f';; "PARSE ERROR:" 0x{offsets["QUIT"] - 0x1C:04x}')
+print(f';; "\\n"           0x{offsets["QUIT"] - 0x0F:04x}')
 print(f";; LIT            0x{offsets['LIT']:04x}")

@@ -73,12 +73,13 @@ def linkedlist(nothing: int) -> tuple[str, bytes]:
     """expected: peak.html (at 66831)"""
     bits = []
     while True:
-        with cast(HTTPResponse, request.urlopen(
-            asurl("linkedlist", f"php?busynothing={nothing}")
-        )) as response:
+        with cast(
+            HTTPResponse,
+            request.urlopen(asurl("linkedlist", f"php?busynothing={nothing}")),
+        ) as response:
             parts = cast(str, response.getheader("Set-Cookie")).partition(";")
             if parts[1] == ";" and parts[0].startswith("info="):
-                bits.append(parts[0][len("info="):])
+                bits.append(parts[0][len("info=") :])
             parts = response.read().decode().rpartition(" ")
             if parts[1] == " " and parts[0].endswith("and the next busynothing is"):
                 nothing = int(parts[2])
@@ -142,7 +143,7 @@ def integrity(
     pw: str = bz2.decompress(
         b"BZh91AY&SY\x94$|\x0e\x00\x00\x00\x81\x00\x03$ "
         b"\x00!\x9ah3M\x13<]\xc9\x14\xe1BBP\x91\xf08"
-    ).decode()
+    ).decode(),
 ) -> request.OpenerDirector:
     mgr = request.HTTPPasswordMgrWithDefaultRealm()
     mgr.add_password(None, "http://www.pythonchallenge.com/pc/", un, pw)
@@ -207,19 +208,19 @@ def italy(name: str, opener: request.OpenerDirector) -> Image.Image:
     while top <= bottom and left <= right:
         if direction == 0:
             count = right - left
-            y[top, left:right, :] = x[0, index: index + count, :]
+            y[top, left:right, :] = x[0, index : index + count, :]
             top += 1
         elif direction == 1:
             count = bottom - top
-            y[top:bottom, right - 1, :] = x[0, index: index + count, :]
+            y[top:bottom, right - 1, :] = x[0, index : index + count, :]
             right -= 1
         elif direction == 2:
             count = right - left
-            y[bottom - 1, left:right, :] = x[0, index + count - 1: index - 1: -1, :]
+            y[bottom - 1, left:right, :] = x[0, index + count - 1 : index - 1 : -1, :]
             bottom -= 1
         elif direction == 3:
             count = bottom - top
-            y[bottom - 1: top - 1: -1, left, :] = x[0, index: index + count, :]
+            y[bottom - 1 : top - 1 : -1, left, :] = x[0, index : index + count, :]
             left += 1
         else:
             continue
@@ -248,10 +249,12 @@ def mozart(name: str, opener: request.OpenerDirector) -> Image.Image:
 
 
 def violin(name: str, message: str) -> str:
-    with request.urlopen(request.Request(
-        url=asurl(name, ext="php", parent="stuff"),
-        headers={"Cookie": f"info={parse.quote_plus(message)}"}
-    )) as response:
+    with request.urlopen(
+        request.Request(
+            url=asurl(name, ext="php", parent="stuff"),
+            headers={"Cookie": f"info={parse.quote_plus(message)}"},
+        )
+    ) as response:
         return cast(HTTPResponse, response).read().decode()
 
 
@@ -310,31 +313,47 @@ def idiot(name: str, opener: request.OpenerDirector) -> None:
     for _ in range(5):
         match = pattern.search(content_range)
         assert match is not None
-        with cast(HTTPResponse, opener.open(request.Request(
-            url=url, headers={"Range": f"bytes={int(match['end']) + 1}-"}
-        ))) as response:
+        with cast(
+            HTTPResponse,
+            opener.open(
+                request.Request(
+                    url=url, headers={"Range": f"bytes={int(match['end']) + 1}-"}
+                )
+            ),
+        ) as response:
             content_range = response.getheader("Content-Range")
             assert content_range is not None
             print(response.read().decode(), end="")
 
     assert match is not None
-    with cast(HTTPResponse, opener.open(request.Request(
-        url=url, headers={"Range": f"bytes={int(match['length']) + 1}-"}
-    ))) as response:
+    with cast(
+        HTTPResponse,
+        opener.open(
+            request.Request(
+                url=url, headers={"Range": f"bytes={int(match['length']) + 1}-"}
+            )
+        ),
+    ) as response:
         content_range = response.getheader("Content-Range")
         assert content_range is not None
         match = pattern.search(content_range)
         assert match is not None
         print(response.read().decode(), end="")
 
-    with cast(HTTPResponse, opener.open(request.Request(
-        url=url, headers={"Range": f"bytes={int(match['start']) - 1}-"}
-    ))) as response:
+    with cast(
+        HTTPResponse,
+        opener.open(
+            request.Request(
+                url=url, headers={"Range": f"bytes={int(match['start']) - 1}-"}
+            )
+        ),
+    ) as response:
         print(response.read().decode(), end="")
 
-    with cast(HTTPResponse, opener.open(request.Request(
-        url=url, headers={"Range": "bytes=1152983631-"}
-    ))) as response:
+    with cast(
+        HTTPResponse,
+        opener.open(request.Request(url=url, headers={"Range": "bytes=1152983631-"})),
+    ) as response:
         with open("level21.zip", "wb") as file:
             file.write(response.read())
 
@@ -365,4 +384,3 @@ if __name__ == "__main__":
     #     image.show()
     # butterfly("bin", opener=integrity("butter", "fly"))
     idiot("unreal", opener=integrity("butter", "fly"))
-

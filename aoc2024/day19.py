@@ -8,7 +8,7 @@ def counter(needles: list[str]) -> Callable[[str], int]:
     def count(haystack: str) -> int:
         return (
             sum(
-                count(haystack[len(needle):])
+                count(haystack[len(needle) :])
                 for needle in needles
                 if haystack.startswith(needle)
             )

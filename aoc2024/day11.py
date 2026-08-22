@@ -22,6 +22,7 @@
 from collections import defaultdict
 from itertools import chain, compress, repeat
 from operator import not_
+from typing import cast
 
 stones = tuple("965842 9159 3372473 311 0 6 86213 48".split())
 caches: list[defaultdict[str, int]] = [defaultdict(int) for _ in range(76)]
@@ -44,7 +45,7 @@ while q:
     n = m - 1
     counts = tuple(map(caches[n].get, stones))
     if all(counts):
-        cache[stone] = sum(counts)  # pyright: ignore[reportCallIssue, reportArgumentType]
+        cache[stone] = sum(cast("tuple[int, ...]", counts))  # pyright: ignore[reportCallIssue, reportArgumentType]
     else:
         q.append(t)
         q.extend(zip(repeat(n), compress(stones, map(not_, counts))))  # ty: ignore[invalid-argument-type]

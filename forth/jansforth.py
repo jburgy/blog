@@ -152,7 +152,7 @@ for name in names:
     offset += 1
     x = sum(
         (ord(ch) * shift for ch, shift in zip(name[:3], shifts[1:])),
-        (len(name) | (0x80 if name in immediate else 0)) * shifts[0]
+        (len(name) | (0x80 if name in immediate else 0)) * shifts[0],
     )
     print(f"[{offset}] = 0x{x:08x}", end=", ")
     for chunk in batched(name[3:], 4):

@@ -2,7 +2,7 @@
 #
 # -*- coding: utf8 -*-
 # /// script
-# requires-python = "<=3.9"
+# requires-python = "~=3.9"
 # dependencies = []
 # ///
 
@@ -47,9 +47,9 @@ class CodeBuilderBase:
         code = bytes(self)  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
         stacksize = max(
             accumulate(
-                dis.stack_effect(op, arg)  # pyright: ignore[reportFunctionMemberAccess]
+                dis.stack_effect(op, arg)  # ty: ignore[unresolved-attribute]
                 if op >= HAVE_ARGUMENT
-                else dis.stack_effect(op)  # pyright: ignore[reportFunctionMemberAccess]
+                else dis.stack_effect(op)  # ty: ignore[unresolved-attribute]
                 for op, arg in zip(code[::2], code[1::2])
             )
         )
@@ -67,10 +67,10 @@ class CodeBuilderBase:
             tuple(self.varnames),
             "",
             func_name,
-            0,  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            bytes(),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            tuple(self.freevars),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
-            tuple(self.cellvars),  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-argument-type]
+            0,  # pyright: ignore[reportArgumentType]
+            bytes(),  # pyright: ignore[reportArgumentType]
+            tuple(self.freevars),  # pyright: ignore[reportArgumentType]
+            tuple(self.cellvars),  # pyright: ignore[reportArgumentType]
         )
 
 

@@ -12,6 +12,7 @@ which defines functions that return pandas DataFrames.  Sample use
 
 uvicorn api_from:plotly.data
 """
+
 from functools import wraps
 from importlib import import_module
 from importlib.util import module_from_spec
@@ -37,11 +38,13 @@ def _pairs_from_spec(spec):
 def _pairs_from_package(package):
     yield from getmembers(package, isfunction)
     yield from (
-        pair for finder, name, ispkg in walk_packages(
+        pair
+        for finder, name, ispkg in walk_packages(
             path=package.__path__,
             prefix=package.__name__ + ".",
             onerror=lambda _: None,
-        ) if not name.rpartition(".")[-1].startswith("_") and not ispkg
+        )
+        if not name.rpartition(".")[-1].startswith("_") and not ispkg
         for pair in _pairs_from_spec(finder.find_spec(name))  # pyright: ignore[reportCallIssue]  # ty: ignore[missing-argument]
     )
 
@@ -72,6 +75,7 @@ class _Resolver(list):
 
     Kludge around https://github.com/encode/uvicorn/issues/168
     """
+
     def __getattr__(self, attr):
         self.append(attr)
         return self

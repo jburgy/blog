@@ -26,7 +26,7 @@ def shift(a: np.ndarray, b: dict[int, str], move: int) -> dict[int, str]:
             c[x1 + 1] = "[]"
             if x + 2 not in b:
                 a[i, j + 2] = "."
-        a[i, j: j + 2] = tuple(y)
+        a[i, j : j + 2] = tuple(y)
     return c
 
 
@@ -102,7 +102,8 @@ for move in map(dirs.__getitem__, "".join(moves)):
         while temp in "[]":
             push += move
             expanded[cast(tuple[int, int], push.__divmod__(100))], temp = (
-                temp, expanded[cast(tuple[int, int], push.__divmod__(100))]
+                temp,
+                expanded[cast(tuple[int, int], push.__divmod__(100))],
             )
         expanded[cast(tuple[int, int], robot.__divmod__(100))] = "."
     else:  # vertical

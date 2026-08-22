@@ -26,9 +26,7 @@ def getattrs(obj, attrs):
         else [getattrs(elem, subattrs) for elem in val]
         if isinstance(val, list)
         else getattrs(val, subattrs)
-        for key, val, subattrs in (
-            zip(attrs, attrgetter(*attrs)(obj), attrs.values())
-        )
+        for key, val, subattrs in (zip(attrs, attrgetter(*attrs)(obj), attrs.values()))
     }
 
 
@@ -46,7 +44,7 @@ obj = Foo(
     baz=[
         Baz(qux=3, quux=Quux(foo=4, bar=5)),
         Baz(qux=6, quux=Quux(foo=7, bar=8)),
-    ]
+    ],
 )
 
 print(getattrs(obj, nest(paths)))

@@ -16,9 +16,5 @@ with open("aoc2024/day25input.txt", "rt") as lines:
         for i, char in enumerate(line):
             heights[i] += char == "#"
 
-fit = sum(
-    all(sum(t) < 8 for t in zip(lock, key))
-    for lock in locks
-    for key in keys
-)
+fit = sum(all(sum(t) < 8 for t in zip(lock, key)) for lock in locks for key in keys)
 print(fit)

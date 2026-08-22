@@ -1,4 +1,4 @@
-""""
+""" "
 Uh-oh - you've been cornered by one of Commander Lambdas elite guards!
 Fortunately, you grabbed a beam weapon from an abandoned guard post while you
 were running through

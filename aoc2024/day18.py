@@ -1,10 +1,7 @@
 from collections import deque
 
 with open("aoc2024/day18input.txt", "rt") as io:
-    lines = [
-        tuple(map(int, line.rstrip().split(",")))
-        for line in io
-    ]
+    lines = [tuple(map(int, line.rstrip().split(","))) for line in io]
 
 for k in range(1025, len(lines)):
     m, n = 71, 71

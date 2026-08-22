@@ -1,8 +1,10 @@
 import io
+from time import perf_counter
+from typing import cast
+
 import numpy as np
 import numpy.ma as ma
 import numpy.typing as npt
-from time import perf_counter
 
 
 def bitcount(x):
@@ -13,11 +15,14 @@ def bitcount(x):
 
 
 def neighbors(i: int, j: int) -> npt.NDArray[np.intp]:
-    k, l = (i//3)*3, (j//3)*3  # noqa E741
-    return np.array([
-        np.r_[i:i:8j, 0:i, i + 1:9, np.repeat(np.r_[k:i, i + 1:k + 3], 2)],
-        np.r_[0:j, j + 1:9, j:j:8j, np.tile(np.r_[l:j, j + 1:l + 3], 2)],
-    ], dtype=np.intp)
+    k, l = (i // 3) * 3, (j // 3) * 3  # noqa E741
+    return np.array(
+        [
+            np.r_[i:i:8j, 0:i, i + 1 : 9, np.repeat(np.r_[k:i, i + 1 : k + 3], 2)],
+            np.r_[0:j, j + 1 : 9, j:j:8j, np.tile(np.r_[l:j, j + 1 : l + 3], 2)],
+        ],
+        dtype=np.intp,
+    )
 
 
 _counts = bitcount(np.arange(1 << 9, dtype=np.uint16)).astype(np.uint8)
@@ -32,8 +37,11 @@ def propagate(
     while np.equal(count, 1, out=where).any():  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[no-matching-overload]
         k = np.invert(possible[where])  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[invalid-argument-type]
         # ufunc.at performs *unbuffered* in place operation
-        np.bitwise_and.at(possible, tuple(_neighbors[:, where, :]),  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[invalid-argument-type]
-                          k[:, np.newaxis])
+        np.bitwise_and.at(
+            possible,
+            tuple(_neighbors[:, where, :]),  # pyright: ignore[reportArgumentType, reportCallIssue]  # ty: ignore[invalid-argument-type]
+            k[:, np.newaxis],
+        )
         if not _counts.take(possible, out=count).all():  # stay in sync
             return -1
         # no need to visit again
@@ -57,7 +65,7 @@ def solve(given):
     stack = [(node, count)]
     while stack:
         node, count = stack.pop()
-        unsolved = propagate(node, count, where)  # pyright: ignore[reportArgumentType]
+        unsolved = propagate(cast("npt.NDArray[np.intp]", node), count, where)  # pyright: ignore[reportArgumentType]
         if unsolved == -1:  # dead end
             continue
         if unsolved == 0:  # all solved!
@@ -75,7 +83,8 @@ def solve(given):
 
 
 if __name__ == "__main__":
-    s = np.loadtxt(io.StringIO("""
+    s = np.loadtxt(
+        io.StringIO("""
 8 0 0 0 0 0 0 0 0
 0 0 3 6 0 0 0 0 0
 0 7 0 0 9 0 2 0 0
@@ -85,8 +94,11 @@ if __name__ == "__main__":
 0 0 1 0 0 0 0 6 8
 0 0 8 5 0 0 0 1 0
 0 9 0 0 0 0 4 0 0
-"""), dtype=np.uint16)
-    s = np.loadtxt(io.StringIO("""
+"""),
+        dtype=np.uint16,
+    )
+    s = np.loadtxt(
+        io.StringIO("""
 5 3 0 0 7 0 0 0 0
 6 0 0 1 9 5 0 0 0
 0 9 8 0 0 0 0 6 0
@@ -96,7 +108,9 @@ if __name__ == "__main__":
 0 6 0 0 0 0 2 8 0
 0 0 0 4 1 9 0 0 5
 0 0 0 0 8 0 0 7 9
-"""), dtype=np.uint16)
+"""),
+        dtype=np.uint16,
+    )
     t = perf_counter()
     s = solve(s)
     t = perf_counter() - t

@@ -32,8 +32,8 @@ for k, block in enumerate(reversed(blocks[1:]), start=1):
     except StopIteration:
         block.insert(1, t)
     else:
-        blocks[-k - (len(block) > 1)][0] += size  # pyright: ignore[reportOperatorIssue]
-        to[0] -= size  # pyright: ignore[reportOperatorIssue]
+        blocks[-k - (len(block) > 1)][0] += size  # ty:ignore[unsupported-operator]
+        to[0] -= size  # ty:ignore[unsupported-operator]
         to.append(t)
 
 index = checksum = 0
@@ -42,5 +42,5 @@ for space, *sizes in blocks:
         end = index + size
         checksum += file * (index + end - 1) * size // 2
         index = end
-    index += space  # pyright: ignore[reportOperatorIssue]
+    index += space  # ty:ignore[unsupported-operator]
 print(checksum)

@@ -27,7 +27,7 @@ from zipfile import ZipFile
 from progress import Progress
 
 platlib = Path(sysconfig.get_path("platlib"))
-data = Path(sysconfig.get_path('data'))
+data = Path(sysconfig.get_path("data"))
 
 
 class Args(Namespace):

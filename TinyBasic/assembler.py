@@ -338,7 +338,7 @@ for _ in range(2):
             if op is OpCode.PC
             else line[8:].lstrip().partition(" ")
         )
-        word = rest[1:rest.index('"', 1)] if rest.startswith('"') else ""
+        word = rest[1 : rest.index('"', 1)] if rest.startswith('"') else ""
         for old, new in REPLACEMENTS.items():
             word = word.replace(old, new)
 
@@ -370,5 +370,5 @@ for _ in range(2):
 
 test = "".join(map("{:02X}".format, out))
 assert test == "".join(
-    line[5:line.index(";", 5)] for line in interpreter.splitlines() if len(line) > 5
+    line[5 : line.index(";", 5)] for line in interpreter.splitlines() if len(line) > 5
 )

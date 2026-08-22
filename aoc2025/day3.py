@@ -7,7 +7,7 @@ with open("aoc2025/day3input.txt") as lines:
         i = 0
         digits = []
         for j in range(1 - n, 1):
-            digit = max(line[i:j or None])
+            digit = max(line[i : j or None])
             i = line.index(digit, i, j or None) + 1
             digits.append(digit)
         total += int("".join(digits))

@@ -78,7 +78,9 @@ for _ in range(20_000):
     for i in range(3):  # y = α A x + β y
         zhpmv(n, alpha=0.5, ap=ap[i], x=jm, beta=0.0, y=a[i], overwrite_y=True)
 
-    daxpy(a=dt, x=a.real, y=v)  # v += a dt  # noqa E501  # pyright: ignore[reportAttributeAccessIssue]
+    daxpy(
+        a=dt, x=a.real, y=v
+    )  # v += a dt  # noqa E501  # pyright: ignore[reportAttributeAccessIssue]
     daxpy(a=dt, x=v, y=x)  # x += v dt
 
 print(x.T)

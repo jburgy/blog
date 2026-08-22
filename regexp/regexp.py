@@ -1,5 +1,5 @@
 # -*-coding:utf8;-*-
-""" `Regular Expression Search Algorithm`_
+"""`Regular Expression Search Algorithm`_
 
 After playing with `Thompson's construction`_ in `C`_ and `x86`_, I decided to take
 another look in python many years later.  Tokenization and conversion to postfix are
@@ -47,8 +47,10 @@ implementation compiles :code:`"a|b|c"`
 .. _graphlib: https://docs.python.org/3/library/graphlib.html
 .. _Epsilon transitions: https://en.wikipedia.org/wiki/Epsilon_transition
 """
+
 from enum import IntEnum, auto
 from typing import Iterable, Union
+
 
 class Token(IntEnum):
     LPAREN = auto()
@@ -56,6 +58,8 @@ class Token(IntEnum):
     ALTERN = auto()
     CONCAT = auto()
     KLEENE = auto()
+
+
 TokenOrChar = Union[str, Token]
 TokenOrCharOrNone = Union[None, str, Token]
 

@@ -5,7 +5,7 @@
 # ]
 # ///
 
-import networkx as nx # pyright: ignore[reportMissingModuleSource]  # ty: ignore[unresolved-import]
+import networkx as nx  # pyright: ignore[reportMissingModuleSource]  # ty: ignore[unresolved-import]
 
 g: nx.Graph = nx.Graph()
 with open("aoc2024/day23input.txt", "rt") as lines:
@@ -19,4 +19,3 @@ print(cycles)
 
 clique = nx.approximation.max_clique(g)
 print(*sorted(clique), sep=",")
-

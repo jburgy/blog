@@ -4,7 +4,7 @@ lines = Path("aoc2025/day5input.txt").read_text().splitlines()
 
 blank = next(i for i, line in enumerate(lines) if not line)
 ranges = [tuple(map(int, line.split("-"))) for line in lines[:blank]]
-ids = set(map(int, lines[blank + 1:]))
+ids = set(map(int, lines[blank + 1 :]))
 
 # Count available fresh IDs
 fresh = set()
