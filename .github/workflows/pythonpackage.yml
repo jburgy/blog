@@ -25,7 +25,7 @@ jobs:
         with:
           version: "latest"
       - run: uvx ruff check
-      - run: uvx ty --python .venv check
+      - run: uvx ty check --python .venv
       - run: uv run pytest
         env:
           pytest_github_report: true
