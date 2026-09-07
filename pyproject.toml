@@ -48,13 +48,8 @@ exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "W"]
 
-[tool.pyright]
-venv = ".venv"
-venvPath = "."
-exclude = [
-    ".venv",
-    "emsdk-cache",
-]
+[tool.ty.environment]
+python = ".venv"
 
 [tool.ty.src]
 exclude = [
