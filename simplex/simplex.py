@@ -366,7 +366,7 @@ def crout1(a: Matrix, iend: int) -> bool:
             # Swap rows k and j for columns k .. n-1
             a[[k, j], iend:] = a[  # ty:ignore[invalid-argument-type]
                 [j, k], iend:
-            ]  # ty:ignore[invalid-assignment]
+            ]
 
     # ------------------------------------------------------------------
     # LU decomposition (Crout with partial pivoting) for the remaining part
@@ -387,7 +387,7 @@ def crout1(a: Matrix, iend: int) -> bool:
             # Swap rows k and j for columns iend .. n-1
             a[[k, j], iend:] = a[  # ty:ignore[invalid-argument-type]
                 [j, k], iend:
-            ]  # ty:ignore[invalid-assignment]
+            ]
 
         kp1 = k + 1
         ik = slice(iend, k)
