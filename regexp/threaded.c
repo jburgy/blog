@@ -129,11 +129,11 @@ unsigned char *convert(const char *src)
  * displacement has to be added to the address of the displacement
  * byte itself; here a link is simply a pointer.
  */
-typedef	union	cell	{
+union	cell	{
 	void		*label;
 	union	cell	*link;
-	int		 chr;
-} cell_t;
+	int		chr;
+};
 
 enum	{ JUMP, CHAR, FORK, STOP };
 
@@ -163,10 +163,10 @@ int codelen(const unsigned char *src)
 }
 
 static
-cell_t *compile(const unsigned char *src, void *const *op)
+union cell *compile(const unsigned char *src, void *const *op)
 {
 	int	i, c, top = 0;
-	cell_t	*stack[BUFSIZ], *code, *pc;
+	union	cell	*stack[BUFSIZ], *code, *pc;
 
 	code = pc = malloc(codelen(src) * sizeof *code);
 
@@ -215,14 +215,15 @@ char *search(const char *re, char *s)
 {
 	void	*op[] = { &&JUMP, &&CHAR, &&FORK, &&STOP };
 	unsigned char	*p = convert(re);
-	cell_t	*code = compile(p, op), *pc;
-	cell_t	*clist[BUFSIZ], *nlist[BUFSIZ];
+	union	cell	*code = compile(p, op), *pc;
+	union	cell	*clist[BUFSIZ], *nlist[BUFSIZ];
 	char	*found = NULL;
 	int	cnode = 0, nnode = 0, c = EOF;	/* any non-NUL c primes the first exchange */
 
 	free(p);
 
-XCHG:	/* CLIST is exhausted: swap the lists and take one more character */
+XCHG:
+	/* CLIST is exhausted: swap the lists and take one more character */
 	if (!c)
 		goto done;
 	while (nnode)
@@ -231,10 +232,12 @@ XCHG:	/* CLIST is exhausted: swap the lists and take one more character */
 	pc = code;	/* unanchored, so start a fresh thread at every position */
 	NEXT;
 
-JUMP:	pc = pc->link;
+JUMP:
+	pc = pc->link;
 	NEXT;
 
-CHAR:	if ((pc++)->chr == c)
+CHAR:
+	if ((pc++)->chr == c)
 		nlist[nnode++] = pc;	/* pc is the successor link, i.e. the continuation */
 
 	/* this thread is done for this character: run the next one on CLIST */
@@ -243,13 +246,16 @@ CHAR:	if ((pc++)->chr == c)
 	pc = clist[--cnode];
 	NEXT;
 
-FORK:	clist[cnode++] = pc + 1;	/* run the fall-through later, the branch now */
+FORK:
+	clist[cnode++] = pc + 1;	/* run the fall-through later, the branch now */
 	pc = pc->link;
 	NEXT;
 
-STOP:	found = s - 1;
+STOP:
+	found = s - 1;
 
-done:	free(code);
+done:
+	free(code);
 	return	found;
 }
 
