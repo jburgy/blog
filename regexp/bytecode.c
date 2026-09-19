@@ -136,23 +136,32 @@ struct instr assemble (short operand, short address)
 	return	this;
 }
 
-size_t memlen (const unsigned char *s)
+size_t codelen (const unsigned char *src)
 {
-	const unsigned char	*p = s;
+	size_t	i, n = 1;	/* one instruction for the trailing STOP */
+	int	c;
 
-	while (*p)
-		p++;
-	return	p - s;
+	for (i = 0; (c = src[i]); i++) {
+		switch (c) {
+			default:	n += 2;	break;
+			case CONCAT:		break;
+			case KLEENE:
+			case ALTERN:	n += 4;	break;
+		}
+	}
+	return	n;
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wsequence-point"
-
+/*
+ * MATCH resolves its successor as code[pc + 1].address, so the slot that
+ * follows a node has to hold a JUMP.  That is why KLEENE and ALTERN both
+ * open with one.
+ */
 struct instr *compile (const unsigned char *src)
 {
 	int	i, c, pc = 0, top = 0;
 	int	stack[BUFSIZ];
-	struct	instr	*code = malloc (5 * memlen (src) * sizeof *code / 2);
+	struct	instr	*code = malloc (codelen (src) * sizeof *code);
 
 	for (i = 0; (c = src[i]); i++) {
 
@@ -160,8 +169,9 @@ struct instr *compile (const unsigned char *src)
 
 			default:
 				stack[top++] = pc;
-				code[pc++] = assemble (JUMP, pc + 1);
-				code[pc++] = assemble (MATCH, c);
+				code[pc + 0] = assemble (JUMP, pc + 1);
+				code[pc + 1] = assemble (MATCH, c);
+				pc += 2;
 				break;
 
 			case CONCAT:
@@ -169,18 +179,22 @@ struct instr *compile (const unsigned char *src)
 				break;
 
 			case KLEENE:
-				code[pc++] = assemble (BRANCH, '*');
-				code[pc++] = code[stack[top - 1]];
-				code[stack[top - 1]] = assemble (JUMP, pc - 2);
+				code[pc + 0] = assemble (JUMP, pc + 1);
+				code[pc + 1] = assemble (BRANCH, '*');
+				code[pc + 2] = code[stack[top - 1]];
+				code[pc + 3] = assemble (JUMP, pc + 4);
+				code[stack[top - 1]] = assemble (JUMP, pc + 1);
+				pc += 4;
 				break;
 
 			case ALTERN:
-				code[pc++] = assemble (JUMP, pc + 4);
-				code[pc++] = assemble (BRANCH, '|');
-				code[pc++] = code[stack[top - 1]];
-				code[pc++] = code[stack[top - 2]];
-				code[stack[top - 2]] = assemble (JUMP, pc - 3);
-				code[stack[top - 1]] = assemble (JUMP, pc);
+				code[pc + 0] = assemble (JUMP, pc + 4);
+				code[pc + 1] = assemble (BRANCH, '|');
+				code[pc + 2] = code[stack[top - 1]];
+				code[pc + 3] = code[stack[top - 2]];
+				code[stack[top - 2]] = assemble (JUMP, pc + 1);
+				code[stack[top - 1]] = assemble (JUMP, pc + 4);
+				pc += 4;
 				--top;
 				break;
 
@@ -188,12 +202,10 @@ struct instr *compile (const unsigned char *src)
 
 	}
 
-	code[pc++] = assemble (STOP, pc);
+	code[pc] = assemble (STOP, pc);
 
 	return	code;
 }
-
-#pragma GCC diagnostic pop
 
 struct instr *study (const char *re)
 {
@@ -214,18 +226,36 @@ void dump_code (struct instr *code)
 				i, str[op], code[i].address);
 }
 
+/*
+ * Running a state twice against the same character is redundant, and
+ * suppressing it is what bounds each list by the number of states --
+ * without it (a|a)* doubles its thread count on every character.
+ */
+void schedule (short *list, short *n, short state)
+{
+	short	i;
+
+	for (i = 0; i < *n; i++)
+		if (list[i] == state)
+			return;
+
+	list[(*n)++] = state;
+}
+
 int execute (struct instr *code, const char *src)
 {
 	short	i = 0, c = src[i++], pc = 0;
 	short	clist[BUFSIZ], cnode = 0, shift = 0;
 	short	nlist[BUFSIZ], nnode = 0;
 
-	while (c) {
+	for (;;) {
 
 		switch (code[pc].operand) {
 
 			case STOP:
-				break;
+				if (!c)
+					return	1;
+				break;	/* a proper prefix matched: this thread dies */
 
 			case JUMP:
 				pc = code[pc].address;
@@ -233,18 +263,19 @@ int execute (struct instr *code, const char *src)
 
 			case MATCH:
 				if (c == code[pc].address)
-					nlist[nnode++] = code[pc + 1].address;
+					schedule (nlist, &nnode, code[pc + 1].address);
 				break;
 
 			case BRANCH:
-				clist[cnode++] = code[pc + 1].address;
+				schedule (clist, &cnode, code[pc + 1].address);
 				pc = code[pc + 2].address;
 				continue;
 
 		}
 
 		if (shift == cnode) {
-			if (!nnode) return 0;
+			/* the terminating NUL is scanned like any other character */
+			if (!c || !nnode) return 0;
 			shift = cnode = 0;
 			while (nnode > 0)
 				clist[cnode++] = nlist[--nnode];
@@ -253,13 +284,6 @@ int execute (struct instr *code, const char *src)
 		pc = clist[shift++];
 
 	}
-
-	/* is any of the current states final? */
-	for (i = shift; i < cnode; i++)
-		if (code[clist[i]].operand == STOP)
-			return	1;
-
-	return	code[pc].operand == STOP;
 }
 
 int main (void)
@@ -275,6 +299,11 @@ int main (void)
 		{ "(a|b)*a",	"aaaaaabac"	},
 		{ "a(b|c)*d",	"abccbcccd"	},
 		{ "a(b|c)*d",	"abccbcccde"	},
+		{ "a*",		"aaa"		},
+		{ "a*",		"aaab"		},
+		{ "ab*c",	"abbbc"		},
+		{ "ab*c",	"ac"		},
+		{ "(a|a)*",	"aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 		{ NULL,		NULL		}
 	};
 
