@@ -65,7 +65,7 @@ unsigned char *prepare(const char *src)
 			case '\\':
 				c = escape[(int)src[i + 1]];
 				c ? i++ : (c = '\\');
-				/* fall through */
+				__attribute__((fallthrough));
 			default:
 				if (concat)
 					dest[j++] = CONCAT;
