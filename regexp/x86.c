@@ -65,7 +65,7 @@ unsigned char *prepare(const char *src)
 			case '\\':
 				c = escape[(int)src[i + 1]];
 				c ? i++ : (c = '\\');
-                                [[fallthrough]];
+				/* fall through */
 			default:
 				if (concat)
 					dest[j++] = CONCAT;
@@ -138,40 +138,40 @@ void *xalloc(size_t size)
 
 static
 unsigned char header[] = {
-	0xC8, 0x94, 0x10, 0x00,				/*	enter	$400, $0		*/
-	0x8B, 0x55, 0x08,				/* 	movl	8(%ebp), %edx		*/
-	0xB8, 0xFF, 0x00, 0x00, 0x00,			/*	movl	$0xff, %eax		*/
-	0x31, 0xC9,					/* 	xorl	%ecx, %ecx		*/
-	0xE8, 0x00, 0x00, 0x00, 0x00,			/*	call	_next			*/
-							/*_next:				*/
-	0x83, 0x2C, 0x24, 0x05,				/*	sub	$5, (%esp)		*/
-	0xA8, 0xFF,					/*	test	%al			*/
-	0x75, 0x02,					/*	jnz	_L1			*/
-	0xC9,						/*	leave				*/
-	0xC3,						/*	ret				*/
-							/*_L1:					*/
-	0xE3, 0x0A,					/* 	jecxz	_L2			*/
-	0x49,						/* 	decl	%ecx			*/
-	0xFF, 0xB4, 0x8D, 0x70, 0xFE, 0xFF, 0xFF,	/* 	pushl	-400(%ebp,%ecx,4)	*/
-	0xEB, 0xF4,					/* 	jmp	_L1			*/
-							/*_L2:					*/
-	0x8A, 0x02,					/* 	movb	(%edx), %al		*/
-	0x42,						/* 	incl	%edx			*/
-	0xE8, 0x0A, 0x00, 0x00, 0x00,			/* 	call	_code			*/
-							/*_fail:				*/
-	0xC3,						/* 	ret				*/
-							/*_nnode:				*/
-	0x8F, 0x84, 0x8D, 0x70, 0xFE, 0xFF, 0xFF,	/* 	popl	-400(%ebp,%ecx,4)	*/
-	0x41,						/* 	incl	%ecx			*/
-	0xC3,						/* 	ret				*/
+	0xC8, 0x94, 0x10, 0x00,                    /*         enter  $400, $0          */
+	0x8B, 0x55, 0x08,                          /*         movl   8(%ebp), %edx     */
+	0xB8, 0xFF, 0x00, 0x00, 0x00,              /*         movl   $0xff, %eax       */
+	0x31, 0xC9,                                /*         xorl   %ecx, %ecx        */
+	0xE8, 0x00, 0x00, 0x00, 0x00,              /*         call   _next             */
+	                                           /* _next:                           */
+	0x83, 0x2C, 0x24, 0x05,                    /*         sub    $5, (%esp)        */
+	0xA8, 0xFF,                                /*         testb  $0xff, %al        */
+	0x75, 0x02,                                /*         jnz    _L1               */
+	0xC9,                                      /*         leave                    */
+	0xC3,                                      /*         ret                      */
+	                                           /* _L1:                             */
+	0xE3, 0x0A,                                /*         jecxz  _L2               */
+	0x49,                                      /*         decl   %ecx              */
+	0xFF, 0xB4, 0x8D, 0x70, 0xFE, 0xFF, 0xFF,  /*         pushl  -400(%ebp,%ecx,4) */
+	0xEB, 0xF4,                                /*         jmp    _L1               */
+	                                           /* _L2:                             */
+	0x8A, 0x02,                                /*         movb   (%edx), %al       */
+	0x42,                                      /*         incl   %edx              */
+	0xE8, 0x0A, 0x00, 0x00, 0x00,              /*         call   _code             */
+	                                           /* _fail:                           */
+	0xC3,                                      /*         ret                      */
+	                                           /* _nnode:                          */
+	0x8F, 0x84, 0x8D, 0x70, 0xFE, 0xFF, 0xFF,  /*         popl   -400(%ebp,%ecx,4) */
+	0x41,                                      /*         incl   %ecx              */
+	0xC3,                                      /*         ret                      */
 };
 
 static
 unsigned char footer[] = {
-	0x4A,						/*	decl	%edx			*/
-	0x89, 0xD0,					/*	mov	%edx, %eax		*/
-	0xC9,						/*	leave				*/
-	0xC3,						/*	ret				*/
+	0x4A,                                      /*         decl   %edx              */
+	0x89, 0xD0,                                /*         mov    %edx, %eax        */
+	0xC9,                                      /*         leave                    */
+	0xC3,                                      /*         ret                      */
 };
 
 typedef	char *(*function_t)(char *);
@@ -227,7 +227,7 @@ unsigned char *compile(const unsigned char *src)
 				break;
 
 			case KLEENE:
-				tmp = code[stack[top - 1]] + stack[top - 1] - (pc + 6);
+				tmp = code[stack[top - 1]] + stack[top - 1] + 1 - (pc + 5);
 				code[pc + 0] = CALL;	memcpy(code + pc + 1, &tmp, sizeof tmp);
 				code[stack[top - 1]] = (pc - 1 - stack[top - 1]) & 0xFF;
 				pc += 5;
@@ -240,7 +240,7 @@ unsigned char *compile(const unsigned char *src)
 				code[pc + 2] = CALL;	memcpy(code + pc + 3, &tmp, sizeof tmp);
 				tmp = code[stack[top - 2]] + stack[top - 2] - (pc + 8);
 				code[pc + 7] = JMP;	code[pc + 8] = tmp & 0xFF;
-				code[stack[top - 2]] = (pc + 3 - stack[top - 2]) & 0xFF;
+				code[stack[top - 2]] = (pc + 1 - stack[top - 2]) & 0xFF;
 				code[stack[top - 1]] = (pc + 8 - stack[top - 1]) & 0xFF;
 				pc += 9;
 				--top;
@@ -273,18 +273,16 @@ int main(void)
 		char	*r;
 		char	*s;
 	} test[] = {
-		/*
 		{ "abcdefg",	"abcdefg"	},
 		{ "(a|b)*a",	"ababababab"	},
 		{ "(a|b)*a",	"aaaaaaaaba"	},
 		{ "(a|b)*a",	"aaaaaabac"	},
 		{ "a(b|c)*d",	"abccbcccd"	},
 		{ "a(b|c)*d",	"abccbcccde"	},
-		*/
-		{ "a(b|c)*d",	"abcccccccc"	},
-		/*
+		{ "(a|a)*",	"aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		{ "a(b|c)*d",	"abccccccccd"	},
+		{ "a*",		"aaab"		},
 		{ "a(b|c)*d",	"abcd"		},
-		*/
 		{ NULL,		NULL		}
 	};
 
@@ -292,9 +290,9 @@ int main(void)
 		function_t search = study(test[i].r);
 		char	*t;
 
-		printf("search %s %s\n", test[i].r, test[i].s);
-		t = (*search)(test[i].s);
-		if (t)	printf("match found after %ld bytes\n", t - test[i].s);
+		printf("search(%p) %s %s\n", search, test[i].r, test[i].s);
+		t = search(test[i].s);
+		if (t)	printf("match found after %d bytes\n", t - test[i].s);
 		else	printf("match not found\n");
 		free((void *)search);
 	}
