@@ -334,11 +334,6 @@ impl Interp {
             (b"?DUP", P::QDup as Cell),
             (b"1+", P::Incr as Cell),
             (b"1-", P::Decr as Cell),
-            (b"CELL+", P::IncrP as Cell),
-            (b"CELL-", P::DecrP as Cell),
-            // A cell is four bytes here, so jonesforth.f's 32-bit spellings fit.
-            (b"4+", P::IncrP as Cell),
-            (b"4-", P::DecrP as Cell),
             (b"+", P::Add as Cell),
             (b"-", P::Sub as Cell),
             (b"*", P::Mul as Cell),
@@ -371,6 +366,15 @@ impl Interp {
 
         for (name, code) in words {
             self.add_word(name, *code);
+        }
+
+        // jonesforth names the cell-step words after the cell size, which is the
+        // whole reason 4th.fs and 4th.32.fs disagree. Four bytes here, so `4+`.
+        for (name, code) in [
+            (format!("{CELL}+"), P::IncrP as Cell),
+            (format!("{CELL}-"), P::DecrP as Cell),
+        ] {
+            self.add_word(name.as_bytes(), code);
         }
 
         // These have to run even while compiling.
@@ -412,8 +416,8 @@ impl Interp {
         let w = |i: &Self, name: &[u8]| i.to_cfa(i.find(name)) as Cell;
         let exit = w(self, b"EXIT");
 
-        // : >DFA >CFA CELL+ ;
-        let body = [w(self, b">CFA"), w(self, b"CELL+"), exit];
+        // : >DFA >CFA 4+ ;
+        let body = [w(self, b">CFA"), w(self, format!("{CELL}+").as_bytes()), exit];
         self.add_colon(b">DFA", false, &body);
 
         // : HIDE WORD FIND HIDDEN ;
@@ -1543,6 +1547,16 @@ mod tests {
         let unique = names.len();
         names.dedup();
         assert_eq!(names.len(), unique, "duplicate word names");
+    }
+
+    #[test]
+    fn the_cell_step_words_are_named_after_the_cell_size() {
+        // jonesforth spells these `4+`/`8+` depending on the ABI, which is why
+        // there are two preambles. A cell that grew would need `4th.fs` instead.
+        assert_eq!(CELL, 4, "4th.32.fs is the preamble that matches this build");
+        let i = interp();
+        assert_ne!(i.find(b"4+"), 0);
+        assert_ne!(i.find(b"4-"), 0);
     }
 
     #[test]
