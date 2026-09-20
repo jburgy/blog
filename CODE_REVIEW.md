@@ -95,23 +95,48 @@ Nothing is tested: `aoc2024`, `aoc2025`, `foo` are all in `collect_ignore` in
 
 ## Suggestions
 
-A package `puzzlekit/` at the repo root, installed (not path-hacked) so imports work regardless of
-cwd — every file in all four directories currently hardcodes a path relative to the repo root.
+A package `puzzlekit`, installed (not path-hacked) so imports work regardless of cwd — every file
+in all four directories currently hardcodes a path relative to the repo root.
+
+**Built: <https://github.com/jburgy/puzzlekit>.** Prior-art pass (2026-09-20, verified against the
+blog `.venv`) killed three of the seven proposed modules outright, so the shipped package is:
 
 ```
-puzzlekit/
-    io.py      text/lines/sections/ints        → S1
-    runner.py  solve(parse, part1, part2, expect) → S2
-    search.py  explore() + dijkstra()          → S3
-    grid.py    Grid, ray()                     → S4
-    vec.py     Vec NamedTuple                  → S5
-    dsu.py     DSU                             → S6
-    bits.py    pack/unpack/mask/bits           → S7
+src/puzzlekit/
+    io.py      ints/sections/lines/text          → S1 (thin; aocd covers more)
+    search.py  explore() + dijkstra()            → S3  ← the only substantial module
+    grid.py    Grid, ray()                       → S4 (list[str] case only)
+    vec.py     Vec NamedTuple                    → S5
+    bits.py    bits()                            → S7 (reduced to one function)
 ```
 
-Ordered by leverage. S1 and S2 are justified by all 44 files; S3 by 2024 + foo/bar only
-(**aoc2025 contains zero frontier loops** — that year pushed you to union-find, DAG path counting
-and integer programming instead).
+Dropped: **S2 → `aocd`**, **S6 → `scipy.cluster.hierarchy.DisjointSet`**, **S8 → `sys.maxsize`**.
+Ordered by leverage. S1 is justified by all 44 files; S3 by 2024 + foo/bar only (**aoc2025 contains
+zero frontier loops** — that year pushed you to union-find, DAG path counting and integer
+programming instead).
+
+### Prior art — check before writing anything
+
+| Want | Already exists |
+|---|---|
+| union-find | `scipy.cluster.hierarchy.DisjointSet` — `merge()` returns bool, `n_subsets` maintained, union-by-size. **Verified: exactly the S6 API.** |
+| integer infinity | `sys.maxsize` |
+| popcount / bit width | `int.bit_count()` (3.10), `int.bit_length()` |
+| pack/unpack bit arrays | `np.packbits` / `np.unpackbits` |
+| sentinel border | `np.pad(g, 1, constant_values="#")` |
+| flood fill / regions | `scipy.ndimage.label` |
+| neighbour *counting* | `scipy.ndimage.convolve` with a 3×3 kernel — no bounds test at all |
+| fixed-window scans | `np.lib.stride_tricks.sliding_window_view` |
+| iterate a grid | `np.ndenumerate`, `np.argwhere(g == ch)` |
+| Dijkstra on an **explicit** graph | `scipy.sparse.csgraph.dijkstra(..., return_predecessors=True, min_only=, limit=)`; `networkx`; `rustworkx` |
+| topological order | `graphlib.TopologicalSorter` |
+| AoC input fetch + answer verification | `aocd` (advent-of-code-data) — `from aocd import data, numbers`, plus an `aoc` runner that checks every day against known answers |
+| extract integers | `re.findall(r"-?\d+", s)` |
+| monotone-predicate search | `bisect` |
+| memoization | `functools.cache` |
+
+The lesson, consistent with L13: **three of seven proposed modules already existed**, and the one
+that matched most exactly (S6) lives in a package this repo already imports.
 
 ### S1 — `puzzlekit/io.py`
 
@@ -129,20 +154,31 @@ machine (and its pyright suppression) and the `None`-as-mode-flag in day15, day2
 in 2025, and one of them (`.strip()` on column-aligned data, aoc2025/day6) is a live hazard.
 Path must derive from the *caller's* `__file__`, not cwd.
 
-### S2 — `puzzlekit/runner.py` — catches the most bugs per line
+*Prior art:* `ints()` is a one-line `re.findall`; **`aocd` supersedes `text`/`lines`** entirely
+(per-day caching, `aocd.examples`). Kept anyway because the puzzle files are already on disk and
+`aocd` needs a session token.
 
-```python
-def solve(parse, part1, part2, *, expect: tuple[Any, Any] = (None, None)) -> None
-```
+### S2 — a two-part runner — **don't build it, use `aocd`**
 
-Parse once, print both, `assert` against `expect` when given. Mechanically catches every L2 case,
-kills the import-time side effects that make every file unusable from a REPL, and gives the known
-answers a home. Pair with dropping `aoc2024`/`aoc2025`/`foo` from `collect_ignore` —
+The shape wanted was `solve(parse, part1, part2, *, expect=(a, b))`: parse once, print both,
+`assert` against known answers. `aocd`'s `aoc` runner already does exactly this, including the
+`expect` mechanism, and is actively maintained — so this is a dependency decision, not a coding
+task.
+
+Whatever the mechanism, it mechanically catches every L2 case and kills the import-time side
+effects that make every file unusable from a REPL. Pair with dropping `aoc2024`/`aoc2025`/`foo`
+from `collect_ignore` —
 `--doctest-modules` is already in `addopts`, so foo/bar's six blocks of module-level asserts become
 live tests by turning `assert solution(x) == y` into `>>>`. Also removes 14.5 s from
 `import guard_fight` and makes them survive `python -O`.
 
-### S3 — `puzzlekit/search.py`
+### S3 — `puzzlekit/search.py` — the one module with no prior art
+
+Every library option (`scipy.sparse.csgraph`, `networkx`, `rustworkx`) needs a **materialised**
+graph. For implicit state spaces — day16's `(pos, heading)`, day6's `(pos, dir)` — building a
+`csr_matrix` first is more code than the loop. The lazy `succ` callable is the gap, and it is ~40
+lines. (`python-pathfinding`, `simpleai`, `astar` exist on PyPI; unmaintained or grid-specific,
+not worth the dependency.)
 
 Two functions, not one (the reviewers split on the return shape; this is the resolution):
 
@@ -196,28 +232,39 @@ Plus a separate primitive `ray(grid, start, delta)` walking until out of bounds:
 day8's `while True: … else: break` blocks and all four of day4's mutually inconsistent
 word-extraction idioms (string slice / `itemgetter` / two hand-written loops — in one loop body).
 
+*Prior art, and it reframes the problem:* numpy/scipy already cover the **vectorisable** cases —
+`np.pad` is the sentinel border, `ndimage.label` is flood fill, `ndimage.convolve` with a 3×3 kernel
+is 8-neighbour counting with no bounds test whatsoever (the Game-of-Life trick — that's
+aoc2025/day4), `sliding_window_view` is day4's word search and day22's windows. Several of these
+aren't "write a better `Grid`", they're **stop looping**. `Grid` is scoped to the per-cell walk
+(day6's guard, ray casting) where numpy doesn't help.
+
 ### S5 — `puzzlekit/vec.py`
 
 `Vec(NamedTuple)` with `rot(quarter_turns)` and `norm2() -> int`. `norm2` returning `int` makes
 guard_fight's float bug unrepresentable; a NamedTuple is ~2× cheaper as a dict key than `complex`.
 Fix **one** axis convention repo-wide and state it in the module docstring — you currently have both.
 
-### S6 — `puzzlekit/dsu.py`
+*Prior art:* none. `complex` is the stdlib answer and carries L12's float/cast problems;
+`pygame.math.Vector2` is float; `shapely`/`sympy` are heavy. ~15 lines, justified.
 
-Only aoc2025/day8 needs it today, but it's duplicated verbatim in both halves of that file. The two
-things the hand-rolled version lacks are exactly its two bugs: `union() -> bool` (so you can count
-merges) and `ncomponents` as a **maintained attribute** (the entire fix for the 999k-comparison
-scan, L7). Union-by-size falls out free and removes the O(n²) that union-by-lower-index has.
+### S6 — union-find — **obsolete, use `scipy.cluster.hierarchy.DisjointSet`**
 
-### S7 — `puzzlekit/bits.py`
+Verified in the blog `.venv`: `merge(a, b)` returns `True`/`False` and `n_subsets` is a maintained
+attribute — i.e. exactly the two things aoc2025/day8's hand-rolled version lacked, and the entire
+fix for its 999k-comparison scan (L7). Union-by-size and path halving come free. scipy is already a
+dev dependency. (`networkx.utils.UnionFind` also exists but is weaker: `union` returns `None`, no
+component count.) **Do not write this module.**
 
-`pack` (MSB-first, documented) / `unpack(n, width)` / `mask(width)` / `bits(n)`. aoc2025/day10 has
-**three** spellings of bitmask construction in one file, incl. `bin(word)[:1:-1]` to walk bits
-LSB-first. `unpack` also gives expanding_nebula a way to *print* a DP state while debugging, which
-it currently has no way to do; `mask(width)` pulls its `& q` sign-cleanup next to the `~` in
-`evolve`, where the invariant belongs.
+### S7 — `puzzlekit/bits.py` — reduced to one function
 
-### S8 — `INF = 1 << 62`, one module-level int, never `float("inf")`
+`int.bit_count()` (3.10) is popcount, `int.bit_length()` is width, `np.packbits`/`unpackbits` are
+pack/unpack. Only `bits(n)` — iterate set-bit indices — has no equivalent, and it is three lines.
+It still earns its place: aoc2025/day10 has **three** spellings of bitmask construction in one file
+including `bin(word)[:1:-1]`, and expanding_nebula currently has no way to *print* a DP state while
+debugging.
+
+### S8 — one integer sentinel: **`sys.maxsize`**, never `float("inf")`
 
 Four spellings today: `len(grid)` (day20), `float("inf")` leaking into an int DP table (day21),
 `.get() is None` (day16), and day18's in-band overload where 0 means unvisited so distances are
@@ -253,4 +300,10 @@ and is wrong on roughly half of all solvable grids.
      d13-25, aoc2025, foo/bar. They were instructed NOT to propose patches — only lessons + a shared
      package design. Timings above are wall-clock on jburgy's machine via .venv/bin/python from the
      repo root. If asked to "do suggestion #SN", the S-item is self-contained; re-read the cited
-     files before writing code, since none of this has been applied yet. -->
+     files before writing code.
+
+     STATUS 2026-09-20: puzzlekit HAS BEEN BUILT -> github.com/jburgy/puzzlekit (local clone at
+     ~/puzzlekit, uv + src layout). S1/S3/S4/S5/S7 are implemented there with tests derived from
+     the verified defects above and examples derived from the review's use cases. S2/S6/S8 were
+     deliberately NOT built (aocd / scipy DisjointSet / sys.maxsize). Nothing in aoc2024, aoc2025 or
+     foo/bar has been touched — S9-S12 are still open, and S11 (pilot migration) is the next step. -->
