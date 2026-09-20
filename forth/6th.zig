@@ -123,8 +123,10 @@ const Interp = struct {
             }
         }
         while (ch > ' ') {
-            buffer[i] = ch;
-            i += 1;
+            if (i < F_LENMASK) { // longer names do not fit in the flag byte
+                buffer[i] = ch;
+                i += 1;
+            }
             ch = try self.key();
         }
         return buffer[0..i];
@@ -156,8 +158,18 @@ const Interp = struct {
         return node;
     }
 
+    /// `memory` must never be reallocated: `main` hands the stdin and stdout
+    /// buffers slices of it, and `slice` hands out unchecked pointers past
+    /// `items.len`.  So check against the capacity reserved at startup rather
+    /// than growing into a fresh allocation.
+    pub inline fn reserve(self: Self, n: usize) void {
+        if (self.memory.capacity - self.memory.items.len < n)
+            @panic("dictionary is full");
+    }
+
     pub fn append(self: *Self, instr: Address.Data) void {
         self.memory.items.len = @abs(self.readInt(@offsetOf(Header, "here")));
+        self.reserve(@sizeOf(Address.Data));
         self.memory.appendSlice(mem.asBytes(&instr)) catch @panic("append cannot appendSlice");
         self.writeInt(@offsetOf(Header, "here"), @intCast(self.memory.items.len));
     }
@@ -465,16 +477,16 @@ fn _ccopy(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callco
 }
 
 fn _cmove(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callconv(conv) void {
+    // ( source dest length -- )
     const n = @abs(self.readInt(sp));
     const p = @abs(self.readInt(sp + 4));
     const q = @abs(self.readInt(sp + 8));
     @memcpy(self.slice(p, n), self.slice(q, n));
-    self.writeInt(sp + 8, @intCast(p));
-    self.next(sp + 8, rsp, ip, target);
+    self.next(sp + 12, rsp, ip, target);
 }
 
 fn _here(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callconv(conv) void {
-    self.memory.ensureUnusedCapacity(@sizeOf(Address)) catch @panic("_here cannot ensureUnusedCapacity");
+    self.reserve(@sizeOf(Address));
     self.writeInt(sp - 4, @offsetOf(Header, "here"));
     self.next(sp - 4, rsp, ip, target);
 }
@@ -563,6 +575,11 @@ inline fn _tcfa(sp: [*]i32) [*]i32 {
 
 fn _create(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callconv(conv) void {
     const name = self.slice(@abs(self.readInt(sp + 4)), @abs(self.readInt(sp)));
+    // `Word.Data` is read back through `@alignCast`, and `C,` advances HERE one
+    // byte at a time, so a definition that forgets ALIGN would make that UB.
+    const here = @abs(self.readInt(@offsetOf(Header, "here")));
+    if (here % @alignOf(Word.Data) != 0)
+        @panic("_create needs an aligned HERE");
     var word: Word.Data = .{
         .link = @enumFromInt(self.readInt(@offsetOf(Header, "latest"))),
         .flag = @truncate(name.len),
@@ -570,7 +587,9 @@ fn _create(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callc
         .code = undefined,
     };
     @memcpy(word.name[0..name.len], name);
-    self.writeInt(@offsetOf(Header, "latest"), @intCast(self.memory.items.len));
+    self.memory.items.len = here; // C, can leave HERE ahead of items.len
+    self.reserve(@sizeOf(Word.Data));
+    self.writeInt(@offsetOf(Header, "latest"), @intCast(here));
     self.memory.appendSlice(mem.asBytes(&word)) catch @panic("_create cannot appendSlice");
     self.memory.items.len -= 4; // .code is undefined
     self.writeInt(@offsetOf(Header, "here"), @intCast(self.memory.items.len));
@@ -734,10 +753,11 @@ fn _syscall1(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) cal
             self.writeInt(sp + 4, std.c.close(file));
         },
         .brk => {
-            const m = self.memory.capacity;
-            const n = @abs(self.readInt(sp + 4));
-            self.memory.ensureTotalCapacityPrecise(m + n) catch @panic("_syscall1 cannot ensureTotalCapacityPrecise");
-            self.writeInt(sp + 4, @intCast(m));
+            // brk(0) reports the break; brk(addr) moves it.  Neither can
+            // reallocate here, so the break is pinned at the reserved capacity
+            // and an out-of-range request fails the way brk(2) does, by
+            // returning the unchanged break.
+            self.writeInt(sp + 4, @intCast(self.memory.capacity));
         },
         else => {},
     }
@@ -1047,7 +1067,7 @@ test Interp {
         \\ CHAR A EMIT CR \ A
         \\ : SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT CR \ A
         \\ 1179010630 DSP@ 4 TELL 2DROP CR \ FFFF
-        \\ 1179010630 DSP@ HERE @ 4 CMOVE HERE @ 4 TELL 2DROP CR \ FFFF
+        \\ 1179010630 DSP@ HERE @ 4 CMOVE HERE @ 4 TELL DROP CR \ FFFF
         \\ 13622 DSP@ 2 NUMBER DROP EMIT CR \ A
         \\ 64 >R RSP@ 1 TELL RDROP CR \ @
         \\ 64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL 2DROP CR \ @
@@ -1080,6 +1100,8 @@ test Interp {
         \\ : FOO THROW ;
         \\ : TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF ." FOO threw exception: " . CR DROP THEN ;
         \\ TEST-EXCEPTIONS \ FOO threw exception: 25 
+        \\ : PAD4 ." ABCD" ; PAD4 CR \ ABCD
+        \\ HIDE (ARGC) WORD (ARGC) FIND 0= . CR \ -1 
     ;
     var output: [1024]u8 = undefined;
     var reader: std.Io.Reader = .fixed(input);
