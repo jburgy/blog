@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>4th &mdash; jonesforth in Rust, in your browser</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@wterm/dom@0.5.0/src/terminal.css" />
+    <style>
+        body {
+            margin: 0 auto;
+            max-width: 46rem;
+            padding: 2rem 1rem;
+            font: 16px/1.5 system-ui, sans-serif;
+        }
+
+        #terminal {
+            height: 60vh;
+        }
+    </style>
+
+    <!-- Lets `4th.js` use a bare specifier, so vitest resolves it from
+         node_modules and this page resolves it from a CDN, with no bundler. -->
+    <script type="importmap">
+        {
+            "imports": {
+                "uwasi": "https://esm.sh/uwasi@1.4.1"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <h1>4th</h1>
+    <p>
+        <a href="https://github.com/jburgy/blog/blob/main/forth/4th.rs">jonesforth ported to Rust</a>,
+        compiled to <code>wasm32-wasip1</code>, rendered by <a href="https://wterm.dev">wterm</a> and
+        given a file system by <a href="https://github.com/kateinoigakukun/uwasi">uwasi</a>.
+    </p>
+    <p>
+        Try <code>: SQUARE DUP * ; 7 SQUARE .</code>, <code>UNUSED .</code>, or read a file:
+        <code>S" /motd" R/O OPEN-FILE DROP >R HERE @ 64 R> READ-FILE DROP HERE @ SWAP TELL</code>
+    </p>
+    <div id="terminal"></div>
+
+    <script type="module">
+        import { WTerm } from "https://esm.sh/@wterm/dom@0.5.0";
+        import { start } from "./4th.js";
+
+        let feed;
+        let line = "";
+
+        function handleInput(data) {
+            for (const key of data) {
+                if (key === "\r") {
+                    term.write("\r\n");
+                    const entered = line;
+                    line = "";
+                    feed(entered + "\n");
+                } else if (key === "\x7f") {
+                    if (line) {
+                        line = line.slice(0, -1);
+                        term.write("\b \b");
+                    }
+                } else if (key >= " ") {
+                    line += key;
+                    term.write(key);
+                }
+            }
+        }
+
+        const term = new WTerm(document.getElementById("terminal"), {
+            cols: 80,
+            rows: 24,
+            cursorBlink: true,
+            onData: handleInput,
+        });
+        await term.init();
+
+        const [wasm, source] = await Promise.all([
+            fetch("./4th.wasm").then((response) => response.arrayBuffer()),
+            fetch("../4th.32.fs").then((response) => response.text()),
+        ]);
+
+        feed = await start(wasm, {
+            files: {
+                "/4th.fs": source,
+                "/motd": "files work in here too\n",
+            },
+            // Forth emits bare newlines; a terminal wants CR LF.
+            write: (text) => term.write(text.replace(/\n/g, "\r\n")),
+        });
+
+        feed(source);
+        term.focus();
+    </script>
+</body>
+
+</html>
