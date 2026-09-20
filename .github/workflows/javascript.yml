@@ -1,0 +1,32 @@
+name: JavaScript
+
+# `push` only, matching the Python workflow: adding `pull_request` as well runs
+# the whole thing twice on every PR branch.
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: forth
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+
+      # Both wasm binaries have to exist before vitest starts: 5th.wasm from
+      # clang, and 4th.wasm from nightly rust, which `become` requires.
+      - uses: bytecodealliance/setup-wasi-sdk-action@main
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: forth
+      - run: make web
+
+      - run: npm run test

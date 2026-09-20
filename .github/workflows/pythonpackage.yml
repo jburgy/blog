@@ -29,8 +29,3 @@ jobs:
       - run: uv run pytest
         env:
           pytest_github_report: true
-      - uses: bytecodealliance/setup-wasi-sdk-action@main
-      - run: npm ci
-        working-directory: ./forth
-      - run: npm run test
-        working-directory: ./forth
