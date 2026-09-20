@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DEMSCRIPTEN -mtail-call -o 5th.wasm 5th.c",
-    "test": "npm run build && vitest run && rm -f 5th.wasm"
+    "test": "npm run build && vitest run && rm -f 5th.wasm",
+    "test:web": "vitest run web/"
   }
 }

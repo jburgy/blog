@@ -8,7 +8,9 @@
 // `become f()` where `f` returns `!` trips the unreachable-code lint on every primitive.
 #![allow(unreachable_code)]
 
-use std::io::{self, BufRead, Write};
+use std::fs::{File, OpenOptions};
+use std::io::{self, BufRead, Read, Write};
+#[cfg(not(feature = "web"))]
 use std::panic::{self, AssertUnwindSafe};
 
 /// Forth cell type. Zig's `6th` uses `isize`; here a cell is 32 bits and every
@@ -20,7 +22,36 @@ const CELL: usize = std::mem::size_of::<Cell>();
 
 /// Panic payload used to unwind out of the threaded code: primitives return `!`,
 /// so there is no ordinary return path back into Rust.
+#[cfg(not(feature = "web"))]
 struct Halt;
+
+/// The numbers `jonesforth.f` names. Keeping Linux's values means the Forth
+/// source needs no edits; the bodies below are ordinary Rust I/O, which on
+/// `wasm32-wasip1` bottoms out in WASI.
+mod sys {
+    use super::Cell;
+
+    pub const EXIT: Cell = 1;
+    pub const READ: Cell = 3;
+    pub const WRITE: Cell = 4;
+    pub const OPEN: Cell = 5;
+    pub const CLOSE: Cell = 6;
+    pub const BRK: Cell = 45;
+
+    pub const O_WRONLY: Cell = 1;
+    pub const O_RDWR: Cell = 2;
+    pub const O_ACCMODE: Cell = 3;
+    pub const O_CREAT: Cell = 0o100;
+    pub const O_TRUNC: Cell = 0o1000;
+    pub const O_APPEND: Cell = 0o2000;
+
+    pub const EBADF: Cell = 9;
+    pub const EIO: Cell = 5;
+    pub const ENOSYS: Cell = 38;
+}
+
+/// Lowest descriptor `SYS_OPEN` will hand out; 0..3 stay with the reader/writer.
+const FD_BASE: usize = 3;
 
 // Dictionary entry layout: link cell, flag byte, name bytes, code field.
 const W_FLAG: usize = CELL;
@@ -48,8 +79,9 @@ mod header {
     pub const SP: usize = R0 + CELL; // data stack pointer, saved on halt
     pub const RSP: usize = SP + CELL; // return stack pointer, saved on halt
     pub const BASE: usize = RSP + CELL; // numeric base
+    pub const ARGC: usize = BASE + CELL; // argv count, for `(ARGC)`
 
-    pub const BUFFER: usize = BASE + CELL; // WORD buffer
+    pub const BUFFER: usize = ARGC + CELL; // WORD buffer
     pub const BUFFER_LEN: usize = 32;
     pub const SCRATCH: usize = BUFFER + BUFFER_LEN; // cold start / hand-assembled code
     pub const SCRATCH_LEN: usize = 64 * CELL;
@@ -61,6 +93,8 @@ pub struct Interp {
     memory: Vec<u8>,
     reader: Box<dyn BufRead>,
     writer: Box<dyn Write>,
+    /// Descriptors handed out by `SYS_OPEN`, offset by `FD_BASE`.
+    files: Vec<Option<File>>,
 }
 
 /// Primitive function signature: exactly what the dispatcher tail‑calls.
@@ -69,6 +103,7 @@ pub struct Interp {
 type PrimitiveFn = fn(&mut Interp, sp: usize, rsp: usize, ip: usize, target: usize) -> !;
 
 /// Keep `Halt` from printing a panic message; a halted interpreter is not a crash.
+#[cfg(not(feature = "web"))]
 fn install_halt_hook() {
     use std::sync::Once;
     static ONCE: Once = Once::new();
@@ -85,6 +120,7 @@ fn install_halt_hook() {
 impl Interp {
     /// Create a new interpreter with a pre‑allocated memory array.
     fn new(reader: Box<dyn BufRead>, writer: Box<dyn Write>) -> Self {
+        #[cfg(not(feature = "web"))]
         install_halt_hook();
         let mut memory = vec![0u8; 1 << 20];
         Self::write_cell_at(&mut memory, header::STATE, 0); // interpret mode
@@ -95,11 +131,13 @@ impl Interp {
         Self::write_cell_at(&mut memory, header::SP, header::STACK_TOP as Cell);
         Self::write_cell_at(&mut memory, header::RSP, header::RETURN_STACK_TOP as Cell);
         Self::write_cell_at(&mut memory, header::BASE, 10); // decimal
+        Self::write_cell_at(&mut memory, header::ARGC, std::env::args().count() as Cell);
 
         let mut interp = Interp {
             memory,
             reader,
             writer,
+            files: Vec::new(),
         };
         // Build the initial dictionary of built‑in words.
         interp.initialize_dictionary();
@@ -296,8 +334,6 @@ impl Interp {
             (b"?DUP", P::QDup as Cell),
             (b"1+", P::Incr as Cell),
             (b"1-", P::Decr as Cell),
-            (b"CELL+", P::IncrP as Cell),
-            (b"CELL-", P::DecrP as Cell),
             (b"+", P::Add as Cell),
             (b"-", P::Sub as Cell),
             (b"*", P::Mul as Cell),
@@ -323,10 +359,22 @@ impl Interp {
             (b"CHAR", P::Char as Cell),
             (b"INTERPRET", P::Interpret as Cell),
             (b"BYE", P::Bye as Cell),
+            (b"SYSCALL1", P::Syscall1 as Cell),
+            (b"SYSCALL2", P::Syscall2 as Cell),
+            (b"SYSCALL3", P::Syscall3 as Cell),
         ];
 
         for (name, code) in words {
             self.add_word(name, *code);
+        }
+
+        // jonesforth names the cell-step words after the cell size, which is the
+        // whole reason 4th.fs and 4th.32.fs disagree. Four bytes here, so `4+`.
+        for (name, code) in [
+            (format!("{CELL}+"), P::IncrP as Cell),
+            (format!("{CELL}-"), P::DecrP as Cell),
+        ] {
+            self.add_word(name.as_bytes(), code);
         }
 
         // These have to run even while compiling.
@@ -346,6 +394,19 @@ impl Interp {
             (b"F_HIDDEN", F_HIDDEN as Cell),
             (b"F_LENMASK", F_LENMASK as Cell),
             (b"VERSION", 47),
+            (b"(ARGC)", header::ARGC as Cell),
+            (b"SYS_EXIT", sys::EXIT),
+            (b"SYS_READ", sys::READ),
+            (b"SYS_WRITE", sys::WRITE),
+            (b"SYS_OPEN", sys::OPEN),
+            (b"SYS_CLOSE", sys::CLOSE),
+            (b"SYS_BRK", sys::BRK),
+            (b"O_RDONLY", 0),
+            (b"O_WRONLY", sys::O_WRONLY),
+            (b"O_RDWR", sys::O_RDWR),
+            (b"O_CREAT", sys::O_CREAT),
+            (b"O_TRUNC", sys::O_TRUNC),
+            (b"O_APPEND", sys::O_APPEND),
         ] {
             self.add_const(name, value);
         }
@@ -355,8 +416,8 @@ impl Interp {
         let w = |i: &Self, name: &[u8]| i.to_cfa(i.find(name)) as Cell;
         let exit = w(self, b"EXIT");
 
-        // : >DFA >CFA CELL+ ;
-        let body = [w(self, b">CFA"), w(self, b"CELL+"), exit];
+        // : >DFA >CFA 4+ ;
+        let body = [w(self, b">CFA"), w(self, format!("{CELL}+").as_bytes()), exit];
         self.add_colon(b">DFA", false, &body);
 
         // : HIDE WORD FIND HIDDEN ;
@@ -433,6 +494,7 @@ impl Interp {
 
     /// Run threaded code at `ip` until it reaches `BYE`, which unwinds back here
     /// and leaves the final registers in `SP`/`RSP`.
+    #[cfg(not(feature = "web"))]
     fn run_until_halt(&mut self, ip: usize) {
         let sp = self.read_cell(header::SP) as usize;
         let rsp = self.read_cell(header::RSP) as usize;
@@ -443,6 +505,15 @@ impl Interp {
         }
     }
 
+    /// Same, except the host throws to stop us, so there is nothing to catch:
+    /// the engine discards these frames on its way back out to JavaScript.
+    #[cfg(feature = "web")]
+    fn run_until_halt(&mut self, ip: usize) {
+        let sp = self.read_cell(header::SP) as usize;
+        let rsp = self.read_cell(header::RSP) as usize;
+        self.run(ip, sp, rsp)
+    }
+
     /// Execute a single word given its code field address.
     fn execute(&mut self, cfa: usize) {
         let bye = self.to_cfa(self.find(b"BYE"));
@@ -450,6 +521,118 @@ impl Interp {
         self.write_cell(header::SCRATCH + CELL, bye as Cell);
         self.run_until_halt(header::SCRATCH);
     }
+
+    /// Body of the `SYSCALLn` words. Failures come back as `-errno`, which is
+    /// what `OPEN-FILE` and friends test for.
+    fn syscall(&mut self, number: Cell, [a, b, c]: [Cell; 3]) -> Cell {
+        let outcome = match number {
+            sys::BRK => Ok(self.brk(a)),
+            sys::OPEN => self.open(a, b),
+            sys::CLOSE => self.close(a),
+            sys::READ => self.transfer(a, b, c, false),
+            sys::WRITE => self.transfer(a, b, c, true),
+            _ => Err(sys::ENOSYS),
+        };
+        outcome.unwrap_or_else(|errno| -errno)
+    }
+
+    /// The "data segment" is `memory` itself: `brk(0)` reports its end and any
+    /// other argument resizes it. `UNUSED` and `MORECORE` are the only callers.
+    fn brk(&mut self, addr: Cell) -> Cell {
+        let end = addr as usize;
+        if end >= header::DICTIONARY {
+            self.memory.resize(end, 0);
+        }
+        self.memory.len() as Cell
+    }
+
+    fn open(&mut self, path: Cell, flags: Cell) -> Result<Cell, Cell> {
+        let start = path as usize;
+        let tail = self.memory.get(start..).ok_or(sys::EIO)?;
+        let len = tail.iter().position(|&byte| byte == 0).ok_or(sys::EIO)?;
+        let path = str::from_utf8(&tail[..len]).map_err(|_| sys::EIO)?;
+
+        let mut options = OpenOptions::new();
+        match flags & sys::O_ACCMODE {
+            sys::O_WRONLY => options.write(true),
+            sys::O_RDWR => options.read(true).write(true),
+            _ => options.read(true),
+        };
+        let file = options
+            .create(flags & sys::O_CREAT != 0)
+            .truncate(flags & sys::O_TRUNC != 0)
+            .append(flags & sys::O_APPEND != 0)
+            .open(path)
+            .map_err(errno)?;
+
+        let slot = self.files.iter().position(Option::is_none).unwrap_or_else(|| {
+            self.files.push(None);
+            self.files.len() - 1
+        });
+        self.files[slot] = Some(file);
+        Ok((slot + FD_BASE) as Cell)
+    }
+
+    fn close(&mut self, fd: Cell) -> Result<Cell, Cell> {
+        self.slot(fd)?.take().ok_or(sys::EBADF)?;
+        Ok(0)
+    }
+
+    /// `read`/`write` share everything but the direction; `addr` and `count`
+    /// are clamped to the data segment.
+    fn transfer(&mut self, fd: Cell, addr: Cell, count: Cell, out: bool) -> Result<Cell, Cell> {
+        let addr = addr as usize;
+        let end = addr
+            .checked_add(count.max(0) as usize)
+            .ok_or(sys::EIO)?
+            .min(self.memory.len());
+        let len = end.checked_sub(addr).ok_or(sys::EIO)?;
+
+        if out {
+            let Interp {
+                memory,
+                writer,
+                files,
+                ..
+            } = self;
+            let buf = &memory[addr..end];
+            let written = match fd {
+                1 | 2 => writer.write(buf),
+                _ => Self::pick(files, fd)?.write(buf),
+            };
+            return written.map(|n| n as Cell).map_err(errno);
+        }
+
+        let mut buf = vec![0u8; len];
+        let read = match fd {
+            0 => self.reader.read(&mut buf),
+            _ => Self::pick(&mut self.files, fd)?.read(&mut buf),
+        }
+        .map_err(errno)?;
+        self.memory[addr..addr + read].copy_from_slice(&buf[..read]);
+        Ok(read as Cell)
+    }
+
+    fn slot(&mut self, fd: Cell) -> Result<&mut Option<File>, Cell> {
+        usize::try_from(fd)
+            .ok()
+            .and_then(|fd| fd.checked_sub(FD_BASE))
+            .and_then(|index| self.files.get_mut(index))
+            .ok_or(sys::EBADF)
+    }
+
+    fn pick(files: &mut [Option<File>], fd: Cell) -> Result<&mut File, Cell> {
+        usize::try_from(fd)
+            .ok()
+            .and_then(|fd| fd.checked_sub(FD_BASE))
+            .and_then(|index| files.get_mut(index))
+            .and_then(Option::as_mut)
+            .ok_or(sys::EBADF)
+    }
+}
+
+fn errno(error: io::Error) -> Cell {
+    error.raw_os_error().unwrap_or(sys::EIO) as Cell
 }
 
 // ---------------------------------------------------------------------------
@@ -537,6 +720,9 @@ enum PrimitiveIndex {
     Char,
     Interpret,
     Bye,
+    Syscall1,
+    Syscall2,
+    Syscall3,
 }
 
 /// Static table of primitive function pointers.
@@ -549,7 +735,7 @@ static PRIMITIVES: &[PrimitiveFn] = &[
     nrot, two_drop, two_dup, two_swap, qdup, incr, decr, incrp, decrp,
     add, sub, mul, divmod, equ, nequ, lt, gt, le, ge, zequ, znequ, zlt,
     zgt, zle, zge, and, or, xor, invert, dot, docol, do_const, execute, char,
-    interpret, bye,
+    interpret, bye, syscall::<1>, syscall::<2>, syscall::<3>,
 ];
 
 // Helper to read a cell at sp and advance sp (post‑increment).
@@ -1110,13 +1296,49 @@ fn interpret(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, target: usiz
 fn bye(interp: &mut Interp, sp: usize, rsp: usize, _ip: usize, _target: usize) -> ! {
     interp.write_cell(header::SP, sp as Cell);
     interp.write_cell(header::RSP, rsp as Cell);
+    halt()
+}
+
+/// `SYSCALLn ( argN .. arg1 number -- result )`, the shape jonesforth.S gives
+/// them: the number is on top and the arguments follow in register order.
+fn syscall<const N: usize>(
+    interp: &mut Interp,
+    sp: usize,
+    rsp: usize,
+    ip: usize,
+    target: usize,
+) -> ! {
+    let (number, mut sp) = pop(interp, sp);
+    let mut args = [0; 3];
+    for arg in args.iter_mut().take(N) {
+        (*arg, sp) = pop(interp, sp);
+    }
+    if number == sys::EXIT {
+        become bye(interp, sp, rsp, ip, target);
+    }
+    let result = interp.syscall(number, args);
+    let new_sp = push(interp, sp, result);
+    become interp.next(new_sp, rsp, ip, target);
+}
+
+/// Leave Rust altogether. Natively that is a panic `run_until_halt` catches.
+#[cfg(not(feature = "web"))]
+fn halt() -> ! {
     panic::panic_any(Halt)
+}
+
+/// Wasm cannot unwind itself without the exception-handling proposal, so the
+/// host throws on our behalf and the engine tears the frames down for free.
+#[cfg(feature = "web")]
+fn halt() -> ! {
+    unsafe { web::throw_halt() }
 }
 
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
+#[cfg(not(feature = "web"))]
 fn main() {
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -1124,6 +1346,99 @@ fn main() {
     let quit = interp.to_cfa(interp.find(b"QUIT"));
     // QUIT loops forever; control comes back here on BYE or end of input.
     interp.execute(quit);
+}
+
+/// A page has no blocking stdin, so the browser build inverts the loop: the host
+/// hands over a chunk of source, `eval` runs `QUIT` until that chunk is drained,
+/// and `KEY` then hits end of input and halts. Every bit of Forth state lives in
+/// `Interp::memory` and `SP`/`RSP` are published on the way out, so the next call
+/// picks up exactly where this one stopped — no worker, no `SharedArrayBuffer`,
+/// and therefore no cross-origin isolation.
+///
+/// `_start` still runs, which is what initialises WASI and builds the session;
+/// the host calls `eval` from then on.
+#[cfg(feature = "web")]
+fn main() {
+    web::boot();
+}
+
+#[cfg(feature = "web")]
+mod web {
+    use super::Interp;
+    use std::cell::RefCell;
+    use std::collections::VecDeque;
+    use std::io::{self, BufReader, Read, Write};
+    use std::rc::Rc;
+
+    #[link(wasm_import_module = "env")]
+    unsafe extern "C" {
+        /// Throws on the host side; control never comes back into wasm.
+        pub fn throw_halt() -> !;
+        pub fn write_out(ptr: *const u8, len: usize);
+    }
+
+    type Queue = Rc<RefCell<VecDeque<u8>>>;
+
+    struct Stdin(Queue);
+
+    impl Read for Stdin {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            let mut queue = self.0.borrow_mut();
+            let n = queue.len().min(buf.len());
+            for (slot, byte) in buf.iter_mut().zip(queue.drain(..n)) {
+                *slot = byte;
+            }
+            Ok(n)
+        }
+    }
+
+    struct Stdout;
+
+    impl Write for Stdout {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            unsafe { write_out(buf.as_ptr(), buf.len()) };
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    const INPUT_CAP: usize = 1 << 16;
+    static mut INPUT: [u8; INPUT_CAP] = [0; INPUT_CAP];
+    static mut SESSION: Option<(Interp, Queue)> = None;
+
+    /// Staging area the host fills before each `eval`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn input() -> *mut u8 {
+        (&raw mut INPUT).cast()
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn input_capacity() -> usize {
+        INPUT_CAP
+    }
+
+    /// Called from `main`, i.e. from `_start`, once WASI is up.
+    pub fn boot() {
+        let queue: Queue = Rc::new(RefCell::new(VecDeque::new()));
+        let interp = Interp::new(
+            Box::new(BufReader::new(Stdin(queue.clone()))),
+            Box::new(Stdout),
+        );
+        unsafe { SESSION = Some((interp, queue)) };
+    }
+
+    /// Consume `input()[..len]`. Always exits through `throw_halt`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn eval(len: usize) {
+        let (interp, queue) = unsafe { (*(&raw mut SESSION)).as_mut() }.expect("boot first");
+        let chunk = unsafe { std::slice::from_raw_parts((&raw const INPUT).cast::<u8>(), len) };
+        queue.borrow_mut().extend(chunk);
+        let quit = interp.to_cfa(interp.find(b"QUIT"));
+        interp.execute(quit);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1216,7 +1531,7 @@ mod tests {
     fn dictionary_is_well_formed() {
         assert_eq!(
             PRIMITIVES.len(),
-            PrimitiveIndex::Bye as usize + 1,
+            PrimitiveIndex::Syscall3 as usize + 1,
             "PrimitiveIndex and PRIMITIVES have drifted apart"
         );
         let i = interp();
@@ -1232,6 +1547,16 @@ mod tests {
         let unique = names.len();
         names.dedup();
         assert_eq!(names.len(), unique, "duplicate word names");
+    }
+
+    #[test]
+    fn the_cell_step_words_are_named_after_the_cell_size() {
+        // jonesforth spells these `4+`/`8+` depending on the ABI, which is why
+        // there are two preambles. A cell that grew would need `4th.fs` instead.
+        assert_eq!(CELL, 4, "4th.32.fs is the preamble that matches this build");
+        let i = interp();
+        assert_ne!(i.find(b"4+"), 0);
+        assert_ne!(i.find(b"4-"), 0);
     }
 
     #[test]

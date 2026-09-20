@@ -1,0 +1,13 @@
+# `become` lowers to the wasm tail-call proposal, so both wasm builds need it.
+#
+# This is the *test* configuration: it keeps the native design (BYE panics,
+# run_until_halt catches), which needs real unwinding. The prebuilt WASI std is
+# panic=abort, hence the -Zbuild-std in the Makefile.
+#
+# The browser build targets the same wasm32-wasip1 but with panic=abort, because
+# there the host throws instead of Rust. It replaces all of this through
+# RUSTFLAGS; see `web/4th.wasm` in the Makefile.
+
+[target.wasm32-wasip1]
+rustflags = ["-Ctarget-feature=+tail-call,+exception-handling", "-Cpanic=unwind"]
+runner = "wasmtime -W exceptions=y --dir=."

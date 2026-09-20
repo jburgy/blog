@@ -58,11 +58,41 @@ cosmopolitan-amalgamation-2.2.zip :
 zig-out/bin/6th : 6th.zig
 	uvx --from ziglang==0.15.2 python-zig build
 
+web : web/4th.wasm
+
+# panic=abort instead of the test profile's unwinding: `--features web` routes
+# BYE through a host throw, so wasm never has to unwind itself. Separate target
+# dir so the two wasip1 profiles do not keep invalidating each other.
+WEB_RUSTFLAGS = -Ctarget-feature=+tail-call -Cpanic=abort \
+	-Clink-arg=--import-undefined \
+	-Clink-arg=--export=eval \
+	-Clink-arg=--export=input \
+	-Clink-arg=--export=input_capacity \
+	-Clink-arg=--export=__stack_pointer
+
+web/4th.wasm : 4th.rs
+	RUSTFLAGS='$(WEB_RUSTFLAGS)' CARGO_TARGET_DIR=target/web \
+		rustup run nightly cargo build --release --target wasm32-wasip1 --features web
+	cp target/web/wasm32-wasip1/release/4th.wasm $@
+
+serve-web : web/4th.wasm
+	python3 -m http.server --directory . 8000
+
+# The demo's JS, WASI layer and re-entrant eval loop are all testable in node;
+# only the terminal rendering would need a browser, and that is wterm's problem.
+test-web : web/4th.wasm
+	npx vitest run web/
+
+# The WASI build keeps the native panic/catch_unwind halt, which the prebuilt
+# panic=abort std cannot do, so std is rebuilt from source.
+test-wasm : 4th.rs
+	rustup run nightly cargo test --release --target wasm32-wasip1 -Zbuild-std=std,panic_unwind
+
 jansforth : jansforth.c
 	$(CC) -m32 -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
 
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.js *.ll *.wasm* *th.*mjs *.html 4th.32 4th.gcov *.gcda *.gcno
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.js *.ll *.wasm* *th.*mjs *.html 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm
 
 define allbutlast
 $(wordlist 2, $(words $(1)), x $(1))
