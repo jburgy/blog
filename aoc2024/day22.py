@@ -1,7 +1,4 @@
 from collections import defaultdict
-from collections.abc import Iterable
-
-import numpy as np
 
 
 def random(secret: int) -> int:
@@ -14,29 +11,26 @@ def random(secret: int) -> int:
     return secret
 
 
-def ntimes(n: int, secret: int) -> Iterable[int]:
-    for _ in range(n):
-        yield secret
-        secret = random(secret)
-    yield secret
-
-
 with open("aoc2024/day22input.txt", "rt") as lines:
     initial = [int(line.rstrip()) for line in lines]
 
 
+WINDOW = 19**4  # four deltas, each in -9..9, packed into one int
+
 total = 0
-bananas: defaultdict[tuple[int, ...], int] = defaultdict(int)
+bananas: defaultdict[int, int] = defaultdict(int)
 for secret in initial:
-    prices = np.fromiter(ntimes(2000, secret), dtype=int, count=2001)
-    total += prices[-1]
-    prices %= 10
-    sequences, indices = np.unique(
-        np.lib.stride_tricks.sliding_window_view(np.diff(prices), 4),
-        return_index=True,
-        axis=0,
-    )
-    for sequence, banana in zip(sequences, prices[indices + 4]):
-        bananas[tuple(sequence)] += banana
+    seen: set[int] = set()
+    price = secret % 10
+    window = 0
+    for i in range(2000):
+        secret = random(secret)
+        nxt = secret % 10
+        window = (window * 19 + nxt - price + 9) % WINDOW
+        price = nxt
+        if i > 2 and window not in seen:
+            seen.add(window)
+            bananas[window] += price
+    total += secret
 
 print(total, max(bananas.values()))

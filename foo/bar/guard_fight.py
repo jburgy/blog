@@ -79,9 +79,16 @@ def solution(dimensions, your_position, trainer_position, distance):
         g = gcd(real, imag)
         return complex(real // g, imag // g) if g else z
 
-    dp1 = distance + 1
-    ts = defaultdict(lambda: dp1)
-    ys = defaultdict(lambda: dp1)
+    def norm2(z):
+        # z * conj(z) is the squared modulus, exactly: abs() would round the sqrt,
+        # and these values only ever get compared.
+        return (z * z.conjugate()).real
+
+    # Squared lengths keep this exact: these values are only ever compared.
+    reach2 = distance * distance
+    dp2 = (distance + 1) ** 2
+    ts = defaultdict(lambda: dp2)
+    ys = defaultdict(lambda: dp2)
     for i in range(-m, m):
         yi = y[i & 1]
         ti = t[i & 1]
@@ -89,7 +96,7 @@ def solution(dimensions, your_position, trainer_position, distance):
             bounce = complex(w * i, h * j)
 
             tij = ti[j & 1] + bounce
-            td = abs(tij)
+            td = norm2(tij)
             tp = normalize(tij)
             if td < ts[tp]:
                 ts[tp] = td
@@ -102,12 +109,13 @@ def solution(dimensions, your_position, trainer_position, distance):
                 ys[normalize(bounce)] = 0
                 continue
 
-            yd = abs(yij)
+            yd = norm2(yij)
             yp = normalize(yij)
             if yd < ys[yp]:
                 ys[yp] = yd
 
-    return sum(v <= distance and v < ys[k] for k, v in ts.items())
+    # ys.get, not ys[k]: indexing a defaultdict while reading it inserts keys.
+    return sum(v <= reach2 and v < ys.get(k, dp2) for k, v in ts.items())
 
 
 assert solution([3, 2], [1, 1], [2, 1], 4) == 7

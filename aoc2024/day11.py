@@ -20,13 +20,13 @@
 """
 
 from collections import defaultdict
-from itertools import chain, compress, repeat
-from operator import not_
-from typing import cast
+from itertools import chain, repeat
 
-stones = tuple("965842 9159 3372473 311 0 6 86213 48".split())
+initial = tuple("965842 9159 3372473 311 0 6 86213 48".split())
 caches: list[defaultdict[str, int]] = [defaultdict(int) for _ in range(76)]
-q = list(chain(zip(repeat(75), stones), zip(repeat(25), stones)))
+q: list[tuple[int, str]] = list(
+    chain(zip(repeat(75), initial), zip(repeat(25), initial))
+)
 
 while q:
     m, stone = t = q.pop()
@@ -43,12 +43,13 @@ while q:
         else:
             stones = (stone[:half], str(int(stone[half:])))
     n = m - 1
-    counts = tuple(map(caches[n].get, stones))
-    if all(counts):
-        cache[stone] = sum(cast("tuple[int, ...]", counts))  # pyright: ignore[reportCallIssue, reportArgumentType]
-    else:
+    missing = tuple(s for s in stones if s not in caches[n])
+    if missing:
         q.append(t)
-        q.extend(zip(repeat(n), compress(stones, map(not_, counts))))  # ty: ignore[invalid-argument-type]
+        q.extend(zip(repeat(n), missing))
+    else:
+        cache[stone] = sum(map(caches[n].__getitem__, stones))
 
-print(sum(caches[25].values()))
-print(sum(caches[75].values()))
+# caches[25] also holds stones 50 steps into the 75 chain, so sum the seeds only.
+print(sum(map(caches[25].__getitem__, initial)))
+print(sum(map(caches[75].__getitem__, initial)))

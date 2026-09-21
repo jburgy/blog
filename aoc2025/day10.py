@@ -33,7 +33,8 @@ def second_half(buttons: list[tuple[int, ...]], joltages: list[tuple[int, ...]])
             [1] * len(button), A_eq=A_eq, b_eq=joltage, integrality=1
         )  # ty: ignore[no-matching-overload]
         assert sol.success
-        total += int(sum(sol.x))
+        # MILP output is float; int() would truncate 2.9999999996 to 2.
+        total += round(sum(sol.x))
     return total
 
 
