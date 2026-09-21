@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Served from this directory, so the paths match what GitHub Pages publishes at
+     /blog/. Run `make` first: it builds lisp.wasm, dist/ and node_modules. -->
+
+<head>
+    <title>sectorlisp demo</title>
+    <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css">
+    <!-- GitHub Pages sends no COOP/COEP, and xterm-pty needs SharedArrayBuffer. -->
+    <script src="https://cdn.jsdelivr.net/npm/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
+</head>
+
+<body>
+    <div id="terminal"></div>
+    <script type="module">
+        import "./node_modules/@xterm/xterm/lib/xterm.js";
+        import { openpty } from "./node_modules/xterm-pty/index.mjs";
+        import { TtyServer } from "./dist/ttyServer.mjs";
+
+        const xterm = new Terminal();
+        xterm.open(document.getElementById("terminal"));
+
+        const { master, slave } = openpty();
+        xterm.loadAddon(master);
+
+        const worker = new Worker("./lisp.worker.js", { type: "module" });
+        new TtyServer(slave).start(worker);
+    </script>
+</body>
+
+</html>

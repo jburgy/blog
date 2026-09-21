@@ -1,4 +1,4 @@
-importScripts("https://cdn.jsdelivr.net/npm/xterm-pty@0.9.4/workerTools.js");
+import { TtyClient } from "./dist/ttyClient.mjs";
 
 // https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/self
 // self.addEventListener("message", ...) looks less magic than onmessage = ... to me
@@ -286,7 +286,7 @@ self.addEventListener("message", (msg) => {
 
     class EOF extends Error {};
 
-    fetch(new URL("./build/debug.wasm", location.origin))
+    fetch(new URL("./TinyBasic.wasm", import.meta.url))
         .then((response) => WebAssembly.instantiateStreaming(response, {
             index: {
                 KeyInChar: () => {
