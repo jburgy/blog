@@ -245,7 +245,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "numpy" },
-    { name = "puzzlekit", editable = "../puzzlekit" },
+    { name = "puzzlekit", directory = "../puzzlekit" },
 ]
 
 [package.metadata.requires-dev]
@@ -1656,7 +1656,7 @@ wheels = [
 [[package]]
 name = "puzzlekit"
 version = "0.1.0"
-source = { editable = "../puzzlekit" }
+source = { directory = "../puzzlekit" }
 
 [package.metadata]
 

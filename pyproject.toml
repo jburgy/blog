@@ -41,7 +41,7 @@ addopts = ["--doctest-modules"]
 url = "https://pypi.ampl.com/"
 
 [tool.uv.sources]
-puzzlekit = { path = "../puzzlekit", editable = true }
+puzzlekit = { path = "../puzzlekit", editable = false }
 
 [tool.ruff]
 exclude = [
