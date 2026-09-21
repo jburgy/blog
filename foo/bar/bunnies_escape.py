@@ -33,7 +33,7 @@ Output:
 11
 """
 
-from itertools import product
+from collections import deque
 
 
 NEIGHBORS = -1, -1j, 1, 1j
@@ -43,68 +43,34 @@ def _get(m, x):
     return m[int(x.real)][int(x.imag)]
 
 
-def _set(m, x, mx):
-    m[int(x.real)][int(x.imag)] = mx
-
-
 def solution(m):
     if not m or not m[0]:
         return 0
 
-    w, h = len(m), len(m[-1])
+    w, h = len(m), len(m[0])
+    goal = complex(w - 1, h - 1)
 
     def inside(x):
         return 0 <= x.real < w and 0 <= x.imag < h
 
-    def paint(a):
-        a[0][0] = -1
-        stack = [0j]
-        while stack:
-            x = stack.pop()
-            c = _get(a, x) - 1
-            for k in NEIGHBORS:
-                y = x + k
-                if inside(y) and not _get(a, y):
-                    _set(a, y, c)
-                    stack.append(y)
-        return a[w - 1][h - 1]
-
-    a = paint(m)
-    done = a < 0
-
-    b = 0
-    for i, mi in enumerate(m):
-        for j, mij in enumerate(mi):
-            x = complex(i, j)
-            if mij < 1:
+    # State is (position, walls removed so far): the same cell is worth revisiting
+    # with a wall still in hand. FIFO, so the first arrival at the goal is shortest.
+    start = 0j, 0
+    seen = {start}
+    queue = deque([(start, 1)])
+    while queue:
+        (x, spent), length = queue.popleft()
+        if x == goal:
+            return length
+        for k in NEIGHBORS:
+            y = x + k
+            if not inside(y):
                 continue
-            if not done:
-                n = [[max(k, 0) for k in n] for n in m]
-                _set(n, x, 0)
-                c = paint(n)
-                if not c:
-                    continue
-
-                a = max(a, c) if a else c
-                continue
-            for k, l in product(NEIGHBORS, NEIGHBORS):  # noqa E741
-                if k == l:
-                    continue
-                y = x + k
-                if not inside(y):
-                    continue
-                y = _get(m, y)
-                if y > 0:
-                    continue
-                z = x + l
-                if not inside(z):
-                    continue
-                z = _get(m, z)
-                if z > 0:
-                    continue
-                if done and y < 0 and z < 0:
-                    b = max(b, abs(z - y) - 2)
-    return -a - b
+            state = y, spent + _get(m, y)
+            if state[1] < 2 and state not in seen:
+                seen.add(state)
+                queue.append((state, length + 1))
+    return 0
 
 
 assert solution([[0, 1, 1, 0], [0, 0, 0, 1], [1, 1, 0, 0], [1, 1, 1, 0]]) == 7
