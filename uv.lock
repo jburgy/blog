@@ -245,7 +245,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "numpy" },
-    { name = "puzzlekit", directory = "../puzzlekit" },
+    { name = "puzzlekit", git = "https://github.com/jburgy/puzzlekit.git?branch=main" },
 ]
 
 [package.metadata.requires-dev]
@@ -1656,22 +1656,7 @@ wheels = [
 [[package]]
 name = "puzzlekit"
 version = "0.1.0"
-source = { directory = "../puzzlekit" }
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "numpy", specifier = ">=2.1" },
-    { name = "pytest", specifier = ">=8.3" },
-    { name = "ruff", specifier = ">=0.14" },
-    { name = "scipy", specifier = ">=1.14" },
-]
-docs = [
-    { name = "furo", specifier = ">=2024.8.6" },
-    { name = "myst-parser", specifier = ">=4.0" },
-    { name = "sphinx", specifier = ">=8.1" },
-]
+source = { git = "https://github.com/jburgy/puzzlekit.git?branch=main#f14ed9c81ec30200ae66c3f81606588f43194ccb" }
 
 [[package]]
 name = "pycparser"
