@@ -14,6 +14,8 @@ autobenches = false
 [features]
 # Re-entrant entry points for the browser demo instead of a `main` reading stdin.
 web = []
+# jansforth uses Unix file-descriptor APIs and is not a WASI browser target.
+jansforth = []
 
 [dependencies]
 libc = "0.2"
@@ -25,6 +27,7 @@ path = "4th.rs"
 [[bin]]
 name = "jansforth"
 path = "jansforth.rs"
+required-features = ["jansforth"]
 
 [profile.release]
 opt-level = "s"
