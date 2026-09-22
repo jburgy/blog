@@ -9,6 +9,12 @@ use std::io::{self, Read, Write};
 use std::os::fd::{FromRawFd, IntoRawFd};
 use std::os::unix::fs::OpenOptionsExt;
 use std::process;
+#[cfg(test)]
+use std::cell::RefCell;
+#[cfg(test)]
+use std::io::Cursor;
+#[cfg(test)]
+use std::rc::Rc;
 
 const BUFFER_START: usize = 0x4000;
 const BUFFER_SIZE: usize = 0x1000;
@@ -20,13 +26,31 @@ const S0_ADDR: usize = 0x1403;
 const BASE_ADDR: usize = 0x1404;
 const LIT_CFA: i32 = 5251;
 
-const SYS_EXIT: i32 = 1;
-const SYS_READ: i32 = 3;
-const SYS_WRITE: i32 = 4;
-const SYS_OPEN: i32 = 5;
-const SYS_CLOSE: i32 = 6;
-const SYS_BRK: i32 = 45;
-const SYS_CREAT: i32 = 8;
+#[cfg(target_os = "macos")]
+mod syscall_numbers {
+    pub const EXIT: i32 = 0x2000001;
+    pub const READ: i32 = 0x2000003;
+    pub const WRITE: i32 = 0x2000004;
+    pub const OPEN: i32 = 0x2000005;
+    pub const CLOSE: i32 = 0x2000006;
+    pub const BRK: i32 = 0x20000d6;
+    pub const CREAT: i32 = 0x2000018;
+}
+
+#[cfg(not(target_os = "macos"))]
+mod syscall_numbers {
+    pub const EXIT: i32 = 1;
+    pub const READ: i32 = 3;
+    pub const WRITE: i32 = 4;
+    pub const OPEN: i32 = 5;
+    pub const CLOSE: i32 = 6;
+    pub const BRK: i32 = 45;
+    pub const CREAT: i32 = 8;
+}
+
+use syscall_numbers::{BRK as SYS_BRK, CLOSE as SYS_CLOSE, CREAT as SYS_CREAT};
+use syscall_numbers::{EXIT as SYS_EXIT, OPEN as SYS_OPEN, READ as SYS_READ};
+use syscall_numbers::WRITE as SYS_WRITE;
 
 #[derive(Default)]
 struct NumResult {
@@ -38,10 +62,12 @@ struct Forth {
     memory: Vec<u8>,
     currkey: usize,
     buftop: usize,
+    reader: Box<dyn Read>,
+    writer: Box<dyn Write>,
 }
 
 impl Forth {
-    fn new() -> io::Result<Self> {
+    fn new(reader: Box<dyn Read>, writer: Box<dyn Write>) -> io::Result<Self> {
         let mut memory = vec![0u8; 0x10000 * 4];
         
         // Initialize the rodata section
@@ -51,6 +77,8 @@ impl Forth {
             memory,
             currkey: BUFFER_START,
             buftop: BUFFER_START,
+            reader,
+            writer,
         })
     }
 
@@ -131,7 +159,12 @@ impl Forth {
     fn key(&mut self) -> io::Result<u8> {
         while self.buftop <= self.currkey {
             self.currkey = BUFFER_START;
-            let n = io::stdin().read(&mut self.memory[BUFFER_START..BUFFER_START + BUFFER_SIZE])?;
+            let n = self
+                .reader
+                .read(&mut self.memory[BUFFER_START..BUFFER_START + BUFFER_SIZE])?;
+            if n == 0 {
+                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "input ended"));
+            }
             self.buftop = BUFFER_START + n;
         }
         let ch = self.memory[self.currkey];
@@ -346,46 +379,46 @@ impl Forth {
                     self.write_i32(sp, a / b);
                 }
                 19 => { // =
-                    self.write_i32(sp + 1, (self.read_i32(sp + 1) == self.read_i32(sp)) as i32);
+                    self.write_i32(sp + 1, if self.read_i32(sp + 1) == self.read_i32(sp) { -1 } else { 0 });
                     sp += 1;
                 }
                 20 => { // <>
-                    self.write_i32(sp + 1, (self.read_i32(sp + 1) != self.read_i32(sp)) as i32);
+                    self.write_i32(sp + 1, if self.read_i32(sp + 1) != self.read_i32(sp) { -1 } else { 0 });
                     sp += 1;
                 }
                 21 => { // <
-                    self.write_i32(sp + 1, (self.read_i32(sp + 1) < self.read_i32(sp)) as i32);
+                    self.write_i32(sp + 1, if self.read_i32(sp + 1) < self.read_i32(sp) { -1 } else { 0 });
                     sp += 1;
                 }
                 22 => { // >
-                    self.write_i32(sp + 1, (self.read_i32(sp + 1) > self.read_i32(sp)) as i32);
+                    self.write_i32(sp + 1, if self.read_i32(sp + 1) > self.read_i32(sp) { -1 } else { 0 });
                     sp += 1;
                 }
                 23 => { // <=
-                    self.write_i32(sp + 1, (self.read_i32(sp + 1) <= self.read_i32(sp)) as i32);
+                    self.write_i32(sp + 1, if self.read_i32(sp + 1) <= self.read_i32(sp) { -1 } else { 0 });
                     sp += 1;
                 }
                 24 => { // >=
-                    self.write_i32(sp + 1, (self.read_i32(sp + 1) >= self.read_i32(sp)) as i32);
+                    self.write_i32(sp + 1, if self.read_i32(sp + 1) >= self.read_i32(sp) { -1 } else { 0 });
                     sp += 1;
                 }
                 25 => { // 0=
-                    self.write_i32(sp, (self.read_i32(sp) == 0) as i32);
+                    self.write_i32(sp, if self.read_i32(sp) == 0 { -1 } else { 0 });
                 }
                 26 => { // 0<>
-                    self.write_i32(sp, (self.read_i32(sp) != 0) as i32);
+                    self.write_i32(sp, if self.read_i32(sp) != 0 { -1 } else { 0 });
                 }
                 27 => { // 0<
-                    self.write_i32(sp, (self.read_i32(sp) < 0) as i32);
+                    self.write_i32(sp, if self.read_i32(sp) < 0 { -1 } else { 0 });
                 }
                 28 => { // 0>
-                    self.write_i32(sp, (self.read_i32(sp) > 0) as i32);
+                    self.write_i32(sp, if self.read_i32(sp) > 0 { -1 } else { 0 });
                 }
                 29 => { // 0<=
-                    self.write_i32(sp, (self.read_i32(sp) <= 0) as i32);
+                    self.write_i32(sp, if self.read_i32(sp) <= 0 { -1 } else { 0 });
                 }
                 30 => { // 0>=
-                    self.write_i32(sp, (self.read_i32(sp) >= 0) as i32);
+                    self.write_i32(sp, if self.read_i32(sp) >= 0 { -1 } else { 0 });
                 }
                 31 => { // AND
                     let val = self.read_i32(sp + 1) & self.read_i32(sp);
@@ -563,12 +596,12 @@ impl Forth {
                 }
                 71 => { // >R
                     rsp -= 1;
-                    self.write_i32(rsp, self.read_i32(sp) >> 2);
+                    self.write_i32(rsp, self.read_i32(sp));
                     sp += 1;
                 }
                 72 => { // R>
                     sp -= 1;
-                    self.write_i32(sp, self.read_i32(rsp) << 2);
+                    self.write_i32(sp, self.read_i32(rsp));
                     rsp += 1;
                 }
                 73 => { // RSP@
@@ -597,8 +630,8 @@ impl Forth {
                 }
                 79 => { // EMIT
                     let ch = self.read_i32(sp) as u8;
-                    io::stdout().write_all(&[ch])?;
-                    io::stdout().flush()?;
+                    self.writer.write_all(&[ch])?;
+                    self.writer.flush()?;
                     sp += 1;
                 }
                 80 => { // WORD
@@ -684,8 +717,8 @@ impl Forth {
                 94 => { // TELL
                     let len = self.read_i32(sp) as usize;
                     let addr = self.read_i32(sp + 1) as usize;
-                    io::stdout().write_all(&self.memory[addr..addr + len])?;
-                    io::stdout().flush()?;
+                    self.writer.write_all(&self.memory[addr..addr + len])?;
+                    self.writer.flush()?;
                     sp += 2;
                 }
                 95 => { // INTERPRET
@@ -838,7 +871,7 @@ impl Forth {
 }
 
 fn main() {
-    let mut forth = Forth::new().unwrap_or_else(|e| {
+    let mut forth = Forth::new(Box::new(io::stdin()), Box::new(io::stdout())).unwrap_or_else(|e| {
         eprintln!("Failed to initialize: {}", e);
         process::exit(1);
     });
@@ -846,5 +879,184 @@ fn main() {
     if let Err(e) = forth.run() {
         eprintln!("Runtime error: {}", e);
         process::exit(1);
+    }
+}
+
+#[cfg(test)]
+struct SharedWriter(Rc<RefCell<Vec<u8>>>);
+
+#[cfg(test)]
+impl Write for SharedWriter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn defwords() {
+    let forth = Forth::new(Box::new(Cursor::new(Vec::new())), Box::new(Vec::new())).unwrap();
+    let mut node = forth.read_i32(LATEST_ADDR) as usize;
+    let mut names = Vec::new();
+
+    while node != 0 {
+        let length = (forth.memory[node + 4] & 0x3f) as usize;
+        names.push(String::from_utf8(forth.memory[node + 5..node + 5 + length].to_vec()).unwrap());
+        node = forth.read_i32(node >> 2) as usize;
+    }
+    names.reverse();
+
+    assert_eq!(forth.read_i32(STATE_ADDR), 0);
+    assert_eq!(forth.read_i32(BASE_ADDR), 10);
+    assert_eq!(&names[..5], ["DROP", "SWAP", "DUP", "OVER", "ROT"]);
+    assert_eq!(names[50], "R0");
+    assert_eq!(names[51], "DOCOL");
+    assert_eq!(names[83], ">DFA");
+    assert_eq!(names.last().unwrap(), "SYSCALL1");
+    assert!(forth.read_i32(HERE_ADDR) > forth.read_i32(LATEST_ADDR));
+}
+
+#[cfg(test)]
+#[test]
+fn interp() {
+    let input = r#": / /MOD SWAP DROP ;
+: '\n' 10 ;
+: BL 32 ;
+: CR '\n' EMIT ;
+: SPACE BL EMIT ;
+: NEGATE 0 SWAP - ;
+: TRUE 1 ;
+: FALSE 0 ;
+: LITERAL IMMEDIATE ' LIT , , ;
+: ':' [ CHAR : ] LITERAL ;
+: ';' [ CHAR ; ] LITERAL ;
+: '"' [ CHAR " ] LITERAL ;
+: 'A' [ CHAR A ] LITERAL ;
+: '0' [ CHAR 0 ] LITERAL ;
+: '-' [ CHAR - ] LITERAL ;
+: [COMPILE] IMMEDIATE WORD FIND >CFA , ;
+: RECURSE IMMEDIATE LATEST @ >CFA , ;
+: IF IMMEDIATE ' 0BRANCH , HERE @ 0 , ;
+: THEN IMMEDIATE DUP HERE @ SWAP - SWAP ! ;
+: ELSE IMMEDIATE ' BRANCH , HERE @ 0 , SWAP DUP HERE @ SWAP - SWAP ! ;
+: BEGIN IMMEDIATE HERE @ ;
+: AGAIN IMMEDIATE ' BRANCH , HERE @ - , ;
+: WHILE IMMEDIATE ' 0BRANCH , HERE @ 0 , ;
+: REPEAT IMMEDIATE ' BRANCH , SWAP HERE @ - , DUP HERE @ SWAP - SWAP ! ;
+: NIP SWAP DROP ;
+: PICK 1+ 4 * DSP@ + @ ;
+: SPACES BEGIN DUP 0> WHILE SPACE 1- REPEAT DROP ;
+: U. BASE @ /MOD ?DUP IF RECURSE THEN DUP 10 < IF '0' ELSE 10 - 'A' THEN + EMIT ;
+: .S DSP@ BEGIN DUP S0 @ < WHILE DUP @ U. 4+ SPACE REPEAT DROP ;
+: UWIDTH BASE @ / ?DUP IF RECURSE 1+ ELSE 1 THEN ;
+: U.R SWAP DUP UWIDTH ROT SWAP - SPACES U. ;
+: .R SWAP DUP 0< IF NEGATE 1 SWAP ROT 1- ELSE 0 SWAP ROT THEN SWAP DUP UWIDTH ROT SWAP - SPACES SWAP IF '-' EMIT THEN U. ;
+: . 0 .R SPACE ;
+: U. U. SPACE ;
+: WITHIN -ROT OVER <= IF > IF TRUE ELSE FALSE THEN ELSE 2DROP FALSE THEN ;
+: ALIGNED 3 + -4 AND ;
+: ALIGN HERE @ ALIGNED HERE ! ;
+: C, HERE @ C! 1 HERE +! ;
+: S" IMMEDIATE STATE @ IF ' LITSTRING , HERE @ 0 , BEGIN KEY DUP '"' <> WHILE C, REPEAT DROP DUP HERE @ SWAP - 4- SWAP ! ALIGN ELSE HERE @ BEGIN KEY DUP '"' <> WHILE OVER C! 1+ REPEAT DROP HERE @ - HERE @ SWAP THEN ;
+: ." IMMEDIATE STATE @ IF [COMPILE] S" ' TELL , ELSE BEGIN KEY DUP '"' = IF DROP EXIT THEN EMIT AGAIN THEN ;
+: CELLS 4 * ;
+: ID. 4+ DUP C@ F_LENMASK AND BEGIN DUP 0> WHILE SWAP 1+ DUP C@ EMIT SWAP 1- REPEAT 2DROP ;
+: ?IMMEDIATE 4+ C@ F_IMMED AND ;
+: CASE IMMEDIATE 0 ;
+: OF IMMEDIATE ' OVER , ' = , [COMPILE] IF ' DROP , ;
+: ENDOF IMMEDIATE [COMPILE] ELSE ;
+: ENDCASE IMMEDIATE ' DROP , BEGIN ?DUP WHILE [COMPILE] THEN REPEAT ;
+: CFA> LATEST @ BEGIN ?DUP WHILE 2DUP SWAP < IF NIP EXIT THEN @ REPEAT DROP 0 ;
+: SEE WORD FIND HERE @ LATEST @ BEGIN 2 PICK OVER <> WHILE NIP DUP @ REPEAT DROP SWAP
+ ':' EMIT SPACE DUP ID. SPACE DUP ?IMMEDIATE IF ." IMMEDIATE " THEN >DFA
+ BEGIN 2DUP > WHILE DUP @
+     CASE
+         ' LIT OF 4+ DUP @ . ENDOF
+         ' LITSTRING OF [ CHAR S ] LITERAL EMIT '"' EMIT SPACE 4+ DUP @ SWAP 4+ SWAP 2DUP TELL '"' EMIT SPACE + ALIGNED 4- ENDOF
+         ' 0BRANCH OF ." 0BRANCH ( " 4+ DUP @ . ." ) " ENDOF
+         ' BRANCH OF ." BRANCH ( " 4+ DUP @ . ." ) " ENDOF
+         ' ' OF [ CHAR ' ] LITERAL EMIT SPACE 4+ DUP CFA> ID. SPACE ENDOF
+         ' EXIT OF 2DUP 4+ <> IF ." EXIT " THEN ENDOF
+         DUP CFA> ID. SPACE
+     ENDCASE
+     4+
+ REPEAT
+ ';' EMIT CR 2DROP ;
+: ['] IMMEDIATE ' LIT , ;
+: EXCEPTION-MARKER RDROP 0 ;
+: CATCH DSP@ 4+ >R ' EXCEPTION-MARKER 4+ >R EXECUTE ;
+: THROW ?DUP IF RSP@ BEGIN DUP R0 4- < WHILE DUP @ ' EXCEPTION-MARKER 4+ = IF 4+ RSP! DUP DUP DUP R> 4- SWAP OVER ! DSP! EXIT THEN 4+ REPEAT
+ DROP CASE 0 1- OF ." ABORTED" CR ENDOF ." UNCAUGHT THROW " DUP . CR ENDCASE QUIT THEN ;
+: STRLEN DUP BEGIN DUP C@ 0<> WHILE 1+ REPEAT SWAP - ;
+65 EMIT CR \ A
+777 65 EMIT DROP CR \ A
+32 DUP + 1+ EMIT CR \ A
+16 DUP 2DUP + + + 1+ EMIT CR \ A
+8 DUP * 1+ EMIT CR \ A
+CHAR A EMIT CR \ A
+: SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT CR \ A
+1179010630 DSP@ 4 TELL 2DROP CR \ FFFF
+1179010630 DSP@ HERE @ 4 CMOVE HERE @ 4 TELL DROP CR \ FFFF
+13622 DSP@ 2 NUMBER DROP EMIT CR \ A
+64 >R RSP@ 1 TELL RDROP CR \ @
+64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL 2DROP CR \ @
+64 >R 1 RSP@ +! RSP@ 1 TELL RDROP CR \ A
+VERSION . CR \ 47
+LATEST @ ID. CR \ SLOW
+0 1 > . CR \ 0
+1 0 > . CR \ -1
+0 1 >= . CR \ 0
+0 0 >= . CR \ -1
+0 0<> . CR \ 0
+1 0<> . CR \ -1
+1 0<= . CR \ 0
+0 0 <= . CR \ -1
+-1 0>= . CR \ 0
+0 0>= . CR \ -1
+0 0 OR . CR \ 0
+0 -1 OR . CR \ -1
+-1 -1 XOR . CR \ 0
+0 -1 XOR . CR \ -1
+-1 INVERT . CR \ 0
+0 INVERT . CR \ -1
+F_IMMED F_HIDDEN .S 2DROP CR \ 32 128 13622
+: CFA@ WORD FIND >CFA @ ; CFA@ >DFA DOCOL = . CR \ -1
+3 4 5 .S 2DROP DROP CR \ 5 4 3 13622
+3 4 5 WITHIN . CR \ 0
+SEE >DFA \ : >DFA >CFA 4+ ;
+SEE HIDE \ : HIDE WORD FIND HIDDEN ;
+SEE QUIT \ : QUIT R0 RSP! INTERPRET BRANCH ( -8 ) ;
+: FOO THROW ;
+: TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF ." FOO threw exception: " . CR DROP THEN ;
+TEST-EXCEPTIONS \ FOO threw exception: 25
+: PAD4 ." ABCD" ; PAD4 CR \ ABCD
+HIDE (ARGC) WORD (ARGC) FIND 0= . CR \ -1
+"#;
+    let output = Rc::new(RefCell::new(Vec::new()));
+    let mut forth = Forth::new(
+        Box::new(Cursor::new(input.as_bytes().to_vec())),
+        Box::new(SharedWriter(Rc::clone(&output))),
+    )
+    .unwrap();
+
+    let error = forth.run().unwrap_err();
+    assert_eq!(error.kind(), io::ErrorKind::UnexpectedEof);
+
+    let actual = output.borrow();
+    let actual_lines = actual.split(|byte| *byte == b'\n');
+    let expected_lines = input.lines().filter_map(|line| {
+        line.find(" \\ ").map(|index| &line[index + 3..])
+    });
+    for (expected, actual) in expected_lines.zip(actual_lines) {
+        assert_eq!(
+            actual.trim_ascii_end(),
+            expected.trim_ascii_end().as_bytes(),
+            "output for {expected:?}"
+        );
     }
 }
