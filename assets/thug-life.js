@@ -66,23 +66,19 @@ function drawTrackedSunglasses(nose) {
   drawSunglasses(ctx, x, y, scale);
 }
 
+const TRACK_INTERVAL_MS = 150; // throttle detection instead of running every animation frame
+let tracking = false;
+
 async function trackFace() {
-  if (!video.srcObject) return;
+  if (!tracking || !video.srcObject) return;
   const options = new faceapi.TinyFaceDetectorOptions();
   const result = await faceapi.detectSingleFace(video, options).withFaceLandmarks(true);
   if (result && result.landmarks) {
     // Nose tip is landmark 30
     drawTrackedSunglasses(result.landmarks.positions[30]);
   }
-  requestAnimationFrame(trackFace);
+  if (tracking) setTimeout(trackFace, TRACK_INTERVAL_MS);
 }
-
-btn.addEventListener('click', async () => {
-  if (!faceapi.nets.tinyFaceDetector.params) {
-    await loadFaceApiModels();
-  }
-  trackFace();
-});
 
 function animateDrop() {
   const ctx = canvas.getContext('2d');
@@ -108,9 +104,17 @@ function animateDrop() {
       requestAnimationFrame(step);
     } else {
       drawSunglasses(ctx, targetX, targetY, scale);
+      tracking = true;
+      trackFace();
     }
   }
   step();
 }
 
-btn.addEventListener('click', animateDrop);
+btn.addEventListener('click', async () => {
+  if (tracking) return;
+  if (!faceapi.nets.tinyFaceDetector.params) {
+    await loadFaceApiModels();
+  }
+  animateDrop();
+});
