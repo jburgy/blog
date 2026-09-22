@@ -63,8 +63,8 @@ cosmopolitan-amalgamation-2.2.zip :
 %.gcov : %.c
 	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
-zig-out/bin/6th : 6th.zig
-	uvx --from ziglang==0.15.2 python-zig build
+zig-out/bin/6th : 6th.zig build.zig
+	zig build
 
 web : web/4th.wasm
 
