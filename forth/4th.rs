@@ -1448,13 +1448,14 @@ mod web {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{BufReader, Cursor};
 
     fn interp() -> Interp {
         Interp::new(Box::new(io::empty()), Box::new(io::sink()))
     }
 
     /// An interpreter reading `input` and writing into a buffer we can inspect.
-    fn interp_io(input: &'static str) -> (Interp, std::rc::Rc<std::cell::RefCell<Vec<u8>>>) {
+    fn interp_io(input: &str) -> (Interp, std::rc::Rc<std::cell::RefCell<Vec<u8>>>) {
         struct Shared(std::rc::Rc<std::cell::RefCell<Vec<u8>>>);
         impl Write for Shared {
             fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
@@ -1466,7 +1467,8 @@ mod tests {
             }
         }
         let out = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-        let i = Interp::new(Box::new(input.as_bytes()), Box::new(Shared(out.clone())));
+        let reader = BufReader::new(Cursor::new(input.as_bytes().to_vec()));
+        let i = Interp::new(Box::new(reader), Box::new(Shared(out.clone())));
         (i, out)
     }
 
@@ -1733,7 +1735,7 @@ mod tests {
 
     /// Feed `src` to QUIT until the input runs out; return the stack (top
     /// first) and everything the interpreter printed.
-    fn run_source(src: &'static str) -> (Vec<Cell>, String) {
+    fn run_source(src: &str) -> (Vec<Cell>, String) {
         let (mut i, out) = interp_io(src);
         let quit = i.to_cfa(i.find(b"QUIT"));
         i.execute(quit);
@@ -1822,5 +1824,29 @@ mod tests {
             vec![3, addr, 999],
             "failure leaves the operands and a non-zero count"
         );
+    }
+
+    #[test]
+    fn runs_the_full_6th_zig_interpreter_fixture() {
+        let source = include_str!("6th.zig");
+        let test_body = source
+            .split_once("test Interp {")
+            .map(|(_, body)| body)
+            .expect("6th.zig interpreter test");
+        let input: String = test_body
+            .lines()
+            .take_while(|line| line.trim() != ";")
+            .filter_map(|line| line.trim_start().strip_prefix("\\\\"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let (_, output) = run_source(&input);
+        let expected: Vec<&[u8]> = input
+            .lines()
+            .filter_map(|line| line.find(" \\ ").map(|index| line[index + 3..].trim_ascii_end().as_bytes()))
+            .collect();
+        let actual: Vec<&[u8]> = output.lines().map(|line| line.trim_ascii_end().as_bytes()).collect();
+
+        assert_eq!(actual, expected);
     }
 }

@@ -3,7 +3,8 @@ name = "fourth"
 version = "0.0.0"
 edition = "2024"
 publish = false
-# `4th.rs` is the only cargo target here; keep auto-discovery away from `src/`.
+# Keep auto-discovery away from `src/`; the two standalone interpreters are
+# declared explicitly below.
 autobins = false
 autolib = false
 autotests = false
@@ -13,10 +14,20 @@ autobenches = false
 [features]
 # Re-entrant entry points for the browser demo instead of a `main` reading stdin.
 web = []
+# jansforth uses Unix file-descriptor APIs and is not a WASI browser target.
+jansforth = []
+
+[dependencies]
+libc = "0.2"
 
 [[bin]]
 name = "4th"
 path = "4th.rs"
+
+[[bin]]
+name = "jansforth"
+path = "jansforth.rs"
+required-features = ["jansforth"]
 
 [profile.release]
 opt-level = "s"
