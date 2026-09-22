@@ -5,6 +5,11 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 
+#ifdef __APPLE__
+#define SYS_creat 24
+#define SYS_brk 214
+#endif
+
 enum Builtin {
     DOCOL,
     DROP,

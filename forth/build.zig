@@ -62,4 +62,18 @@ fn buildNative(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) 
         .use_llvm = true,
     });
     b.installArtifact(exe);
+
+    const tests = b.addTest(.{
+        .name = "6th-tests",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("6th.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+        .use_llvm = true,
+    });
+    const run_tests = b.addRunArtifact(tests);
+    const test_step = b.step("test", "Run 6th.zig tests");
+    test_step.dependOn(&run_tests.step);
 }

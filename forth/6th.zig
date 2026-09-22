@@ -20,6 +20,17 @@ const builtin = @import("builtin");
 const arch = builtin.cpu.arch;
 const native = arch.endian();
 
+const Syscall = if (builtin.os.tag == .macos) enum(i32) {
+    exit = 0x2000001,
+    read = 0x2000003,
+    write = 0x2000004,
+    open = 0x2000005,
+    close = 0x2000006,
+    getppid = 0x2000027,
+    creat = 0x2000008,
+    brk = 0x20000d6,
+} else syscalls.X64;
+
 const conv: std.builtin.CallingConvention = switch (arch) {
     .x86_64 => .winapi,
     else => .auto,
@@ -60,7 +71,7 @@ inline fn codeFieldAddress(w: Address) usize {
 
 inline fn openFlags(flags: usize) std.c.O {
     return switch (builtin.os.tag) {
-        .linux, .emscripten => .{
+        .linux, .macos, .emscripten => .{
             .ACCMODE = @enumFromInt(flags & O_RDWR),
             .CREAT = (flags & O_CREAT) != 0,
             .EXCL = (flags & O_EXCL) != 0,
@@ -698,7 +709,7 @@ fn _execute(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) call
 }
 
 inline fn _syscall3(sp: [*]i32) [*]i32 {
-    const number_: syscalls.X64 = @enumFromInt(sp[0]);
+    const number_: Syscall = @enumFromInt(sp[0]);
 
     switch (number_) {
         .open => {
@@ -727,7 +738,7 @@ inline fn _syscall3(sp: [*]i32) [*]i32 {
 }
 
 inline fn _syscall2(sp: [*]i32) [*]i32 {
-    const number_: syscalls.X64 = @enumFromInt(sp[0]);
+    const number_: Syscall = @enumFromInt(sp[0]);
 
     switch (number_) {
         .open => {
@@ -741,7 +752,7 @@ inline fn _syscall2(sp: [*]i32) [*]i32 {
 }
 
 fn _syscall1(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callconv(conv) void {
-    const number_: syscalls.X64 = @enumFromInt(self.readInt(sp));
+    const number_: Syscall = @enumFromInt(self.readInt(sp));
 
     switch (number_) {
         .exit => {
@@ -765,11 +776,13 @@ fn _syscall1(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) cal
 }
 
 inline fn _syscall0(sp: [*]i32) [*]i32 {
-    const number_: syscalls.X64 = @enumFromInt(sp[0]);
+    const number_: Syscall = @enumFromInt(sp[0]);
     switch (number_) {
         .getppid => {
             sp[0] = if (arch.isWasm())
                 @panic("getppid not supported")
+            else if (builtin.os.tag == .macos)
+                @intCast(std.c.getppid())
             else
                 @intCast(os.linux.getppid());
         },
@@ -836,13 +849,13 @@ const primitives = [_]*const Code{
     value(@intFromEnum(Flag.IMMED)),
     value(@intFromEnum(Flag.HIDDEN)),
     value(F_LENMASK),
-    value(@intFromEnum(syscalls.X64.exit)),
-    value(@intFromEnum(syscalls.X64.open)),
-    value(@intFromEnum(syscalls.X64.close)),
-    value(@intFromEnum(syscalls.X64.read)),
-    value(@intFromEnum(syscalls.X64.write)),
-    value(@intFromEnum(syscalls.X64.creat)),
-    value(@intFromEnum(syscalls.X64.brk)),
+    value(@intFromEnum(Syscall.exit)),
+    value(@intFromEnum(Syscall.open)),
+    value(@intFromEnum(Syscall.close)),
+    value(@intFromEnum(Syscall.read)),
+    value(@intFromEnum(Syscall.write)),
+    value(@intFromEnum(Syscall.creat)),
+    value(@intFromEnum(Syscall.brk)),
     value(O_RDONLY),
     value(O_WRONLY),
     value(O_RDWR),

@@ -7,7 +7,15 @@ CPPFLAGS = -include cosmopolitan.h -I.
 LDFLAGS = -Wl,--oformat=binary -Wl,--gc-sections -Wl,-z,max-page-size=0x1000 -fuse-ld=bfd -gdwarf-4 -Wl,-T,ape.lds
 LDLIBS = cosmopolitan.a
 
-all: 4th.com 4th 4th.ll serve
+all: 4th 5th zig-out/bin/6th jansforth 4th-rs jansforth-rs
+
+.PHONY: all 4th-rs jansforth-rs
+
+4th-rs: Cargo.toml 4th.rs
+	rustup run nightly cargo build --bin 4th
+
+jansforth-rs: Cargo.toml jansforth.rs
+	cargo build --features jansforth --bin jansforth
 
 run: 4th
 	cat 4th.fs - | ./4th
@@ -55,8 +63,8 @@ cosmopolitan-amalgamation-2.2.zip :
 %.gcov : %.c
 	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
-zig-out/bin/6th : 6th.zig
-	uvx --from ziglang==0.15.2 python-zig build
+zig-out/bin/6th : 6th.zig build.zig
+	zig build
 
 web : web/4th.wasm
 
@@ -89,7 +97,7 @@ test-wasm : 4th.rs
 	rustup run nightly cargo test --release --target wasm32-wasip1 -Zbuild-std=std,panic_unwind
 
 jansforth : jansforth.c
-	$(CC) -m32 -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
+	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
 
 clean :
 	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.js *.ll *.wasm* *th.*mjs *.html 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm
