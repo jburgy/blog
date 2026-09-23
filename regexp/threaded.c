@@ -219,6 +219,7 @@ char *search(const char *re, char *s)
 {
     void *op[] = {&&JUMP, &&CHAR, &&FORK, &&STOP};
     unsigned char *p = convert(re);
+    union cell xchg = {&&XCHG};
     union cell *code = compile(p, op), *pc;
     union cell *clist[BUFSIZ], *nlist[BUFSIZ];
     char *found = NULL;
@@ -227,9 +228,10 @@ char *search(const char *re, char *s)
     free(p);
 
 XCHG:
-    /* CLIST is exhausted: swap the lists and take one more character */
+    /* CLIST is exhausted: swap the lists and plant XCHG as its sentinel */
     if (!c)
         goto done;
+    clist[cnode++] = &xchg;
     while (nnode)
         clist[cnode++] = nlist[--nnode];
     c = (unsigned char)*s++;
@@ -245,8 +247,6 @@ CHAR:
         nlist[nnode++] = pc; /* pc is the successor link, i.e. the continuation */
 
     /* this thread is done for this character: run the next one on CLIST */
-    if (!cnode) /* Thompson plants a TRA XCHG at the bottom of CLIST */
-        goto XCHG;
     pc = clist[--cnode];
     NEXT;
 
