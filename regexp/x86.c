@@ -131,16 +131,19 @@ static void *xalloc(size_t size)
 
 static unsigned char header[] = {
     /* clang-format off */
-    0xC8, 0x94, 0x10, 0x00,                    /*         enter  $400, $0          */
-    0x8B, 0x55, 0x08,                          /*         movl   8(%ebp), %edx     */
-    0xB8, 0xFF, 0x00, 0x00, 0x00,              /*         movl   $0xff, %eax       */
+    0x56,                                      /*         pushl  %esi              */
+    0xC8, 0x90, 0x01, 0x00,                    /*         enter  $400, $0          */
+    0x8B, 0x75, 0x0C,                          /*         movl   12(%ebp), %esi    */
+    0x31, 0xC0,                                /*         xorl   %eax, %eax        */
+    0x40,                                      /*         incl   %eax              */
     0x31, 0xC9,                                /*         xorl   %ecx, %ecx        */
     0xE8, 0x00, 0x00, 0x00, 0x00,              /*         call   _next             */
                                                /* _next:                           */
     0x83, 0x2C, 0x24, 0x05,                    /*         sub    $5, (%esp)        */
     0xA8, 0xFF,                                /*         testb  $0xff, %al        */
-    0x75, 0x02,                                /*         jnz    _L1               */
+    0x75, 0x03,                                /*         jnz    _L1               */
     0xC9,                                      /*         leave                    */
+    0x5E,                                      /*         popl   %esi              */
     0xC3,                                      /*         ret                      */
                                                /* _L1:                             */
     0xE3, 0x0A,                                /*         jecxz  _L2               */
@@ -148,8 +151,7 @@ static unsigned char header[] = {
     0xFF, 0xB4, 0x8D, 0x70, 0xFE, 0xFF, 0xFF,  /*         pushl  -400(%ebp,%ecx,4) */
     0xEB, 0xF4,                                /*         jmp    _L1               */
                                                /* _L2:                             */
-    0x8A, 0x02,                                /*         movb   (%edx), %al       */
-    0x42,                                      /*         incl   %edx              */
+    0xAC,                                      /*         lodsb                    */
     0xE8, 0x0A, 0x00, 0x00, 0x00,              /*         call   _code             */
                                                /* _fail:                           */
     0xC3,                                      /*         ret                      */
@@ -162,14 +164,15 @@ static unsigned char header[] = {
 
 static unsigned char footer[] = {
     /* clang-format off */
-    0x4A,                                      /*         decl   %edx              */
-    0x89, 0xD0,                                /*         mov    %edx, %eax        */
+    0x96,                                      /*         xchg   %esi, %eax        */
+    0x48,                                      /*         decl   %eax              */
     0xC9,                                      /*         leave                    */
+    0x5E,                                      /*         popl   %esi              */
     0xC3,                                      /*         ret                      */
     /* clang-format on */
 };
 
-typedef char *(*function_t)(char *);
+typedef char *(__attribute__((cdecl, regparm(0))) * function_t)(char *);
 
 static int codelen(const unsigned char *src)
 {
@@ -203,7 +206,7 @@ enum {
 unsigned char *compile(const unsigned char *src)
 {
     int i, c, pc = sizeof header, top = 0;
-    unsigned long stack[BUFSIZ], tmp, fail = 0x31, nnode = 0x32;
+    unsigned long stack[BUFSIZ], tmp, fail = 0x2F, nnode = 0x30;
     unsigned long length = sizeof header + codelen(src) + sizeof footer;
     unsigned char *code = xalloc(length);
 
@@ -229,7 +232,7 @@ unsigned char *compile(const unsigned char *src)
                 break;
 
             case KLEENE:
-                tmp = code[stack[top - 1]] + stack[top - 1] + 1 - (pc + 5);
+                tmp = code[stack[top - 1]] + stack[top - 1] - (pc + 4);
                 code[pc + 0] = CALL;    memcpy(code + pc + 1, &tmp, sizeof tmp);
                 code[stack[top - 1]] = (pc - 1 - stack[top - 1]) & 0xFF;
                 pc += 5;
