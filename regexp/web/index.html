@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>regexp.f &mdash; Thompson's 1968 compiler, in FORTH, in your browser</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+			--accent: #b58900;
+		}
+
+		body {
+			margin: 0 auto;
+			max-width: 46rem;
+			padding: 2rem 1rem 4rem;
+			font: 16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+		}
+
+		h1 {
+			font-size: 1.6rem;
+			margin-bottom: .25rem;
+		}
+
+		.blurb {
+			margin-top: 0;
+			opacity: .75;
+		}
+
+		code {
+			font-family: Menlo, Consolas, monospace;
+		}
+
+		.query {
+			display: flex;
+			gap: .5rem;
+			align-items: flex-end;
+			flex-wrap: wrap;
+		}
+
+		.query__label {
+			display: flex;
+			flex-direction: column;
+			gap: .25rem;
+			flex: 1 1 18rem;
+			font-size: .85rem;
+			text-transform: uppercase;
+			letter-spacing: .06em;
+			opacity: .75;
+		}
+
+		.query input,
+		.query button {
+			font: inherit;
+			padding: .5rem .75rem;
+			border: 1px solid currentColor;
+			border-radius: .25rem;
+			background: transparent;
+			color: inherit;
+		}
+
+		.query input {
+			font-family: Menlo, Consolas, monospace;
+			text-transform: none;
+			letter-spacing: normal;
+		}
+
+		.query button {
+			cursor: pointer;
+		}
+
+		.status {
+			min-height: 1.6em;
+			font-size: .9rem;
+			opacity: .75;
+		}
+
+		.panel[data-state="error"] .status {
+			color: #dc322f;
+			opacity: 1;
+		}
+
+		.subject {
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+			padding: 1rem;
+			text-align: justify;
+			white-space: pre-wrap;
+		}
+
+		.subject mark {
+			background: var(--accent);
+			color: #fff;
+			border-radius: .15rem;
+		}
+
+		.examples button {
+			font: inherit;
+			font-family: Menlo, Consolas, monospace;
+			cursor: pointer;
+			margin: 0 .35rem .35rem 0;
+			padding: .15rem .45rem;
+			border: 1px solid rgba(128, 128, 128, .5);
+			border-radius: .25rem;
+			background: transparent;
+			color: inherit;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>regexp.f</h1>
+	<p class="blurb">
+		<a href="https://github.com/jburgy/blog/blob/main/regexp/regexp.f">regexp.f</a> is Ken Thompson's 1968
+		on-the-fly regular expression compiler written in the jonesforth dialect of FORTH. Typing a pattern
+		below compiles it &mdash; for real, into threaded code &mdash; inside a
+		<a href="https://github.com/jburgy/blog/blob/main/forth/wasm/tabulate.wast">FORTH interpreter running as
+			WebAssembly</a>, then runs the resulting NFA over the text.
+	</p>
+
+	<p class="examples">
+		Try:
+		<button type="button">dolor</button>
+		<button type="button">l(a|o)b</button>
+		<button type="button">(a|e|i|o|u)(a|e|i|o|u)</button>
+		<button type="button">do*l</button>
+		<button type="button">e(x|s)</button>
+	</p>
+
+	<div id="demo"></div>
+
+	<p class="blurb">
+		The syntax is the one from the paper: concatenation, <code>|</code> for alternation,
+		<code>*</code> for closure, <code>(</code>&hellip;<code>)</code> for grouping and <code>\</code> to
+		escape. Thompson's machine reports the <em>shortest</em> match at the leftmost position, so
+		<code>(a|b)*a</code> stops at the first <code>a</code> rather than running to the last one.
+	</p>
+
+	<script type="module">
+		import { createPanel, attach } from './demo.mjs';
+
+		const panel = createPanel(document);
+		document.getElementById('demo').append(panel);
+
+		const status = panel.querySelector('[data-role="status"]');
+		status.textContent = 'booting the FORTH image\u2026';
+
+		const { run, input } = await attach(panel);
+		input.value = 'l(a|o)b';
+		run();
+
+		for (const button of document.querySelectorAll('.examples button')) {
+			button.addEventListener('click', () => {
+				input.value = button.textContent;
+				run();
+			});
+		}
+	</script>
+</body>
+
+</html>

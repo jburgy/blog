@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<title>regexp.f browser tests</title>
+	<link rel="stylesheet" href="../node_modules/mocha/mocha.css">
+</head>
+
+<body>
+	<div id="mocha"></div>
+	<script src="../node_modules/mocha/mocha.js"></script>
+	<script>mocha.setup({ ui: 'bdd', timeout: 60000 });</script>
+	<script type="module" src="./matcher.test.mjs"></script>
+	<script type="module" src="./demo.test.mjs"></script>
+	<script type="module">mocha.run();</script>
+</body>
+
+</html>

@@ -60,6 +60,7 @@ node_modules
 package-lock.json
 
 forth/web/4th.wasm
+regexp/web/forth.wasm
 .zig-cache/
 zig-cache/
 zig-out/
