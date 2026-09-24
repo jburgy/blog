@@ -47,6 +47,8 @@ unsigned char *prepare(const char *src)
         switch (c) {
 
             case '(':
+                if (concat)
+                    dest[j++] = CONCAT;
                 dest[j++] = LPAREN;
                 concat = 0;
                 nparen++;
@@ -303,6 +305,7 @@ int main(void)
         {"ab*c", "abbbc"},
         {"ab*c", "ac"},
         {"(a|a)*", "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+        {"b*(c|d)", "c"},
         {NULL, NULL}};
 
     for (i = 0; test[i].re; i++) {

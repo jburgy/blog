@@ -47,6 +47,8 @@ static unsigned char *prepare(const char *src)
         switch (c) {
 
             case '(':
+                if (concat)
+                    dest[j++] = CONCAT;
                 dest[j++] = LPAREN;
                 concat = 0;
                 nparen++;
@@ -182,7 +184,7 @@ static int codelen(const unsigned char *src)
             case CONCAT:
                 break;
             case KLEENE:
-                n += 3;
+                n += 8;
                 break;
             case ALTERN:
                 n += 5;
@@ -235,6 +237,7 @@ uint32_t *compile(const unsigned char *src)
 {
     int i, c, top = 0;
     long pc = sizeof header / sizeof *header, stack[BUFSIZ], s1, s2;
+    long lambda[BUFSIZ]; /* Thompson's lambda: the `b' taken on an empty match, or 0 */
     size_t length = sizeof header + 4 * codelen(src) + sizeof footer;
     size_t size = mapsize(16 + length);
     unsigned char *base = mmap(NULL, size, PROT_READ | PROT_WRITE,
@@ -251,6 +254,7 @@ uint32_t *compile(const unsigned char *src)
         switch (c) {
 
             default:
+                lambda[top] = 0;
                 stack[top++] = pc;
                 code[pc + 0] = branch(B, pc, pc + 1);
                 code[pc + 1] = CMP | (uint32_t)c << 10;
@@ -260,6 +264,8 @@ uint32_t *compile(const unsigned char *src)
                 break;
 
             case CONCAT:
+                if (!lambda[top - 1])
+                    lambda[top - 2] = 0;
                 --top;
                 break;
 
@@ -268,8 +274,16 @@ uint32_t *compile(const unsigned char *src)
                 code[pc + 0] = adr(pc, pc + 3);
                 code[pc + 1] = PUSH;
                 code[pc + 2] = branch(B, pc + 2, target(code, s1));
-                code[s1] = branch(B, s1, pc);
-                pc += 3;
+                code[pc + 3] = branch(B, pc + 3, pc + 8);
+                code[pc + 4] = adr(pc + 4, pc + 7);
+                code[pc + 5] = PUSH;
+                code[pc + 6] = branch(B, pc + 6, target(code, s1));
+                code[pc + 7] = branch(B, pc + 7, pc + 8);
+                code[s1] = branch(B, s1, pc + 4);
+                if (lambda[top - 1])
+                    code[lambda[top - 1]] = branch(B, lambda[top - 1], FAIL);
+                lambda[top - 1] = pc + 7;
+                pc += 8;
                 break;
 
             case ALTERN:
@@ -282,6 +296,10 @@ uint32_t *compile(const unsigned char *src)
                 code[pc + 4] = branch(B, pc + 4, target(code, s1));
                 code[s1] = branch(B, s1, pc + 1);
                 code[s2] = branch(B, s2, pc + 5);
+                if (!lambda[top - 2])
+                    lambda[top - 2] = lambda[top - 1];
+                else if (lambda[top - 1])
+                    code[lambda[top - 1]] = branch(B, lambda[top - 1], lambda[top - 2]);
                 pc += 5;
                 --top;
                 break;
@@ -336,6 +354,10 @@ int main(void)
         {"a(b|c)*d", "abccccccccd"},
         {"a*", "aaab"},
         {"a(b|c)*d", "abcd"},
+        {"a**", "b"},
+        {"(a*b*)*c", "abbac"},
+        {"(a*|b*)*c", "abac"},
+        {"b*(c|d)", "c"},
         {NULL, NULL}};
 
     for (i = 0; test[i].r; i++) {
