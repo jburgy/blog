@@ -3,8 +3,10 @@ CFLAGS = -Wall -Wextra -Os -fblocks -mtail-call -pthread -DEMSCRIPTEN
 ZFLAGS = -ODebug -target wasm32-emscripten -mcpu baseline+atomics+bulk_memory+tail_call
 LDFLAGS = -sPROXY_TO_PTHREAD -sEXPORTED_FUNCTIONS=_malloc,_main
 VPATH = ../forth
+# matcher.mjs fetches ../regexp.f and ../../forth/4th.32.fs, so keep the repo layout
+REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 
-all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic jonesforth.wasm
+all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic jonesforth.wasm regexp
 	rm -rf *.a *.o node_modules/@xterm/xterm/src
 
 %.mjs : %.o jonesforth.f node_modules/xterm-pty/emscripten-pty.js
@@ -27,6 +29,20 @@ lib%.a : %.zig
 
 lib6th.a : 6th.zig
 
+regexp : $(REGEXP) regexp/web/forth.wasm forth/4th.32.fs
+
+$(REGEXP) : regexp/% : ../regexp/%
+	@mkdir -p $(@D)
+	cp $< $@
+
+regexp/web/forth.wasm : ../forth/wasm/tabulate.wast
+	@mkdir -p $(@D)
+	npx -y --package wabt wat2wasm --enable-multi-memory -o $@ $<
+
+forth/4th.32.fs : ../forth/4th.32.fs
+	@mkdir -p $(@D)
+	cp $< $@
+
 node_modules/xterm-pty/emscripten-pty.js :
 	npm install @xterm/xterm xterm-pty
 
@@ -45,5 +61,7 @@ client-server:
 jonesforth.f: ../jonesforth/jonesforth.f
 	cp $< $@
 
+.PHONY : regexp
+
 clean :
-	rm -rf *.o *.a *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js
+	rm -rf *.o *.a *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js regexp forth
