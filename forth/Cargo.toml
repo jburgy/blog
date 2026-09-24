@@ -15,10 +15,10 @@ autobenches = false
 # Re-entrant entry points for the browser demo instead of a `main` reading stdin.
 web = []
 # jansforth uses Unix file-descriptor APIs and is not a WASI browser target.
-jansforth = []
+jansforth = ["dep:libc"]
 
 [dependencies]
-libc = "0.2"
+libc = { version = "0.2", optional = true }
 
 [[bin]]
 name = "4th"
