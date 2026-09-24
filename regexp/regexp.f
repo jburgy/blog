@@ -89,7 +89,8 @@ VARIABLE RE-IX
         BEGIN RE-SRC @ RE-STOP @ < WHILE
                 RE-SRC @ C@   1 RE-SRC +!
                 DUP '(' = IF
-                        DROP LPAREN INFIX,   0 RE-CAT? !   1 RE-DEPTH +!
+                        DROP RE-CAT? @ IF CONCAT INFIX, THEN
+                        LPAREN INFIX,   0 RE-CAT? !   1 RE-DEPTH +!
                 ELSE DUP ')' = IF
                         DROP RPAREN INFIX,  -1 RE-DEPTH +!   1 RE-CAT? !
                 ELSE DUP '*' = IF
@@ -211,6 +212,11 @@ VARIABLE RE-RSP         ( %ebp: return stack mark to unwind to on success )
         state preceding the block jumps there, and RE-PATCH is how KLEENE and ALTERN
         rewire it.  A fragment is identified by that slot; RE-ENTRY reads the entry
         point back out of it.  This mirrors x86.c's `stack[top] = pc + 1'.
+
+        A fragment travels as ( slot lambda ).  lambda is Thompson's revision from the
+        Notes of his paper: the slot of the BRANCH taken when the fragment matches the
+        empty string, or 0.  Starring a fragment turns that BRANCH into EXIT so that
+        a** cannot recurse forever.
 )
 : RE-SLOT       ( -- slot )  ' BRANCH , HERE @ 4 , ;
 : RE-ENTRY      ( slot -- a )     DUP @ + ;
@@ -224,26 +230,38 @@ VARIABLE RE-RSP         ( %ebp: return stack mark to unwind to on success )
         EXIT is _fail; (NNODE) is last so that the successor it records is the next
         block, exactly like _nnode recording pc+11.
 )
-: RE-CHAR-NODE  ( c -- slot )
+: RE-CHAR-NODE  ( c -- slot 0 )
         RE-SLOT SWAP
         ' LIT , ,
         ' RE-CHAR? ,
         ' 0BRANCH , 8 ,
         ' EXIT ,
         ' (NNODE) ,
+        0
 ;
 
-: RE-CAT        ( s1 s2 -- s1 )  DROP ;
-
-( KLEENE, 2 cells: XCALL <entry>, then fall through to the out.  The fragment's )
-( own out is rewired back to the XCALL, which is the loop.                      )
-: RE-STAR       ( s -- s )
-        HERE @
-        ' XCALL , OVER RE-ENTRY ,
-        2DUP RE-PATCH DROP
-;
+: RE-CAT        ( s1 l1 s2 l2 -- s1 l )  NIP 0= IF DROP 0 THEN ;
 
 VARIABLE RE-A  VARIABLE RE-B  VARIABLE RE-PC
+VARIABLE RE-LA VARIABLE RE-LB
+
+(
+        KLEENE, 8 cells:
+
+          0 XCALL  1 <entry>  2 BRANCH  3 <out>  4 XCALL  5 <entry>  6 BRANCH  7 <out>
+
+        Entry is cell 4, whose BRANCH recognizes lambda.  The fragment's own out is
+        rewired back to cell 0, which is the loop.
+)
+: RE-STAR       ( s l -- s l' )
+        ?DUP IF ' EXIT SWAP 4- ! THEN
+        HERE @ RE-PC !
+        ' XCALL , DUP RE-ENTRY ,
+        ' BRANCH , 20 ,
+        ' XCALL , DUP RE-ENTRY ,
+        DUP RE-PC @ 16 + RE-PATCH
+        ' BRANCH , HERE @ 4 ,
+;
 
 (
         ALTERN, 6 cells:
@@ -251,10 +269,11 @@ VARIABLE RE-A  VARIABLE RE-B  VARIABLE RE-PC
           0 BRANCH  1 <out>  2 XCALL  3 <B entry>  4 BRANCH  5 <A entry>
 
         Entry is cell 2: run B, then -- however B ended -- run A.  B's out slot (cell 0)
-        and A's out slot both become cell 6, the block after this one.
+        and A's out slot both become cell 6, the block after this one.  When both
+        branches recognize lambda, B's lambda BRANCH is sent to A's.
 )
-: RE-ALT        ( sA sB -- sA )
-        RE-B !  RE-A !
+: RE-ALT        ( sA lA sB lB -- sA l )
+        RE-LB !  RE-B !  RE-LA !  RE-A !
         HERE @ RE-PC !
         ' BRANCH , 20 ,
         ' XCALL , RE-B @ RE-ENTRY ,
@@ -262,6 +281,12 @@ VARIABLE RE-A  VARIABLE RE-B  VARIABLE RE-PC
         RE-A @ RE-PC @  8 + RE-PATCH
         RE-B @ RE-PC @ 24 + RE-PATCH
         RE-A @
+        RE-LA @ 0= IF
+                RE-LB @
+        ELSE
+                RE-LB @ ?DUP IF RE-LA @ 4- RE-PATCH THEN
+                RE-LA @
+        THEN
 ;
 
 (
@@ -287,7 +312,7 @@ VARIABLE RE-A  VARIABLE RE-B  VARIABLE RE-PC
 
 VARIABLE RE-NN
 
-: RE-BUILD      ( n -- slot )
+: RE-BUILD      ( n -- slot lambda )
         RE-NN !  0 RE-IX !
         BEGIN RE-IX @ RE-NN @ < WHILE
                 RE-IX @ CELLS RE-POSTFIX + @   1 RE-IX +!
@@ -318,7 +343,7 @@ VARIABLE RE-NN
         RE-READ RE-PREPARE
         RE-CONVERT
         RE-HEADER
-        RE-BUILD DROP
+        RE-BUILD 2DROP
         ' RE-ACCEPT ,
 ;
 
@@ -330,6 +355,10 @@ VARIABLE RE-NN
 : R3 RE" a(b|c)*d" ;
 : R4 RE" (a|a)*" ;
 : R5 RE" a*" ;
+: R6 RE" a**" ;
+: R7 RE" (a*b*)*c" ;
+: R8 RE" (a*|b*)*c" ;
+: R9 RE" b*(c|d)" ;
 
 : TRY           ( c-addr xt -- )
         OVER SWAP EXECUTE
@@ -351,6 +380,10 @@ VARIABLE RE-NN
         ." a(b|c)*d abccccccccd "                Z" abccccccccd" ['] R3 TRY
         ." a* aaab "                             Z" aaab"       ['] R5 TRY
         ." a(b|c)*d abcd "                       Z" abcd"       ['] R3 TRY
+        ." a** b "                               Z" b"          ['] R6 TRY
+        ." (a*b*)*c abbac "                      Z" abbac"      ['] R7 TRY
+        ." (a*|b*)*c abac "                      Z" abac"       ['] R8 TRY
+        ." b*(c|d) c "                           Z" c"          ['] R9 TRY
 ;
 
 (

@@ -44,6 +44,8 @@ static unsigned char *prepare(const char *src)
         switch (c) {
 
             case '(':
+                if (concat)
+                    dest[j++] = CONCAT;
                 dest[j++] = LPAREN;
                 concat = 0;
                 nparen++;
@@ -132,16 +134,22 @@ union cell {
 enum { JUMP,
        CHAR,
        FORK,
-       STOP };
+       STOP,
+       FAIL };
 
 /*
- * Node layouts, mirroring the 11/5/9 byte x86 encodings.  The leading
+ * Node layouts, mirroring the 11/17/9 byte x86 encodings.  The leading
  * JUMP of a node doubles as the successor link of the node before it,
  * which is what makes concatenation free.
  *
  *                          char JUMP <body>  CHAR <c>  entry = body, exit = the cell after
- *                          * FORK <body>   entry = the FORK, exit = the cell after
+ *                          * FORK <body>  JUMP <exit>  FORK <body>  JUMP <exit>
+ *                            entry = the second FORK, whose JUMP recognizes lambda
  *                          | JUMP <exit>  FORK <b>  JUMP <a> entry = the FORK, exit = the cell after
+ *
+ * lambda[] is Thompson's revision from the Notes of his paper: it points
+ * at the JUMP taken when a fragment matches the empty string, or is NULL.
+ * Starring a fragment turns that JUMP into FAIL so that a** cannot loop.
  */
 static int codelen(const unsigned char *src)
 {
@@ -155,7 +163,7 @@ static int codelen(const unsigned char *src)
             case CONCAT:
                 break;
             case KLEENE:
-                n += 2;
+                n += 8;
                 break;
             case ALTERN:
                 n += 6;
@@ -168,7 +176,7 @@ static int codelen(const unsigned char *src)
 static union cell *compile(const unsigned char *src, void *const *op)
 {
     int i, c, top = 0;
-    union cell *stack[BUFSIZ], *code, *pc;
+    union cell *stack[BUFSIZ], *lambda[BUFSIZ], *code, *pc;
 
     code = pc = malloc(codelen(src) * sizeof *code);
 
@@ -178,6 +186,7 @@ static union cell *compile(const unsigned char *src, void *const *op)
         switch (c) {
 
             default:
+                lambda[top] = NULL;
                 stack[top++] = pc + 1;
                 pc[0].label = op[JUMP]; pc[1].link = pc + 2;
                 pc[2].label = op[CHAR]; pc[3].chr  = c;
@@ -185,13 +194,21 @@ static union cell *compile(const unsigned char *src, void *const *op)
                 break;
 
             case CONCAT:
+                if (!lambda[top - 1])
+                    lambda[top - 2] = NULL;
                 --top;
                 break;
 
             case KLEENE:
                 pc[0].label = op[FORK]; pc[1].link = stack[top - 1]->link;
-                stack[top - 1]->link = pc;
-                pc += 2;
+                pc[2].label = op[JUMP]; pc[3].link = pc + 8;
+                pc[4].label = op[FORK]; pc[5].link = stack[top - 1]->link;
+                pc[6].label = op[JUMP]; pc[7].link = pc + 8;
+                stack[top - 1]->link = pc + 4;
+                if (lambda[top - 1])
+                    lambda[top - 1]->label = op[FAIL];
+                lambda[top - 1] = pc + 6;
+                pc += 8;
                 break;
 
             case ALTERN:
@@ -200,6 +217,10 @@ static union cell *compile(const unsigned char *src, void *const *op)
                 pc[4].label = op[JUMP]; pc[5].link = stack[top - 2]->link;
                 stack[top - 1]->link = pc + 6;
                 stack[top - 2]->link = pc + 2;
+                if (!lambda[top - 2])
+                    lambda[top - 2] = lambda[top - 1];
+                else if (lambda[top - 1])
+                    lambda[top - 1][1].link = lambda[top - 2];
                 pc += 6;
                 --top;
                 break;
@@ -217,7 +238,7 @@ static union cell *compile(const unsigned char *src, void *const *op)
 
 char *search(const char *re, char *s)
 {
-    void *op[] = {&&JUMP, &&CHAR, &&FORK, &&STOP};
+    void *op[] = {&&JUMP, &&CHAR, &&FORK, &&STOP, &&FAIL};
     unsigned char *p = convert(re);
     union cell xchg = {&&XCHG};
     union cell *code = compile(p, op), *pc;
@@ -246,6 +267,7 @@ CHAR:
     if ((pc++)->chr == c)
         nlist[nnode++] = pc; /* pc is the successor link, i.e. the continuation */
 
+FAIL:
     /* this thread is done for this character: run the next one on CLIST */
     pc = clist[--cnode];
     NEXT;
@@ -280,6 +302,10 @@ int main(void)
         {"a(b|c)*d", "abccccccccd"},
         {"a*", "aaab"},
         {"a(b|c)*d", "abcd"},
+        {"a**", "b"},
+        {"(a*b*)*c", "abbac"},
+        {"(a*|b*)*c", "abac"},
+        {"b*(c|d)", "c"},
         {NULL, NULL}};
 
     for (i = 0; test[i].r; i++) {

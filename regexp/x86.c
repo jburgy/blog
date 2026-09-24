@@ -46,6 +46,8 @@ static unsigned char *prepare(const char *src)
         switch (c) {
 
             case '(':
+                if (concat)
+                    dest[j++] = CONCAT;
                 dest[j++] = LPAREN;
                 concat = 0;
                 nparen++;
@@ -186,7 +188,7 @@ static int codelen(const unsigned char *src)
             case CONCAT:
                 break;
             case KLEENE:
-                n += 5;
+                n += 17;
                 break;
             case ALTERN:
                 n += 9;
@@ -200,6 +202,7 @@ enum {
     CMP = 0x3C,
     JNZ = 0x75,
     CALL = 0xE8,
+    JMP32 = 0xE9,
     JMP = 0xEB
 };
 
@@ -207,6 +210,7 @@ unsigned char *compile(const unsigned char *src)
 {
     int i, c, pc = sizeof header, top = 0;
     unsigned long stack[BUFSIZ], tmp, fail = 0x2F, nnode = 0x30;
+    unsigned long lambda[BUFSIZ]; /* Thompson's lambda: rel32 of the jmp taken on an empty match, or 0 */
     unsigned long length = sizeof header + codelen(src) + sizeof footer;
     unsigned char *code = xalloc(length);
 
@@ -217,6 +221,7 @@ unsigned char *compile(const unsigned char *src)
         switch (c) {
 
             default:
+                lambda[top] = 0;
                 stack[top] = pc + 1;
                 code[pc + 0] = JMP;     code[pc + 1] = 0x00;
                 code[pc + 2] = CMP;     code[pc + 3] = c;
@@ -228,14 +233,26 @@ unsigned char *compile(const unsigned char *src)
                 break;
 
             case CONCAT:
+                if (!lambda[top - 1])
+                    lambda[top - 2] = 0;
                 --top;
                 break;
 
             case KLEENE:
                 tmp = code[stack[top - 1]] + stack[top - 1] - (pc + 4);
                 code[pc + 0] = CALL;    memcpy(code + pc + 1, &tmp, sizeof tmp);
-                code[stack[top - 1]] = (pc - 1 - stack[top - 1]) & 0xFF;
-                pc += 5;
+                code[pc + 5] = JMP;     code[pc + 6] = 0x0A;
+                tmp -= 7;
+                code[pc + 7] = CALL;    memcpy(code + pc + 8, &tmp, sizeof tmp);
+                tmp = 0;
+                code[pc + 12] = JMP32;  memcpy(code + pc + 13, &tmp, sizeof tmp);
+                code[stack[top - 1]] = (pc + 6 - stack[top - 1]) & 0xFF;
+                if (lambda[top - 1]) {
+                    tmp = fail - (lambda[top - 1] + 4);
+                    memcpy(code + lambda[top - 1], &tmp, sizeof tmp);
+                }
+                lambda[top - 1] = pc + 13;
+                pc += 17;
                 break;
 
             case ALTERN:
@@ -247,6 +264,12 @@ unsigned char *compile(const unsigned char *src)
                 code[pc + 7] = JMP;     code[pc + 8] = tmp & 0xFF;
                 code[stack[top - 2]] = (pc + 1 - stack[top - 2]) & 0xFF;
                 code[stack[top - 1]] = (pc + 8 - stack[top - 1]) & 0xFF;
+                if (!lambda[top - 2])
+                    lambda[top - 2] = lambda[top - 1];
+                else if (lambda[top - 1]) {
+                    tmp = (lambda[top - 2] - 1) - (lambda[top - 1] + 4);
+                    memcpy(code + lambda[top - 1], &tmp, sizeof tmp);
+                }
                 pc += 9;
                 --top;
                 break;
@@ -290,6 +313,10 @@ int main(void)
         {"a(b|c)*d", "abccccccccd"},
         {"a*", "aaab"},
         {"a(b|c)*d", "abcd"},
+        {"a**", "b"},
+        {"(a*b*)*c", "abbac"},
+        {"(a*|b*)*c", "abac"},
+        {"b*(c|d)", "c"},
         {NULL, NULL}};
 
     for (i = 0; test[i].r; i++) {

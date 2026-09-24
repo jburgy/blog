@@ -1,0 +1,51 @@
+comment
+  Third stage of the regular-expression compiler from Ken Thompson,
+  "Regular Expression Search Algorithm", CACM 11(6), June 1968, p. 420.
+  Transcribed from the ALGOL-60 listing following the sentence
+  "It is written in ALGOL-60 and produces object programs in IBM 7094
+  machine language.";
+
+begin
+  integer procedure get character; code;
+  integer procedure instruction(op, address, tag, decrement); code;
+  integer procedure value(symbol); code;
+  integer procedure index(character); code;
+  integer char, lc, pc;
+  integer array stack[0:10], code[0:300];
+  switch switch := alpha, juxta, closure, or, eof;
+  lc := pc := 0;
+advance:
+  char := get character;
+  goto switch[index(char)];
+alpha:
+  code[pc]   := instruction('tra', value('code')+pc+1, 0, 0);
+  code[pc+1] := instruction('txl', value('fail'), 1, -char-1);
+  code[pc+2] := instruction('txh', value('fail'), 1, -char);
+  code[pc+3] := instruction('tsx', value('nnode'), 4, 0);
+  stack[lc] := pc;
+  pc := pc+4;
+  lc := lc+1;
+  goto advance;
+juxta:
+  lc := lc-1;
+  goto advance;
+closure:
+  code[pc] := instruction('tsx', value('cnode'), 4, 0);
+  code[pc+1] := code[stack[lc-1]];
+  code[stack[lc-1]] := instruction('tra', value('code')+pc, 0, 0);
+  pc := pc+2;
+  goto advance;
+or:
+  code[pc]   := instruction('tra', value('code')+pc+4, 0, 0);
+  code[pc+1] := instruction('tsx', value('cnode'), 4, 0);
+  code[pc+2] := code[stack[lc-1]];
+  code[pc+3] := code[stack[lc-2]];
+  code[stack[lc-2]] := instruction('tra', value('code')+pc+1, 0, 0);
+  code[stack[lc-1]] := instruction('tra', value('code')+pc+4, 0, 0);
+  pc := pc+4;
+  lc := lc-1;
+  goto advance;
+eof:
+  code[pc] := instruction('tra', value('found'), 0, 0);
+  pc := pc+1
+end
