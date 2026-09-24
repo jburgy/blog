@@ -1,6 +1,7 @@
 """Check the portable C derivatives of Thompson's compiler against re."""
 
 import ctypes
+import itertools
 import os
 import random
 import re
@@ -11,6 +12,7 @@ from pathlib import Path
 import pytest  # pyright: ignore[reportMissingImports]
 
 HERE = Path(__file__).parent
+JONESFORTH = HERE.parent / "jonesforth"
 CC = os.environ.get("CC", "cc")
 SANITIZE = ["-g", "-O1", "-fsanitize=address,undefined", "-fno-sanitize-recover=all"]
 
@@ -19,6 +21,12 @@ THREADED = re.compile(
     re.M,
 )
 BYTECODE = re.compile(r"^(\S+) (!?~) /(\S+)/$", re.M)
+FORTH_TABLE = re.compile(
+    r"^(\S+) (\S+) (?:match found after (\d+) bytes|match not found)$", re.M
+)
+FORTH_CASE = re.compile(
+    r"^(\d+) (?:match found after (\d+) bytes|match not found)$", re.M
+)
 
 
 def to_python(pattern: str) -> str:
@@ -167,5 +175,66 @@ def test_bytecode_against_re(bytecode: Callable[[str, str], bool], seed: int) ->
         (pattern, s)
         for pattern, py, s in random_cases(seed)
         if bytecode(pattern, s) != bool(re.fullmatch(py, s))
+    ]
+    assert not bad, bad[:5]
+
+
+@pytest.fixture(scope="module")
+def jonesforth(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str], str]:
+    """Build jonesforth from jonesforth.S; run regexp.f on top of jonesforth.f."""
+    prelude = [JONESFORTH / "jonesforth.f", HERE / "regexp.f"]
+    if not all(path.exists() for path in [JONESFORTH / "jonesforth.S", *prelude]):
+        pytest.skip("jonesforth submodule is not checked out")
+
+    exe = tmp_path_factory.mktemp("jonesforth") / "jonesforth"
+    # jonesforth's own -Wl,-Ttext,0 faults on current binutils; the Makefile omits it
+    argv = [CC, "-m32", "-nostdlib", "-static", "-o", str(exe), "jonesforth.S"]
+    try:
+        subprocess.run(argv, cwd=JONESFORTH, check=True, capture_output=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        pytest.skip(f"no 32-bit toolchain: {exc}")
+
+    def forth(source: str) -> str:
+        # TEST-MODE suppresses jonesforth.f's banner
+        text = "\n".join(
+            [": TEST-MODE ;", *(path.read_text() for path in prelude), source, "BYE"]
+        )
+        return subprocess.run(
+            [str(exe)],
+            input=text,
+            capture_output=True,
+            check=True,
+            text=True,
+            timeout=120,
+        ).stdout
+
+    return forth
+
+
+def test_forth_table(jonesforth: Callable[[str], str]) -> None:
+    out = jonesforth("RE-TESTS")
+    cases = FORTH_TABLE.findall(out)
+    assert cases and len(cases) == len(out.splitlines())
+    for pattern, s, n in cases:
+        assert (int(n) if n else -1) == earliest_end(to_python(pattern), s), pattern
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_forth_against_re(jonesforth: Callable[[str], str], seed: int) -> None:
+    cases = list(itertools.islice(random_cases(seed), 150))
+    source = "\n".join(
+        # RE" compiles into the definition being built, so each pattern needs its
+        # own word -- and ['] is compile-only, so the driver has to be one too
+        f': RE-PAT{i} RE" {pattern}" ;\n'
+        f': RE-RUN{i} ." {i} " Z" {s}" [\'] RE-PAT{i} TRY ;\nRE-RUN{i}'
+        for i, (pattern, _, s) in enumerate(cases)
+    )
+    out = jonesforth(f"65536 MORECORE\n{source}")
+    found = FORTH_CASE.findall(out)
+    assert len(found) == len(cases), out
+    bad = [
+        (pattern, s)
+        for (pattern, py, s), (_, n) in zip(cases, found, strict=True)
+        if (int(n) if n else -1) != earliest_end(py, s)
     ]
     assert not bad, bad[:5]
