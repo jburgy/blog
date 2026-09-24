@@ -1,11 +1,18 @@
 name: JavaScript
 
 # `push` only, matching the Python workflow: adding `pull_request` as well runs
-# the whole thing twice on every PR branch.
-on: [push]
+# the whole thing twice on every PR branch.  The path filter is what the old
+# `forth-web` workflow contributed; everything else it did is the `forth` job.
+on:
+  push:
+    paths:
+      - "forth/**"
+      - "regexp/regexp.f"
+      - "regexp/web/**"
+      - ".github/workflows/javascript.yml"
 
 jobs:
-  test:
+  forth:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -30,3 +37,26 @@ jobs:
       - run: make web
 
       - run: npm run test
+
+  regexp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: regexp/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # Restore before `npm ci`, whose postinstall is what fetches Chrome.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ hashFiles('regexp/web/package-lock.json') }}
+      - run: npm ci
+
+      # The runner's kernel blocks Chrome's sandbox, and every page under test
+      # is a local file.
+      - run: npm test -- -a no-sandbox

@@ -1,0 +1,17 @@
+{
+  "name": "regexp-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser demo for regexp/regexp.f running on forth/wasm/tabulate.wast",
+  "scripts": {
+    "build": "wat2wasm --enable-tail-call --enable-multi-memory ../../forth/wasm/tabulate.wast -o forth.wasm",
+    "start": "python3 -m http.server --directory ../.. 8000",
+    "test": "npm run build && mocha-headless-chrome -f test/index.html -a allow-file-access-from-files"
+  },
+  "devDependencies": {
+    "mocha": "^11.7.4",
+    "mocha-headless-chrome": "^5.1.0",
+    "wabt": "^1.0.37"
+  }
+}
