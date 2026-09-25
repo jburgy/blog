@@ -1,0 +1,23 @@
+{
+  "name": "regexp-tracing",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Freeze the regexp.f browser demo mid-match and draw every layer as an SVG",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "instrument": "node instrument.mjs",
+    "check": "node instrument.mjs --check",
+    "snap": "npm run check && node --allow-natives-syntax snap.mjs",
+    "svg": "node gen.mjs",
+    "publish": "npm run snap && node gen.mjs ../../assets/regexp-snapshot.svg",
+    "disasm": "INSTRUMENT=0 OUT=/dev/null node --allow-natives-syntax --print-wasm-code snap.mjs > code.txt",
+    "bench": "node bench.mjs",
+    "all": "npm run snap && npm run svg"
+  },
+  "devDependencies": {
+    "wabt": "^1.0.37"
+  }
+}
