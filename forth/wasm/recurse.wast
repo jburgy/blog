@@ -240,10 +240,10 @@
 
     (func $forth (export "_start")
         (global.set $sp (i32.const 0x2000))  ;; initial data stack pointer
-        (global.set $rsp (i32.const 0x4000)) ;; initial (shadow) return stack pointer
-        ;; QUIT loops forever, so $docol only returns here when an uncaught THROW
-        ;; resets rsp back to R0 and unwinds every frame.  Start it over.
+        ;; QUIT never returns, and an uncaught THROW unwinds only as far as the
+        ;; outermost QUIT frame.  We get here when rsp underflows past R0.
         (loop $cold
+            (global.set $rsp (i32.const 0x4000)) ;; initial (shadow) return stack pointer
             (call $docol (i32.load (i32.const 0x5040))) ;; cold_start holds >CFA of QUIT
             (br $cold)
         )
