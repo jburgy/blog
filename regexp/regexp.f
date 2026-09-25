@@ -254,7 +254,8 @@ VARIABLE RE-LA VARIABLE RE-LB
         rewired back to cell 0, which is the loop.
 )
 : RE-STAR       ( s l -- s l' )
-        ?DUP IF ' EXIT SWAP 4- ! THEN
+        ( the dead offset cell becomes EXIT too, else SEE would CFA> a small integer )
+        ?DUP IF ' EXIT OVER !  ' EXIT SWAP 4- ! THEN
         HERE @ RE-PC !
         ' XCALL , DUP RE-ENTRY ,
         ' BRANCH , 20 ,

@@ -219,6 +219,90 @@ def test_forth_table(jonesforth: Callable[[str], str]) -> None:
         assert (int(n) if n else -1) == earliest_end(to_python(pattern), s), pattern
 
 
+# SEE prints LIT as its bare value and an XCALL operand as the word it lands in
+SEE_HEADER = (
+    ": RE-PAT RSP@ RE-RSP ! RE-START RE-DONE? 0BRANCH ( 16 ) 0 EXIT RE-PAT+20 >R"
+    " RE-THREAD DUP 0BRANCH ( 16 ) >R BRANCH ( -24 ) DROP RE-LOAD"
+)
+
+# one line per block: character node, KLEENE or ALTERN
+SEE_BLOCKS = {
+    "abcdefg": (
+        "BRANCH ( 4 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 4 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 4 ) 99 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 4 ) 100 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 4 ) 101 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 4 ) 102 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 4 ) 103 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+    ),
+    "(a|b)*a": (
+        "BRANCH ( 108 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 56 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "BRANCH ( 4 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+    ),
+    "a(b|c)*d": (
+        "BRANCH ( 4 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 108 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 56 ) 99 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "BRANCH ( 4 ) 100 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+    ),
+    "(a|a)*": (
+        "BRANCH ( 108 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 56 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+    ),
+    "a*": (
+        "BRANCH ( 48 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+    ),
+    "a**": (
+        "BRANCH ( 80 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT EXIT EXIT",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+    ),
+    "(a*b*)*c": (
+        "BRANCH ( 148 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT EXIT EXIT",
+        "BRANCH ( 48 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "BRANCH ( 4 ) 99 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+    ),
+    "(a*|b*)*c": (
+        "BRANCH ( 172 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT EXIT EXIT",
+        "BRANCH ( 88 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -72 )",
+        "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -104 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "BRANCH ( 4 ) 99 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+    ),
+    "b*(c|d)": (
+        "BRANCH ( 48 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "BRANCH ( 76 ) 99 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 56 ) 100 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
+    ),
+}
+
+
+@pytest.mark.parametrize("pattern", SEE_BLOCKS)
+def test_forth_see(jonesforth: Callable[[str], str], pattern: str) -> None:
+    out = jonesforth(f': RE-PAT RE" {pattern}" ;\nRE-RSP . LATEST @ >DFA .\nSEE RE-PAT')
+    rsp, dfa, see = out.split(" ", 2)
+    # brk is randomized, so name the only two absolute addresses SEE prints
+    names = {rsp: "RE-RSP", str(int(dfa) + 20): "RE-PAT+20"}
+    see = " ".join(names.get(token, token) for token in see.split())
+    assert see == " ".join([SEE_HEADER, *SEE_BLOCKS[pattern], "RE-ACCEPT ;"])
+
+
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_forth_against_re(jonesforth: Callable[[str], str], seed: int) -> None:
     cases = list(itertools.islice(random_cases(seed), 150))
