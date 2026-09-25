@@ -7,7 +7,7 @@ CPPFLAGS = -include cosmopolitan.h -I.
 LDFLAGS = -Wl,--oformat=binary -Wl,--gc-sections -Wl,-z,max-page-size=0x1000 -fuse-ld=bfd -gdwarf-4 -Wl,-T,ape.lds
 LDLIBS = cosmopolitan.a
 
-all: 4th 5th zig-out/bin/6th jansforth 4th-rs jansforth-rs
+all: 4th 5th zig-out/bin/6th jansforth recurse 4th-rs jansforth-rs
 
 .PHONY: all 4th-rs jansforth-rs
 
@@ -96,11 +96,11 @@ test-web : web/4th.wasm
 test-wasm : 4th.rs
 	rustup run nightly cargo test --release --target wasm32-wasip1 -Zbuild-std=std,panic_unwind
 
-jansforth : jansforth.c
+jansforth recurse : % : %.c
 	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
 
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th *.js *.ll *.wasm* *th.*mjs *.html 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th jansforth recurse *.js *.ll *.wasm* *th.*mjs *.html 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm
 
 define allbutlast
 $(wordlist 2, $(words $(1)), x $(1))
