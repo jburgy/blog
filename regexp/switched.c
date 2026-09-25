@@ -253,7 +253,7 @@ char *search(union cell *code, char *s)
     union cell *pc = &xchg;
     union cell *clist[BUFSIZ], *nlist[BUFSIZ];
     char *found = NULL;
-    int cnode = 0, nnode = 0, c = EOF; /* any non-NUL c primes the first exchange */
+    int cnode = 0, nnode = 0, c = EOF, i; /* any non-NUL c primes the first exchange */
 
     for (;;) {
         switch ((pc++)->op) { /* the fetch-and-advance NEXT of threaded.c */
@@ -274,8 +274,12 @@ char *search(union cell *code, char *s)
                 break;
 
             case CHAR:
-                if ((pc++)->chr == c)
-                    nlist[nnode++] = pc; /* pc is the successor link, i.e. the continuation */
+                if ((pc++)->chr == c) { /* pc is the successor link, i.e. the continuation */
+                    /* skip duplicates, or (a|a)* doubles NLIST on every character */
+                    for (nlist[nnode] = pc, i = 0; nlist[i] != pc; i++)
+                        ;
+                    nnode += i == nnode;
+                }
                 __attribute__((fallthrough));
 
             case FAIL:
@@ -308,6 +312,7 @@ int main(void)
         {"a(b|c)*d", "abccbcccd"},
         {"a(b|c)*d", "abccbcccde"},
         {"(a|a)*", "aaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+        {"(a|a)*b", "aaaaaaaaaaaaaaaab"},
         {"a(b|c)*d", "abccccccccd"},
         {"a*", "aaab"},
         {"a(b|c)*d", "abcd"},
