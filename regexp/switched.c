@@ -19,7 +19,7 @@
 #include <string.h>
 
 enum {
-    LPAREN = CHAR_MAX + 1,
+    LPAREN = SCHAR_MAX + 1, /* char is unsigned on Linux/ARM */
     RPAREN, /* This should  */
     ALTERN, /* reflect the  */
     CONCAT, /* precedence   */
@@ -238,6 +238,15 @@ static union cell *compile(const unsigned char *src)
     return code;
 }
 
+union cell *study(const char *re)
+{
+    unsigned char *p = convert(re);
+    union cell *code = compile(p);
+
+    free(p);
+    return code;
+}
+
 char *search(union cell *code, char *s)
 {
     union cell xchg = {XCHG};
@@ -309,11 +318,9 @@ int main(void)
         {NULL, NULL}};
 
     for (i = 0; test[i].r; i++) {
-        unsigned char *p = convert(test[i].r);
-        union cell *code = compile(p);
+        union cell *code = study(test[i].r);
         char *t;
 
-        free(p);
         printf("search %s %s\n", test[i].r, test[i].s);
         t = search(code, test[i].s);
         free(code);

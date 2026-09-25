@@ -55,9 +55,17 @@ def run(exe: str) -> str:
     ).stdout
 
 
-@pytest.mark.parametrize("flags", [[], SANITIZE], ids=["plain", "sanitized"])
-def test_threaded_table(tmp_path: Path, flags: list[str]) -> None:
-    out = run(build(tmp_path, "threaded.c", *flags))
+@pytest.mark.parametrize(
+    ("source", "flags"),
+    [
+        pytest.param(source, flags, id=f"{source}-{kind}")
+        for source in ["threaded.c", "switched.c"]
+        for kind, flags in [("plain", []), ("sanitized", SANITIZE)]
+    ]
+    + [pytest.param("switched.c", ["-funsigned-char"], id="switched.c-unsigned")],
+)
+def test_threaded_table(tmp_path: Path, source: str, flags: list[str]) -> None:
+    out = run(build(tmp_path, source, *flags))
     cases = THREADED.findall(out)
     assert cases and len(cases) == out.count("search ")
     for pattern, s, n in cases:
@@ -141,6 +149,28 @@ def threaded(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], i
 
 
 @pytest.fixture(scope="module")
+def switched(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], int]:
+    lib = shared(tmp_path_factory.mktemp("switched"), "switched.c")
+    lib.study.argtypes = [ctypes.c_char_p]
+    lib.study.restype = ctypes.c_void_p
+    lib.search.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    lib.search.restype = ctypes.c_void_p
+    free = ctypes.CDLL(None).free
+    free.argtypes = [ctypes.c_void_p]
+
+    def search(pattern: str, s: str) -> int:
+        code = lib.study(pattern.encode())
+        buf = ctypes.create_string_buffer(s.encode())
+        try:
+            end = lib.search(code, buf)
+        finally:
+            free(code)
+        return -1 if end is None else end - ctypes.addressof(buf)
+
+    return search
+
+
+@pytest.fixture(scope="module")
 def bytecode(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], bool]:
     lib = shared(tmp_path_factory.mktemp("bytecode"), "bytecode.c")
     lib.study.argtypes = [ctypes.c_char_p]
@@ -165,6 +195,16 @@ def test_threaded_against_re(threaded: Callable[[str, str], int], seed: int) -> 
         (pattern, s)
         for pattern, py, s in random_cases(seed)
         if threaded(pattern, s) != earliest_end(py, s)
+    ]
+    assert not bad, bad[:5]
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_switched_against_re(switched: Callable[[str, str], int], seed: int) -> None:
+    bad = [
+        (pattern, s)
+        for pattern, py, s in random_cases(seed)
+        if switched(pattern, s) != earliest_end(py, s)
     ]
     assert not bad, bad[:5]
 
