@@ -26,6 +26,9 @@ jobs:
           version: "latest"
       - run: uvx ruff check
       - run: uvx ty check --python .venv
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib
       - run: uv run pytest
         env:
           pytest_github_report: true
