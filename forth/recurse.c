@@ -21,10 +21,15 @@
 	EXCEPTION-MARKER, so its own EXIT finds rsp < base and resumes at
 	EXCEPTION-MARKER instead of returning, while THROW's RSP! lifts rsp above
 	the base of every frame between it and the CATCH.  jansforth.c cannot show
-	that off: its return stack holds word *indices* (`>R` shifts right by two),
-	so THROW's scan compares them against a byte address and never matches.
-	CATCH is already broken here, and the only visible change is which data
-	stack residue an uncaught THROW leaves behind.
+	all of that off: its return stack holds word *indices* (`>R` shifts right by
+	two), so THROW's scan compares them against a byte address and never finds
+	the marker.  CATCH already never catches here, with or without this change.
+
+	The one case the rule cannot express is QUIT, which is documented as never
+	returning.  An uncaught THROW runs it, and with the shadow stack empty its
+	`base` equals R0 exactly like every frame above it, so nothing unwinds and
+	the abandoned frames pile up.  Hence the setjmp trampoline: entering QUIT
+	drops straight back to main.
 
 	What the rule is *not* enough for is the idiom where a word pops its own
 	caller's return address -- `R>` reaching one cell below what the caller
@@ -33,12 +38,13 @@
 	and (NNODE) are built entirely on that trick, but they already fail on
 	jansforth.c for the shift reason above, so RE-TESTS is unchanged.
 
-	In exchange, nesting is bounded by the process stack (~20000 frames) rather
-	than by the 2048 cells between 0x0800 and 0x1000, which jansforth.c
-	overruns into its own data stack and segfaults on.
+	In exchange, nesting is bounded by the process stack (tens of thousands of
+	frames) rather than by the 2048 cells between 0x0800 and 0x1000, which
+	jansforth.c overruns into its own data stack and segfaults on.
 */
 #include <errno.h>
 #include <fcntl.h>
+#include <setjmp.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -273,6 +279,9 @@ static int *memory;
 static char *bytes;
 static int dsp; /* data stack pointer, the one place every frame agrees on */
 static int rsp; /* shadow return stack pointer, only >R & friends push here */
+static jmp_buf restart;
+
+#define QUIT_CFA 5530 /* code field of QUIT in rodata above */
 
 char key(void) {
     static int currkey = 0x4000, buftop = 0x4000;
@@ -386,6 +395,10 @@ static void docol(int cfa) {
         switch (memory[cfa]) {
             case DOCOL:
                 dsp = sp;
+                /* QUIT must not return, so entering it strands every frame
+                   below.  jonesforth just resets rsp; we have to unwind. */
+                if (cfa == QUIT_CFA)
+                    longjmp(restart, 1);
                 docol(cfa);
                 sp = dsp;
                 if (rsp > base)
@@ -799,8 +812,7 @@ int main(void) {
     dsp = 0x0800;
     rsp = 0x1000;
 
-    /* QUIT loops forever, so docol only returns when an uncaught THROW resets
-       rsp back to R0 and unwinds every frame.  Start it over. */
+    (void)setjmp(restart);
     for (;;)
-        docol(5530);
+        docol(QUIT_CFA);
 }
