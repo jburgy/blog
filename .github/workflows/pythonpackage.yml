@@ -16,6 +16,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # regexp/test_regexp.py builds jonesforth.S from the submodule
+          submodules: true
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -26,6 +29,9 @@ jobs:
           version: "latest"
       - run: uvx ruff check
       - run: uvx ty check --python .venv
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib
       - run: uv run pytest
         env:
           pytest_github_report: true
