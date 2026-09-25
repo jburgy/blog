@@ -1,7 +1,10 @@
 /*
- * Threaded-code implementation of Thompson's on-the-fly regular
- * expression compiler, using GCC's labels as values (as in
- * ../forth/4th.c) instead of emitting machine code.
+ * Switch-dispatched variant of threaded.c: the same on-the-fly
+ * compiler for Thompson's algorithm, but the interpreter is a plain
+ * `switch' over small integer opcodes rather than GCC's labels as
+ * values.  Because the opcodes no longer have to be the addresses of
+ * labels inside search(), convert() and compile() move out of it and
+ * search() takes the compiled program directly.
  *
  * See also Thompson, Ken.  Regular Expression Search Algorithm,
  * Communications of the ACM 11(6) (June 1968), pp. 419-422.
@@ -16,7 +19,7 @@
 #include <string.h>
 
 enum {
-    LPAREN = CHAR_MAX + 1,
+    LPAREN = SCHAR_MAX + 1, /* char is unsigned on Linux/ARM */
     RPAREN, /* This should  */
     ALTERN, /* reflect the  */
     CONCAT, /* precedence   */
@@ -119,14 +122,14 @@ static unsigned char *convert(const char *src)
 
 /*
  * A compiled program is an array of cells.  A cell is either an
- * opcode -- the address of a label inside search() -- or that
- * opcode's operand: a literal character, or a link to another cell.
- * The x86 version encodes the same thing as a two byte `jmp' whose
+ * opcode -- one of the small integers below -- or that opcode's
+ * operand: a literal character, or a link to another cell.  The x86
+ * version encodes the same thing as a two byte `jmp' whose
  * displacement has to be added to the address of the displacement
  * byte itself; here a link is simply a pointer.
  */
 union cell {
-    void *label;
+    int op;
     union cell *link;
     int chr;
 };
@@ -135,7 +138,8 @@ enum { JUMP,
        CHAR,
        FORK,
        STOP,
-       FAIL };
+       FAIL,
+       XCHG }; /* XCHG never appears in compiled code, only in the sentinel */
 
 /*
  * Node layouts, mirroring the 11/17/9 byte x86 encodings.  The leading
@@ -173,7 +177,7 @@ static int codelen(const unsigned char *src)
     return n;
 }
 
-static union cell *compile(const unsigned char *src, void *const *op)
+static union cell *compile(const unsigned char *src)
 {
     int i, c, top = 0;
     union cell *stack[BUFSIZ], *lambda[BUFSIZ], *code, *pc;
@@ -188,8 +192,8 @@ static union cell *compile(const unsigned char *src, void *const *op)
             default:
                 lambda[top] = NULL;
                 stack[top++] = pc + 1;
-                pc[0].label = op[JUMP]; pc[1].link = pc + 2;
-                pc[2].label = op[CHAR]; pc[3].chr  = c;
+                pc[0].op   = JUMP; pc[1].link = pc + 2;
+                pc[2].op   = CHAR; pc[3].chr  = c;
                 pc += 4;
                 break;
 
@@ -200,21 +204,21 @@ static union cell *compile(const unsigned char *src, void *const *op)
                 break;
 
             case KLEENE:
-                pc[0].label = op[FORK]; pc[1].link = stack[top - 1]->link;
-                pc[2].label = op[JUMP]; pc[3].link = pc + 8;
-                pc[4].label = op[FORK]; pc[5].link = stack[top - 1]->link;
-                pc[6].label = op[JUMP]; pc[7].link = pc + 8;
+                pc[0].op   = FORK; pc[1].link = stack[top - 1]->link;
+                pc[2].op   = JUMP; pc[3].link = pc + 8;
+                pc[4].op   = FORK; pc[5].link = stack[top - 1]->link;
+                pc[6].op   = JUMP; pc[7].link = pc + 8;
                 stack[top - 1]->link = pc + 4;
                 if (lambda[top - 1])
-                    lambda[top - 1]->label = op[FAIL];
+                    lambda[top - 1]->op = FAIL;
                 lambda[top - 1] = pc + 6;
                 pc += 8;
                 break;
 
             case ALTERN:
-                pc[0].label = op[JUMP]; pc[1].link = pc + 6;
-                pc[2].label = op[FORK]; pc[3].link = stack[top - 1]->link;
-                pc[4].label = op[JUMP]; pc[5].link = stack[top - 2]->link;
+                pc[0].op   = JUMP; pc[1].link = pc + 6;
+                pc[2].op   = FORK; pc[3].link = stack[top - 1]->link;
+                pc[4].op   = JUMP; pc[5].link = stack[top - 2]->link;
                 stack[top - 1]->link = pc + 6;
                 stack[top - 2]->link = pc + 2;
                 if (!lambda[top - 2])
@@ -229,64 +233,69 @@ static union cell *compile(const unsigned char *src, void *const *op)
 
         /* clang-format on */
     }
-    pc->label = op[STOP];
+    pc->op = STOP;
 
     return code;
 }
 
-#define NEXT goto *(pc++)->label
-
-char *search(const char *re, char *s)
+union cell *study(const char *re)
 {
-    void *op[] = {&&JUMP, &&CHAR, &&FORK, &&STOP, &&FAIL};
     unsigned char *p = convert(re);
-    union cell xchg = {&&XCHG};
-    union cell *code = compile(p, op), *pc;
+    union cell *code = compile(p);
+
+    free(p);
+    return code;
+}
+
+char *search(union cell *code, char *s)
+{
+    union cell xchg = {XCHG};
+    union cell *pc = &xchg;
     union cell *clist[BUFSIZ], *nlist[BUFSIZ];
     char *found = NULL;
     int cnode = 0, nnode = 0, c = EOF, i; /* any non-NUL c primes the first exchange */
 
-    free(p);
+    for (;;) {
+        switch ((pc++)->op) { /* the fetch-and-advance NEXT of threaded.c */
 
-XCHG:
-    /* CLIST is exhausted: swap the lists and plant XCHG as its sentinel */
-    if (!c)
-        goto done;
-    clist[cnode++] = &xchg;
-    while (nnode)
-        clist[cnode++] = nlist[--nnode];
-    c = (unsigned char)*s++;
-    pc = code; /* unanchored, so start a fresh thread at every position */
-    NEXT;
+            case XCHG:
+                /* CLIST is exhausted: swap the lists and plant XCHG as its sentinel */
+                if (!c)
+                    return found;
+                clist[cnode++] = &xchg;
+                while (nnode)
+                    clist[cnode++] = nlist[--nnode];
+                c = (unsigned char)*s++;
+                pc = code; /* unanchored, so start a fresh thread at every position */
+                break;
 
-JUMP:
-    pc = pc->link;
-    NEXT;
+            case JUMP:
+                pc = pc->link;
+                break;
 
-CHAR:
-    if ((pc++)->chr == c) { /* pc is the successor link, i.e. the continuation */
-        /* skip duplicates, or (a|a)* doubles NLIST on every character */
-        for (nlist[nnode] = pc, i = 0; nlist[i] != pc; i++)
-            ;
-        nnode += i == nnode;
+            case CHAR:
+                if ((pc++)->chr == c) { /* pc is the successor link, i.e. the continuation */
+                    /* skip duplicates, or (a|a)* doubles NLIST on every character */
+                    for (nlist[nnode] = pc, i = 0; nlist[i] != pc; i++)
+                        ;
+                    nnode += i == nnode;
+                }
+                __attribute__((fallthrough));
+
+            case FAIL:
+                /* this thread is done for this character: run the next one on CLIST */
+                pc = clist[--cnode];
+                break;
+
+            case FORK:
+                clist[cnode++] = pc + 1; /* run the fall-through later, the branch now */
+                pc = pc->link;
+                break;
+
+            case STOP:
+                return s - 1;
+        }
     }
-
-FAIL:
-    /* this thread is done for this character: run the next one on CLIST */
-    pc = clist[--cnode];
-    NEXT;
-
-FORK:
-    clist[cnode++] = pc + 1; /* run the fall-through later, the branch now */
-    pc = pc->link;
-    NEXT;
-
-STOP:
-    found = s - 1;
-
-done:
-    free(code);
-    return found;
 }
 
 int main(void)
@@ -314,10 +323,12 @@ int main(void)
         {NULL, NULL}};
 
     for (i = 0; test[i].r; i++) {
+        union cell *code = study(test[i].r);
         char *t;
 
         printf("search %s %s\n", test[i].r, test[i].s);
-        t = search(test[i].r, test[i].s);
+        t = search(code, test[i].s);
+        free(code);
         if (t)
             printf("match found after %td bytes\n", t - test[i].s);
         else
