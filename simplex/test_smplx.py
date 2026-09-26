@@ -1,6 +1,13 @@
 import numpy as np
 import pytest
-from simplex import smplx  # ty: ignore[unresolved-import]
+from simplex import (  # ty: ignore[unresolved-import]
+    Status,
+    crout1,
+    smplx,
+    smplx_py,
+)
+
+SOLVERS = [smplx_py] + ([smplx] if smplx is not smplx_py else [])
 
 # Nutrient minimums.
 nutrients = {
@@ -99,8 +106,9 @@ data = {
 }
 
 
-def test_smplx():
-    ind, x, z, iter = smplx(
+@pytest.mark.parametrize("solve", SOLVERS)
+def test_smplx(solve):
+    ind, x, z, iter = solve(
         a=np.column_stack([*data.values()]),
         b0=np.r_[*nutrients.values()],
         c=-np.ones(len(data)),
@@ -118,3 +126,75 @@ def test_smplx():
     ]
     assert z == pytest.approx(-0.10866227746009827)
     assert iter == 8
+
+
+@pytest.mark.parametrize("solve", SOLVERS)
+@pytest.mark.parametrize(
+    "a, b0, c, numle, numge, expected",
+    [
+        ([[1, 1], [1, 3], [2, 1]], [4, 6, 6], [3, 2], 3, 0, (Status.OPTIMAL, 9.6, 2)),
+        ([[1, 1, 1], [1, -1, 0]], [4, 1], [1, 2, 3], 0, 0, (Status.OPTIMAL, 10.0, 3)),
+        (
+            [[1, 1, 0], [0, 1, 1], [1, 0, 1]],
+            [4, 3, 5],
+            [1, 1, 1],
+            2,
+            0,
+            (Status.OPTIMAL, 6.0, 3),
+        ),
+        (
+            [[1, 1, 0], [1, 0, 1], [0, 1, 1]],
+            [2, 3, 4],
+            [-1, -1, -1],
+            0,
+            2,
+            (Status.OPTIMAL, -4.5, 3),
+        ),
+        ([[1, 1], [1, 1]], [1, 3], [1, 1], 1, 1, (Status.INFEASIBLE, 0.0, 1)),
+        ([[1, -1], [-1, 1]], [1, 1], [1, 1], 2, 0, (Status.UNBOUNDED, 0.0, 2)),
+    ],
+    ids=["le", "eq", "le+eq", "ge+eq", "infeasible", "unbounded"],
+)
+def test_small(solve, a, b0, c, numle, numge, expected):
+    ind, _, z, iter = solve(np.array(a, float), b0, c, numle=numle, numge=numge)
+    assert (ind, iter) == (expected[0], expected[2])
+    assert z == pytest.approx(expected[1])
+
+
+@pytest.mark.parametrize("n, iend", [(2, 0), (4, 0), (5, 0), (5, 2), (3, 1), (6, 5)])
+def test_crout1(n, iend):
+    rng = np.random.default_rng(n + iend)
+    a = rng.normal(size=(n, n))
+    a[:, :iend] = 0.0
+    a[rng.permutation(n)[:iend], np.arange(iend)] = rng.choice([-1.0, 1.0], iend)
+    ainv = a.copy()
+    assert not crout1(ainv, iend, np.empty(n - 1, np.intp), np.empty((n, n)))
+    np.testing.assert_allclose(ainv @ a, np.eye(n), atol=1e-12)
+
+
+def test_agrees_with_highs():
+    linprog = pytest.importorskip("scipy.optimize").linprog
+    expected = {0: Status.OPTIMAL, 2: Status.INFEASIBLE, 3: Status.UNBOUNDED}
+    disagree = []
+    for seed in range(200):
+        rng = np.random.default_rng(seed)
+        m, n0 = rng.integers(2, 10, size=2)
+        numle = rng.integers(0, m + 1)
+        numge = rng.integers(0, m - numle + 1)
+        ms = numle + numge
+        a = rng.integers(-3, 6, size=(m, n0)).astype(float)
+        b0 = rng.integers(0, 10, m).astype(float)
+        c = rng.integers(-3, 5, n0).astype(float)
+        ref = linprog(
+            -c,
+            A_ub=np.r_[a[:numle], -a[numle:ms]],
+            b_ub=np.r_[b0[:numle], -b0[numle:ms]],
+            A_eq=a[ms:] if m > ms else None,
+            b_eq=b0[ms:] if m > ms else None,
+        )
+        ind, _, z, _ = smplx_py(a, b0, c, numle=numle, numge=numge)
+        if ind != expected[ref.status] or (
+            ind == Status.OPTIMAL and z != pytest.approx(-ref.fun)
+        ):
+            disagree.append(seed)
+    assert disagree == []
