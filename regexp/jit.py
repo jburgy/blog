@@ -6,10 +6,13 @@ third stage emits machine code for the host, which ``ctypes`` then calls.
 
 The current list lives on the machine stack as return addresses, the next list in
 the frame of ``search``.  Unlike the C originals, ``NNODE`` files each state at most
-once, so the next list never needs more than one slot per character node.
+once, so the next list never needs more than one slot per character node, and
+``strip`` replaces Thompson's lambda revision: no star body ever matches ε.
 
 >>> Pattern("a(b|c)*d").search("xxabccbcccdyy")
 11
+>>> Pattern("x(a*b*)*c").search("xbc")
+3
 >>> Pattern("(a|b)*a").search("bbbab")
 4
 >>> Pattern("a(b|c)*d").search("abccbcccde")
@@ -56,10 +59,27 @@ def postfix(tokens: Iterable[str | int]):
             stack.append(t)
 
 
-class X86_64:
+def strip(tokens: Iterable[str | int]) -> list[str | int]:
+    """Rewrite every e* as e'*, where e' == e minus ε, so no star loops on ε."""
+    terms = [([], [], True)]  # (postfix of e, postfix of e', e matches ε)
+    for t in tokens:
+        if isinstance(t, str):
+            terms.append(([t], [t], False))
+        elif t == KLEENE:
+            s = terms.pop()[1]
+            terms.append((s + [t], s, True))
+        else:
+            (p1, s1, n1), (p2, s2, n2) = terms.pop(-2), terms.pop()
+            n = n1 and n2 if t == CONCAT else n1 or n2
+            p = p1 + p2 + [t]
+            terms.append((p, s1 + s2 + [ALTERN] if n else p, n))
+    return terms[-1][0]
+
+
+class X86_64(bytearray):
     """Code addresses are byte offsets; every jump or call to patch is 5 bytes."""
 
-    FAIL, NNODE = 49, 50
+    NNODE = 50
     # fmt: off
     FOOTER = b"".join([
         b"\x48\x8d\x46\xff",          #         leaq   -1(%rsi), %rax
@@ -71,7 +91,7 @@ class X86_64:
     def __init__(self, size: int):
         disp = struct.pack("<i", -size)
         # fmt: off
-        self.code = bytearray(b"".join([
+        super().__init__(b"".join([
             b"\xc8" + struct.pack("<H", size) + b"\x00",  # enter  $size, $0
             b"\x48\x89\xfe",          #         movq   %rdi, %rsi
             b"\x31\xc0",              #         xorl   %eax, %eax
@@ -112,45 +132,43 @@ class X86_64:
         ]))
         # fmt: on
 
-    @property
-    def pc(self) -> int:
-        return len(self.code)
+    def jmp(self, to: int) -> None:
+        self.extend(struct.pack("<Bi", 0xE9, to - len(self) - 5))
+
+    def call(self, to: int) -> None:
+        self.extend(struct.pack("<Bi", 0xE8, to - len(self) - 5))
 
     def link(self, at: int, to: int) -> None:
-        struct.pack_into("<i", self.code, at + 1, to - (at + 5))
+        struct.pack_into("<i", self, at + 1, to - (at + 5))
 
     def target(self, at: int) -> int:
-        return at + 5 + struct.unpack_from("<i", self.code, at + 1)[0]
+        return at + 5 + struct.unpack_from("<i", self, at + 1)[0]
 
     def char(self, c: int) -> None:
-        pc = self.pc
-        # jmp +0; cmp $c, %al; je +1; ret; call _nnode
-        self.code += b"\xe9\0\0\0\0\x3c" + bytes([c]) + b"\x74\x01\xc3\xe8\0\0\0\0"
-        self.link(pc + 10, self.NNODE)
+        self.jmp(len(self) + 5)
+        self.extend(b"\x3c%c\x74\x01\xc3" % c)  # cmp $c, %al; je +1; ret
+        self.call(self.NNODE)
 
-    def kleene(self, s: int) -> int:
-        pc, entry = self.pc, self.target(s)
-        # call entry; jmp +10; call entry; jmp +0
-        self.code += b"\xe8\0\0\0\0\xeb\x0a\xe8\0\0\0\0\xe9\0\0\0\0"
-        self.link(pc, entry)
-        self.link(pc + 7, entry)
-        self.link(s, pc + 7)
-        return pc + 12
+    def kleene(self, s: int) -> None:
+        entry = self.target(s)
+        self.call(entry)
+        self.extend(b"\xeb\x05")  # jmp over the call below
+        self.link(s, len(self))
+        self.call(entry)
 
     def altern(self, s1: int, s2: int) -> None:
-        pc = self.pc
-        # jmp +10; call entry2; jmp entry1
-        self.code += b"\xeb\x0a\xe8\0\0\0\0\xe9\0\0\0\0"
-        self.link(pc + 2, self.target(s2))
-        self.link(pc + 7, self.target(s1))
-        self.link(s1, pc + 2)
-        self.link(s2, pc + 12)
+        entry1, entry2 = self.target(s1), self.target(s2)
+        self.extend(b"\xeb\x0a")  # jmp over the call and jmp below
+        self.link(s1, len(self))
+        self.call(entry2)
+        self.jmp(entry1)
+        self.link(s2, len(self))
 
     def finish(self) -> bytes:
-        return bytes(self.code + self.FOOTER)
+        return bytes(self + self.FOOTER)
 
 
-class Arm64:
+class Arm64(list):
     """Code addresses are word indices; every jump to patch is a b or bl."""
 
     FAIL, NNODE = 22, 24
@@ -169,7 +187,7 @@ class Arm64:
 
     def __init__(self, size: int):
         # fmt: off
-        self.code = [
+        super().__init__([
             0xA9BF7BFD,  #         stp    x29, x30, [sp, #-16]!
             0x910003FD,  #         mov    x29, sp
             0xD2800010 | size << 5,  # mov x16, #size
@@ -213,88 +231,68 @@ class Arm64:
             0x91000463,  #         add    x3, x3, #1
             0x17FFFFF4,  #         b      _fail
                          # _code:
-        ]
+        ])
         # fmt: on
 
-    @property
-    def pc(self) -> int:
-        return len(self.code)
+    def jmp(self, to: int, op: int = B) -> None:
+        self.append(op | (to - len(self)) & 0x3FFFFFF)
+
+    def call(self, to: int) -> None:
+        self.extend([self.ADR | 3 << 5, self.PUSH])  # adr x16, .+12; push x16
+        self.jmp(to)
 
     def link(self, at: int, to: int) -> None:
-        self.code[at] = self.code[at] & 0xFC000000 | (to - at) & 0x3FFFFFF
+        self[at] = self[at] & 0xFC000000 | (to - at) & 0x3FFFFFF
 
     def target(self, at: int) -> int:
-        return at + ((self.code[at] & 0x3FFFFFF) ^ 0x2000000) - 0x2000000
-
-    def adr(self, at: int, to: int) -> int:
-        return self.ADR | ((to - at) & 0x7FFFF) << 5
+        return at + ((self[at] & 0x3FFFFFF) ^ 0x2000000) - 0x2000000
 
     def char(self, c: int) -> None:
-        pc = self.pc
-        bne = self.BNE | ((self.FAIL - (pc + 2)) & 0x7FFFF) << 5
-        self.code += [self.B, self.CMP | c << 10, bne, self.BL]
-        self.link(pc, pc + 1)
-        self.link(pc + 3, self.NNODE)
+        self.jmp(len(self) + 1)
+        self.append(self.CMP | c << 10)
+        self.append(self.BNE | ((self.FAIL - len(self)) & 0x7FFFF) << 5)
+        self.jmp(self.NNODE, self.BL)
 
-    def kleene(self, s: int) -> int:
-        pc, entry = self.pc, self.target(s)
-        self.code += [self.adr(pc, pc + 3), self.PUSH, self.B, self.B]
-        self.code += [self.adr(pc + 4, pc + 7), self.PUSH, self.B, self.B]
-        self.link(pc + 2, entry)
-        self.link(pc + 3, pc + 8)
-        self.link(pc + 6, entry)
-        self.link(pc + 7, pc + 8)
-        self.link(s, pc + 4)
-        return pc + 7
+    def kleene(self, s: int) -> None:
+        entry = self.target(s)
+        self.call(entry)
+        self.jmp(len(self) + 4)
+        self.link(s, len(self))
+        self.call(entry)
 
     def altern(self, s1: int, s2: int) -> None:
-        pc = self.pc
-        self.code += [self.B, self.adr(pc + 1, pc + 4), self.PUSH, self.B, self.B]
-        self.link(pc, pc + 5)
-        self.link(pc + 3, self.target(s2))
-        self.link(pc + 4, self.target(s1))
-        self.link(s1, pc + 1)
-        self.link(s2, pc + 5)
+        entry1, entry2 = self.target(s1), self.target(s2)
+        self.jmp(len(self) + 5)
+        self.link(s1, len(self))
+        self.call(entry2)
+        self.jmp(entry1)
+        self.link(s2, len(self))
 
     def finish(self) -> bytes:
-        code = self.code + self.FOOTER
-        return struct.pack(f"<{len(code)}I", *code)
+        return struct.pack(f"<{len(self) + 4}I", *self, *self.FOOTER)
 
 
 ISA = {"x86_64": X86_64, "amd64": X86_64, "arm64": Arm64, "aarch64": Arm64}
 
 
 def assemble(regexp: str, isa: type[X86_64 | Arm64] | None = None) -> bytes:
-    program = list(postfix(sieve(regexp)))
+    program = strip(postfix(sieve(regexp)))
     size = -(-8 * sum(isinstance(t, str) for t in program) // 16) * 16
     if size > 0xFFFF:
         raise ValueError("too many characters")
     asm = (isa or ISA[platform.machine().lower()])(size)
-    stack: list[int] = []
-    lam: list[int | None] = []  # Thompson's lambda: the jump taken on an empty match
+    stack: list[int] = []  # the leading jmp of each fragment
     for t in program:
         if isinstance(t, str):
-            stack.append(asm.pc)
-            lam.append(None)
+            stack.append(len(asm))
             asm.char(ord(t))
         elif t == CONCAT:
-            # FIXME: keeps only the left lambda, so an outer * killing it also cuts
-            # the empty path into the right operand: x(a*b*)*c misses xbc
             stack.pop()
-            if lam.pop() is None:
-                lam[-1] = None
         elif t == KLEENE:
-            if lam[-1] is not None:
-                asm.link(lam[-1], asm.FAIL)
-            lam[-1] = asm.kleene(stack[-1])
+            asm.kleene(stack[-1])
         elif t == ALTERN:
             asm.altern(*stack[-2:])
             stack.pop()
-            last = lam.pop()
-            if lam[-1] is None:
-                lam[-1] = last
-            elif last is not None:
-                asm.link(last, lam[-1])
     return asm.finish()
 
 
