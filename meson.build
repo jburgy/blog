@@ -45,6 +45,8 @@ f2py_command = [py, '-m', 'numpy.f2py', '@INPUT@', '--build-dir', '@OUTDIR@']
 subdir('fourt2py')
 subdir('fun')
 subdir('linprog')
-subdir('progress')
+if get_option('progress')
+    subdir('progress')
+endif
 subdir('simplex')
 subdir('sudoku')

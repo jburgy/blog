@@ -20,7 +20,8 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
-      - run: uv sync
+      # progress/ (zig build, ~1 min) is not needed by any test
+      - run: uv sync -C setup-args=-Dprogress=false
       - uses: astral-sh/ruff-action@v3
         with:
           version: "latest"

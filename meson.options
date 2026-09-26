@@ -1,0 +1,1 @@
+option('progress', type : 'boolean', value : true, description : 'Build the Zig-based progress extension')
