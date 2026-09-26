@@ -20,18 +20,7 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
-      # progress/ is built with `zig build`; a cold zig cache costs ~1 min
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ${{ runner.temp }}/zig-global
-            ${{ runner.temp }}/zig-local
-          key: zig-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('uv.lock', 'progress/*.zig', 'progress/build.zig.zon') }}
-          restore-keys: zig-${{ runner.os }}-py${{ matrix.python-version }}-
       - run: uv sync
-        env:
-          ZIG_GLOBAL_CACHE_DIR: ${{ runner.temp }}/zig-global
-          ZIG_LOCAL_CACHE_DIR: ${{ runner.temp }}/zig-local
       - uses: astral-sh/ruff-action@v3
         with:
           version: "latest"
