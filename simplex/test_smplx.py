@@ -1,11 +1,6 @@
 import numpy as np
 import pytest
-from simplex import (  # ty: ignore[unresolved-import]
-    Status,
-    crout1,
-    smplx,
-    smplx_py,
-)
+from simplex import Status, crout1, smplx, smplx_py  # ty: ignore[unresolved-import]
 
 SOLVERS = [smplx_py] + ([smplx] if smplx is not smplx_py else [])
 
