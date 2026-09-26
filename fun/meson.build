@@ -1,10 +1,13 @@
 py.install_sources([
     '__init__.py',
+    '_select.py',
     'anagram.py',
     'api_from.py',
     'challenge.py',
+    'codebuilder.py',
     'dag.py',
     'html_elements.py',
+    'intern.py',
     'multiplication_table.py',
     'nbody.py',
     'oecd.py',
