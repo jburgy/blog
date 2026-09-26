@@ -49,7 +49,7 @@ def smplx_py(
     a: Matrix,
     b0: npt.ArrayLike,
     c: npt.ArrayLike,
-    mxiter: int = 1000,
+    mxiter: int | None = None,
     numle: int = 0,
     numge: int = 0,
 ) -> tuple[Status, Vector, float, int]:
@@ -58,9 +58,12 @@ def smplx_py(
         maximize c^T x
         subject to a x (<=, =, >=) b0, x >= 0.
     Constraints: first numle are <=, next numge are >=, rest are =.
+    mxiter defaults to 8 * len(b0), as in the f2py wrapper.
     Returns (status, x, z, iterations); x holds original, slack and surplus values.
     """
     m, n0 = a.shape
+    if mxiter is None:
+        mxiter = 8 * m
     b0 = np.asarray(b0, dtype=np.float64).ravel()
     c = np.asarray(c, dtype=np.float64).ravel()
     ms = numle + numge
@@ -309,16 +312,18 @@ def smplx_py(
         if iter_count >= mxiter:
             status = Status.MAX_ITER
             break
-        if jp < n0 and a_absmax[jp] == 0.0:
+        iter_count += 1
+        icount += 1
+        if jp < n0 and a_absmax[jp] == 0.0:  # 305
             status = Status.UNBOUNDED
             break
         entering_column(jp)
         if not col.any():  # 350
+            iter_count -= 1
+            icount -= 1
             r[jp] = 0.0
             reprice = True
             continue
-        iter_count += 1
-        icount += 1
 
         # 400 Choose the leaving variable and pivot
         i = leaving(phase)
@@ -368,6 +373,11 @@ def crout1(a: Matrix, iend: int, index: Index, scratch: Matrix) -> bool:
         False if successful, True if matrix is singular.
     """
     n, _ = a.shape
+    if n == 1:
+        if a[0, 0] == 0.0:
+            return True
+        a[0, 0] = 1.0 / a[0, 0]
+        return False
     temp, work = scratch[0], scratch[1]
 
     # ------------------------------------------------------------------

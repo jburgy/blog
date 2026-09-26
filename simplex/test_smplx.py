@@ -147,8 +147,9 @@ def test_smplx(solve):
         ),
         ([[1, 1], [1, 1]], [1, 3], [1, 1], 1, 1, (Status.INFEASIBLE, 0.0, 1)),
         ([[1, -1], [-1, 1]], [1, 1], [1, 1], 2, 0, (Status.UNBOUNDED, 0.0, 2)),
+        ([[1, 0], [1, 0]], [1, 1], [0, 1], 2, 0, (Status.UNBOUNDED, 0.0, 1)),
     ],
-    ids=["le", "eq", "le+eq", "ge+eq", "infeasible", "unbounded"],
+    ids=["le", "eq", "le+eq", "ge+eq", "infeasible", "unbounded", "zero-column"],
 )
 def test_small(solve, a, b0, c, numle, numge, expected):
     ind, _, z, iter = solve(np.array(a, float), b0, c, numle=numle, numge=numge)
@@ -156,7 +157,9 @@ def test_small(solve, a, b0, c, numle, numge, expected):
     assert z == pytest.approx(expected[1])
 
 
-@pytest.mark.parametrize("n, iend", [(2, 0), (4, 0), (5, 0), (5, 2), (3, 1), (6, 5)])
+@pytest.mark.parametrize(
+    "n, iend", [(1, 0), (2, 0), (4, 0), (5, 0), (5, 2), (3, 1), (6, 5)]
+)
 def test_crout1(n, iend):
     rng = np.random.default_rng(n + iend)
     a = rng.normal(size=(n, n))
