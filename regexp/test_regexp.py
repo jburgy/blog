@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest  # pyright: ignore[reportMissingImports]
 
+from jit import Pattern
+
 HERE = Path(__file__).parent
 JONESFORTH = HERE.parent / "jonesforth"
 CC = os.environ.get("CC", "cc")
@@ -215,6 +217,16 @@ def test_bytecode_against_re(bytecode: Callable[[str, str], bool], seed: int) ->
         (pattern, s)
         for pattern, py, s in random_cases(seed)
         if bytecode(pattern, s) != bool(re.fullmatch(py, s))
+    ]
+    assert not bad, bad[:5]
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_jit_against_re(seed: int) -> None:
+    bad = [
+        (pattern, s)
+        for pattern, py, s in random_cases(seed)
+        if Pattern(pattern).search(s) != earliest_end(py, s)
     ]
     assert not bad, bad[:5]
 
