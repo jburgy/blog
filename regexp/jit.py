@@ -19,6 +19,8 @@ once, so the next list never needs more than one slot per character node, and
 9
 >>> Pattern("x").search("abc")
 -1
+>>> Pattern("a·b").search("xa·b")
+4
 """
 
 import ctypes
@@ -36,11 +38,11 @@ ALTERN, CONCAT, KLEENE = map(SYMBOLS.index, "|·*")
 def sieve(src: str):
     concat, chars = False, iter(src)
     for c in chars:
-        if concat and c not in ")|·*":
+        if concat and c not in ")|*":
             yield SYMBOLS.index("·")
-        concat = c not in "(|·"
+        concat = c not in "(|"
         yield (
-            next(chars, "\\") if c == "\\" else SYMBOLS.index(c) if c in SYMBOLS else c
+            next(chars, "\\") if c == "\\" else SYMBOLS.index(c) if c in "()|*" else c
         )
     yield SYMBOLS.index(")")
 
