@@ -1,8 +1,13 @@
+import os
+
 import numpy as np
 import pytest
 from simplex import Status, crout1, smplx, smplx_py  # ty: ignore[unresolved-import]
 
 SOLVERS = [smplx_py] + ([smplx] if smplx is not smplx_py else [])
+slow = pytest.mark.skipif(
+    not os.environ.get("SIMPLEX_SLOW"), reason="set SIMPLEX_SLOW=1 to run"
+)
 
 # Nutrient minimums.
 nutrients = {
@@ -170,29 +175,69 @@ def test_crout1(n, iend):
     np.testing.assert_allclose(ainv @ a, np.eye(n), atol=1e-12)
 
 
-def test_agrees_with_highs():
-    linprog = pytest.importorskip("scipy.optimize").linprog
-    expected = {0: Status.OPTIMAL, 2: Status.INFEASIBLE, 3: Status.UNBOUNDED}
-    disagree = []
-    for seed in range(200):
-        rng = np.random.default_rng(seed)
-        m, n0 = rng.integers(2, 10, size=2)
-        numle = rng.integers(0, m + 1)
-        numge = rng.integers(0, m - numle + 1)
-        ms = numle + numge
+def random_lp(seed, max_dim, continuous=False):
+    """Random LP with a mix of <=, >= and = constraints; integer data has ties."""
+    rng = np.random.default_rng(seed)
+    m, n0 = rng.integers(2, max_dim, size=2)
+    numle = rng.integers(0, m + 1)
+    numge = rng.integers(0, m - numle + 1)
+    if continuous:
+        a = rng.uniform(-2, 8, (m, n0))
+        b0 = rng.uniform(0, 10, m)
+        c = rng.uniform(-2, 5, n0)
+    else:
         a = rng.integers(-3, 6, size=(m, n0)).astype(float)
         b0 = rng.integers(0, 10, m).astype(float)
         c = rng.integers(-3, 5, n0).astype(float)
-        ref = linprog(
-            -c,
-            A_ub=np.r_[a[:numle], -a[numle:ms]],
-            b_ub=np.r_[b0[:numle], -b0[numle:ms]],
-            A_eq=a[ms:] if m > ms else None,
-            b_eq=b0[ms:] if m > ms else None,
-        )
-        ind, _, z, _ = smplx_py(a, b0, c, numle=numle, numge=numge)
-        if ind != expected[ref.status] or (
-            ind == Status.OPTIMAL and z != pytest.approx(-ref.fun)
-        ):
-            disagree.append(seed)
-    assert disagree == []
+    return a, b0, c, int(numle), int(numge)
+
+
+def highs(a, b0, c, numle, numge):
+    """Expected (status, z) from HiGHS, with z = nan unless optimal."""
+    linprog = pytest.importorskip("scipy.optimize").linprog
+    ms = numle + numge
+    eq = len(b0) > ms
+    ref = linprog(
+        -c,
+        A_ub=np.r_[a[:numle], -a[numle:ms]],
+        b_ub=np.r_[b0[:numle], -b0[numle:ms]],
+        A_eq=a[ms:] if eq else None,
+        b_eq=b0[ms:] if eq else None,
+    )
+    status = {0: Status.OPTIMAL, 2: Status.INFEASIBLE, 3: Status.UNBOUNDED}
+    return status[ref.status], -ref.fun if ref.status == 0 else float("nan")
+
+
+def agrees_with_highs(lp):
+    a, b0, c, numle, numge = lp
+    ind, _, z, _ = smplx_py(a, b0, c, numle=numle, numge=numge)
+    status, zref = highs(*lp)
+    return ind == status and (ind != Status.OPTIMAL or z == pytest.approx(zref))
+
+
+def test_agrees_with_highs():
+    assert [s for s in range(200) if not agrees_with_highs(random_lp(s, 10))] == []
+
+
+@slow
+def test_agrees_with_highs_many():
+    """Near-singular or degenerate bases may make a few problems disagree."""
+    seeds = range(1000, 4000)
+    disagree = [s for s in seeds if not agrees_with_highs(random_lp(s, 12))]
+    assert len(disagree) <= len(seeds) // 200, disagree
+
+
+@slow
+@pytest.mark.skipif(smplx is smplx_py, reason="Fortran extension not built")
+def test_matches_fortran_many():
+    """Without pivot ties, smplx_py follows exactly the Fortran's path."""
+    differ = []
+    for seed in range(3000):
+        a, b0, c, numle, numge = random_lp(seed, 20, continuous=True)
+        if a.shape[1] + numle + numge < len(b0):  # the Fortran writes past X
+            continue
+        f = smplx(a=a, b0=b0, c=c, numle=numle, numge=numge)
+        p = smplx_py(a, b0, c, numle=numle, numge=numge)
+        if (p[0], p[3]) != (f[0], f[3]) or p[2] != pytest.approx(f[2], rel=1e-4):
+            differ.append(seed)
+    assert differ == []
