@@ -1,19 +1,14 @@
-fourt2py_source = custom_target('fourt2pymodule.c',
-    input : ['fourt.pyf'],
-    output : ['fourt2pymodule.c'],
-    command: [py, '-m', 'numpy.f2py', '@INPUT@', '--build-dir', '@OUTDIR@'],
+fourt2py_source = custom_target(
+    input : 'fourt.pyf',
+    output : 'fourt2pymodule.c',
+    command : f2py_command,
 )
-
-include_directories = run_command(py,
-    ['-c', 'import numpy.f2py; print(numpy.get_include(), numpy.f2py.get_include())'],
-    check : true
-).stdout().split()
 
 py.extension_module('fourt2py',
     'FOURT.F',
     fourt2py_source,
-    include_directories[1] / 'fortranobject.c',
-    include_directories : include_directories,
+    fortranobject_c,
+    include_directories : f2py_inc,
     install : true,
     link_language : 'fortran',
 )

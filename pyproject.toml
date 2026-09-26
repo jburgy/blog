@@ -21,6 +21,9 @@ dev = [
     "interpreters-pep-734",
     "jupyter>=1.1.1",
     "matplotlib",
+    "meson",
+    "meson-python",
+    "ninja",
     "pandas",
     "pandas-stubs>=3.0.0.260204",
     "pytest",
@@ -29,6 +32,7 @@ dev = [
     "scipy-stubs>=1.17.1.4",
     "sqlalchemy",
     "sympy",
+    "ziglang",
 ]
 
 [tool.meson-python.args]
@@ -36,6 +40,10 @@ compile = ["-j4"]
 
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
+
+[tool.uv]
+# Editable meson-python rebuilds need ninja from .venv, not a transient isolated build env.
+no-build-isolation-package = ["blog"]
 
 [[tool.uv.index]]
 url = "https://pypi.ampl.com/"
