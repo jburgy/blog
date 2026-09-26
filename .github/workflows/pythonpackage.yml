@@ -30,6 +30,7 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install -y gcc-multilib
-      - run: uv run pytest
+      # a re-sync would drop -Dprogress=false
+      - run: uv run --no-sync pytest
         env:
           pytest_github_report: true
