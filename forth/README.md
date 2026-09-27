@@ -47,19 +47,19 @@ guarantee from the compiler: `__attribute__((musttail))`, `@call(.always_tail)`,
 
 ## Every implementation
 
-| source | language | strategy | wasm | toolkit | notes | native ms / rank | Wasmtime ms / rank |
+| source | language | strategy | wasm | toolkit | notes | native ms (range) / rank | Wasmtime ms (range) / rank |
 | --- | --- | --- | :---: | --- | --- | ---: | ---: |
-| [4th.c](4th.c) | C | labels as values | ✅ | Emscripten (`make 4th.js`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | N/R (segfault) | 247.8 / 5 |
-| [5th.c](5th.c) | C | tail calls | ✅ | Emscripten *and* wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 53.9 / 1 | 228.2 / 4 |
-| [jansforth.c](jansforth.c) | C | switch | — | — | Opcode enum, everything in one `memory[]` array | 72.9 / 3 | — |
-| [recurse.c](recurse.c) | C | switch | — | — | `docol()` is the loop and recurses; return stack becomes a shadow stack | 77.7 / 4 | — |
-| [6th.zig](6th.zig) | Zig | tail calls | ✅ | Emscripten via `zig build -Dtarget=wasm32-emscripten` | `@call(.always_tail, primitives[code], ...)`; native result only | 70.5 / 2 | — |
-| [4th.rs](4th.rs) | Rust | tail calls | ✅ | wasm32-wasip1 (Wasmtime, and uwasi in the browser) | Nightly `become`; every primitive returns `!` | 82.9 / 6 | 377.1 / 6 |
-| [jansforth.rs](jansforth.rs) | Rust | switch | — | — | Transcription of jansforth.c, run with `rust-script` | 78.7 / 4 | — |
-| [wasm/tabulate.wast](wasm/tabulate.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | One big `br_table`, no indirect calls | — | 57.3 / 1 |
-| [wasm/recurse.wast](wasm/recurse.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | Tabulate with a recursive `$docol`; colon-word returns live on the wasm call stack | — | 56.0 / 1 |
-| [wasm/jonesforth.wast](wasm/jonesforth.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | `return_call_indirect`; state in globals | — | N/R (wrong result) |
-| [wasm/localize.wast](wasm/localize.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | Same, with `cfa`/`ip`/`sp`/`rsp` passed as parameters | — | 202.6 / 3 |
+| [4th.c](4th.c) | C | labels as values | ✅ | Emscripten (`make 4th.js`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | 163.4 (145.9-384.5) / 7 | 274.2 (255.8-348.8) / 6 |
+| [5th.c](5th.c) | C | tail calls | ✅ | Emscripten *and* wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 52.9 (46.8-69.7) / 1 | 220.3 (206.2-276.0) / 4 |
+| [jansforth.c](jansforth.c) | C | switch | — | — | Opcode enum, everything in one `memory[]` array | 69.8 (66.2-96.7) / 2 | — |
+| [recurse.c](recurse.c) | C | switch | — | — | `docol()` is the loop and recurses; return stack becomes a shadow stack | 76.9 (69.6-114.9) / 4 | — |
+| [6th.zig](6th.zig) | Zig | tail calls | ✅ | Emscripten via `zig build -Dtarget=wasm32-emscripten` | `@call(.always_tail, primitives[code], ...)`; native result only | 70.3 (62.3-124.6) / 2 | — |
+| [4th.rs](4th.rs) | Rust | tail calls | ✅ | wasm32-wasip1 (Wasmtime, and uwasi in the browser) | Nightly `become`; every primitive returns `!` | 79.7 (74.4-92.9) / 5 | 403.8 (357.0-611.2) / 7 |
+| [jansforth.rs](jansforth.rs) | Rust | switch | — | — | Transcription of jansforth.c, run with `rust-script` | 80.1 (69.6-110.1) / 5 | — |
+| [wasm/tabulate.wast](wasm/tabulate.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | One big `br_table`, no indirect calls | — | 56.8 (47.6-66.7) / 1 |
+| [wasm/recurse.wast](wasm/recurse.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | Tabulate with a recursive `$docol`; colon-word returns live on the wasm call stack | — | 56.6 (43.4-75.1) / 1 |
+| [wasm/jonesforth.wast](wasm/jonesforth.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | `return_call_indirect`; state in globals | — | 232.0 (187.4-296.2) / 5 |
+| [wasm/localize.wast](wasm/localize.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | Same, with `cfa`/`ip`/`sp`/`rsp` passed as parameters | — | 215.5 (187.8-361.5) / 3 |
 | [jonesforth.S](../jonesforth/jonesforth.S) | x86 assembly | indirect threaded | — | Linux/i386 | Requires Linux on x86; not runnable on this macOS/arm64 host | N/R | — |
 
 ## Benchmarks
@@ -69,8 +69,10 @@ Zig 0.15.2, Emscripten 6.0.2, WABT 1.0.39, and Wasmtime 49.0.1.
 Lower times are faster. Native and Wasmtime ranks are separate; medians within
 3% are tied.
 
-Each result is the median of seven timed runs after one warm-up. The benchmark
-loads the definitions from [`fibonacci.fs`](../talks/fibonacci.fs) and executes
+Each result is the median and min-max range of eleven timed runs after a warm-up. Targets are
+run in a different deterministic shuffled order on each trial to reduce
+systematic ordering bias; the harness also prints each range and every sample.
+The benchmark loads the definitions from [`fibonacci.fs`](../talks/fibonacci.fs) and executes
 its fast-doubling `FIBONACCI` word 100,000 times at `n=46`, then checks the
 result against `1836311903`. Using 46 keeps the result in range for the
 32-bit-cell implementations. The Wasmtime column includes the hand-written
@@ -78,14 +80,21 @@ result against `1836311903`. Using 46 keeps the result in range for the
 Rust `wasm32-wasip1` build. Wasmtime modules were compiled once at optimization
 level 2 and run as precompiled modules with tail calls and exceptions enabled;
 module compilation is excluded, while process/runtime startup is included.
-Native builds used optimized settings (`-O3`, Cargo release, or Zig
-`ReleaseFast`).
+Native builds used optimized settings (`-O3`, Cargo release with `opt-level=3`,
+or Zig `ReleaseFast`).
 
 The file's default `n=92` exceeds the 32-bit cell range used by most variants.
-At the common-width input `46`, `wasm/jonesforth.wast` produces the wrong
-result, so it is not ranked. The native `4th.c` build also segfaulted before
-consuming the benchmark input on this host; it is ranked only for its
-Emscripten Wasm target.
+At the common-width input `46`, the benchmark verifies the computed result for
+each target. `wasm/jonesforth.wast` now passes after correcting its `-ROT`
+stack permutation. `4th.c` uses 16 KiB data and return stacks, enough for the
+recursive workloads on this host.
+
+Run `python3 benchmark.py` from this directory to rebuild the native and Wasm
+targets in a temporary directory, validate each result, and print medians,
+ranges, and individual timings.
+The script accepts `--iterations`, `--trials`, and `--timeout` overrides; it
+requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
+`rust-src`, Zig, WABT, and Wasmtime.
 
 ### Toolkits, briefly
 
@@ -110,6 +119,7 @@ Emscripten Wasm target.
 | [src/main.rs](src/main.rs) | Cargo test harness: feeds the preamble to a built binary and diffs stdout |
 | [comparison.rs](comparison.rs) | one-off script checking that the generated dictionary matches the static rodata table |
 | [forth.py](forth.py) | a Forth-to-CPython-bytecode compiler — a different experiment entirely |
+| [benchmark.py](benchmark.py) | rebuilds the native and Wasmtime targets and benchmarks the shared Fibonacci workload |
 | [5th-opt/](5th-opt/) | an LLM-driven search over `5th.c`'s parameter order, with patches and a transcript |
 | [4th.fs](4th.fs), [4th.32.fs](4th.32.fs), [fixes.f](fixes.f) | the shared preamble, 64- and 32-bit cell flavours |
 

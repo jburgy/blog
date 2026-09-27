@@ -299,9 +299,10 @@
         (local.set 0 (i32.load offset=0 (global.get $sp)))
         (local.set 1 (i32.load offset=4 (global.get $sp)))
         (local.set 2 (i32.load offset=8 (global.get $sp)))
-        (i32.store offset=0 (global.get $sp) (local.get 0))
+        ;; With the top at offset 0, (a b c -- c a b) is [b, a, c].
+        (i32.store offset=0 (global.get $sp) (local.get 1))
         (i32.store offset=4 (global.get $sp) (local.get 2))
-        (i32.store offset=8 (global.get $sp) (local.get 1))
+        (i32.store offset=8 (global.get $sp) (local.get 0))
         (return_call $next)
     )
     (elem (i32.const 0x6) $-rot)
