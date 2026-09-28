@@ -186,7 +186,9 @@ def bench_zig(tmp: Path, iterations: int, trials: int) -> list[float] | None:
     source, n = re.subn(r"(?m)^fn match\(", "pub fn match(", source, count=1)
     assert n == 1, "regexp.zig's match() signature changed"
     (tmp / "regexp.zig").write_text(source)
-    (tmp / "bench.zig").write_text(ZIG_BENCH.format(iterations=iterations, pattern=ZIG_PATTERN))
+    (tmp / "bench.zig").write_text(
+        ZIG_BENCH.format(iterations=iterations, pattern=ZIG_PATTERN)
+    )
     subprocess.run(
         [zig, "build-exe", "bench.zig", "-O", "ReleaseFast", "--name", "bench"],
         cwd=tmp, check=True, capture_output=True,
@@ -197,7 +199,7 @@ def bench_zig(tmp: Path, iterations: int, trials: int) -> list[float] | None:
             [str(tmp / "bench"), TEXT], capture_output=True, check=True, text=True
         ).stdout
         hits, us = out.split()
-        assert int(hits) == iterations, "regexp.zig match() did not find a.*d in abccbcccd"
+        assert int(hits) == iterations, "regexp.zig match() did not find a.*d"
         samples.append(float(us))
     return samples
 
@@ -210,7 +212,8 @@ def bench_forth(trials: int) -> list[float] | None:
     samples = []
     for _ in range(trials):
         out = subprocess.run(
-            [node, "bench.mjs", TEXT], cwd=tracing, capture_output=True, check=True, text=True
+            [node, "bench.mjs", TEXT],
+            cwd=tracing, capture_output=True, check=True, text=True,
         ).stdout
         match = TIME_RE.search(out)
         assert match, f"unexpected bench.mjs output: {out!r}"
@@ -218,14 +221,18 @@ def bench_forth(trials: int) -> list[float] | None:
     return samples
 
 
-def summarize(name: str, notes: str, samples: list[float] | None) -> tuple[str, str, float | None, str]:
+def summarize(
+    name: str, notes: str, samples: list[float] | None
+) -> tuple[str, str, float | None, str]:
     if not samples:
         return name, notes, None, "N/R"
     median = statistics.median(samples)
     return name, notes, median, f"{median:.4f} ({min(samples):.4f}-{max(samples):.4f})"
 
 
-def rank(rows: list[tuple[str, str, float | None, str]]) -> list[tuple[str, str, str, str]]:
+def rank(
+    rows: list[tuple[str, str, float | None, str]],
+) -> list[tuple[str, str, str, str]]:
     ranked = sorted(
         [(i, row) for i, row in enumerate(rows) if row[2] is not None],
         key=lambda pair: pair[1][2],
