@@ -178,8 +178,6 @@ int main(int argc __attribute__((unused)), char *argv[])
     char *r;
     register char *s, **t;
     register struct word_t *created;
-    static char errmsg[] = "PARSE ERROR: ";
-    static void *cold_start[1];
 
 #define pop() forth_pop(&sp, stack + STACK_SIZE)
 #define push(value) forth_push(&sp, stack, value)
@@ -523,6 +521,7 @@ DEFCODE(LITSTRING, 0, "TELL", TELL):
     s = (char *)pop();
     (void)(write(STDOUT_FILENO, s, (size_t)c) + 1);
     NEXT;
+    static char errmsg[] = "PARSE ERROR: ";
 DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
     p = (intptr_t *)here;
     c = word();
@@ -581,13 +580,13 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0):
     push(syscall((int)a));
     NEXT;
 
+    static void *cold_start[] = {CODE(QUIT)};
 _start:
     state = 0;
     here = sbrk(0x10000);
     latest = &name_SYSCALL0;
     s0 = stack + STACK_SIZE;
     base = 10;
-    cold_start[0] = CODE(QUIT);
     ip = (void ***)cold_start;
     NEXT;  /* Run interpreter! */
 }
