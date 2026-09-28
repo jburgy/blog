@@ -10,6 +10,7 @@
  * Can be distributed under the MIT license, see bottom of file.
  */
 
+#include <assert.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -244,7 +245,11 @@ static union cell *compile(const unsigned char *src, void *const *op)
  * good on a later one.  `*cache` lets a caller compile once (pass a NULL
  * `*cache` with the pattern in `re`) and search many times after (pass
  * NULL for `re`, whatever came back in `*cache` for `s`'s repeat runs);
- * the caller now owns `*cache` and must `free` it.
+ * the caller now owns `*cache` and must `free` it.  `re` is silently
+ * ignored once `*cache` is set, so the assert below catches a caller
+ * that passes a *different* pattern without resetting `*cache` to NULL
+ * first -- that would otherwise search with a stale compiled program
+ * instead of failing loudly.
  */
 char *search(union cell **cache, const char *re, char *s)
 {
@@ -255,6 +260,7 @@ char *search(union cell **cache, const char *re, char *s)
     char *found = NULL;
     int cnode = 0, nnode = 0, c = EOF, i; /* any non-NUL c primes the first exchange */
 
+    assert((*cache == NULL) || (re == NULL));
     if (!(code = *cache)) {
         unsigned char *p = convert(re);
         code = *cache = compile(p, op);

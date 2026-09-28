@@ -25,6 +25,13 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const testing = std.testing;
 
+/// switched.c/threaded.c size their `stack`/`lambda`/`clist`/`nlist` at C's
+/// `BUFSIZ` (glibc: 8192) and never check it -- an overflowing pattern or
+/// subject just corrupts memory there. Zig's bounds-checked arrays fail
+/// loudly instead of silently, but they still need the same headroom to
+/// avoid failing *at all* on inputs no bigger than what BUFSIZ tolerates.
+const BUFSIZ = 8192;
+
 const LPAREN: u8 = 128;
 const RPAREN: u8 = 129;
 const ALTERN: u8 = 130;
@@ -126,7 +133,7 @@ fn prepare(allocator: Allocator, src: []const u8) ![]u8 {
 /// http://cs.lasierra.edu/~ehwang/cptg454/postfix.pdf
 fn convert(allocator: Allocator, re: []const u8) ![]u8 {
     const src = try prepare(allocator, re);
-    var stack: [256]u8 = undefined;
+    var stack: [BUFSIZ]u8 = undefined;
     stack[0] = LPAREN;
     var top: usize = 1;
 
@@ -187,8 +194,8 @@ fn codelen(src: []const u8) usize {
 }
 
 fn compile(allocator: Allocator, src: []const u8) ![]Cell {
-    var stack: [256]u16 = undefined;
-    var lambda: [256]?u16 = undefined;
+    var stack: [BUFSIZ]u16 = undefined;
+    var lambda: [BUFSIZ]?u16 = undefined;
     var top: usize = 0;
 
     const code = try allocator.alloc(Cell, codelen(src));
@@ -262,15 +269,13 @@ fn fetch(code: []const Cell, pc: *u16) Op {
     return op;
 }
 
-const MAX_THREADS = 256;
-
 /// Leftmost, unanchored search: end of the match, or null. Mirrors
 /// switched.c's search() cell for cell; `si` plays the role of `s - text`,
 /// and a `null` clist entry plays the role of switched.c's `&xchg`
 /// sentinel (a cell address outside `code` itself).
 pub fn search(code: []const Cell, s: []const u8) ?usize {
-    var clist: [MAX_THREADS]?u16 = undefined;
-    var nlist: [MAX_THREADS]u16 = undefined;
+    var clist: [BUFSIZ]?u16 = undefined;
+    var nlist: [BUFSIZ]u16 = undefined;
     var cnode: usize = 0;
     var nnode: usize = 0;
     var si: usize = 0;
