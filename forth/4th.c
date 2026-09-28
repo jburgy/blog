@@ -13,9 +13,23 @@
 #include <unistd.h>  /* read, write, intptr_t */
 #endif
 
+/* These extensions and legacy calls define the computed-goto interpreter. */
+#if defined(__clang__)
+#pragma clang diagnostic ignored "-Wgnu-label-as-value"
+#pragma clang diagnostic ignored "-Wgnu-flexible-array-initializer"
+/* Each word's metadata is intentionally declared at its dispatch label. */
+#pragma clang diagnostic ignored "-Wdeclaration-after-statement"
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+/* Forth cells intentionally carry both integer and pointer values. */
+#pragma clang diagnostic ignored "-Wbad-function-cast"
+#pragma clang diagnostic ignored "-Wimplicit-void-ptr-cast"
+/* The aligned dictionary stores threaded code and data in a shared byte area. */
+#pragma clang diagnostic ignored "-Wcast-align"
+#endif
+
 #define NEXT do { target = *ip++; goto **target; } while (0)
 #define DEFCODE_(_link, _flags, _name, _label) \
-    static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&code_##_label}}; \
+    static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flags = (unsigned char)(_flags | ((sizeof _name) - 1)), .name = _name, .code = {&&code_##_label}}; \
 code_##_label
 
 #define DEFCODE(_link, ...) DEFCODE_(&name_##_link, __VA_ARGS__)
@@ -25,7 +39,7 @@ code_##_label
     NEXT
 
 #define DEFWORD(_link, _flags, _name, _label, ...) \
-    static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flags = _flags | ((sizeof _name) - 1), .name = _name, .code = {&&DOCOL, __VA_ARGS__}}
+    static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flags = (unsigned char)(_flags | ((sizeof _name) - 1)), .name = _name, .code = {&&DOCOL, __VA_ARGS__}}
 
 #define CODE(word) name_##word.code
 
@@ -70,7 +84,7 @@ int syscall(int sysno, ...)
 enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
 struct word_t {
     struct word_t *link;
-    char flags;
+    unsigned char flags;
     char name[15]
 #if __has_attribute(nonstring)
     __attribute__((nonstring))
@@ -81,7 +95,7 @@ struct word_t {
 
 static char word_buffer[0x20];
 
-int key(void)
+static int key(void)
 {
     int ch = getchar_unlocked();
 
@@ -90,9 +104,10 @@ int key(void)
     return ch;
 }
 
-intptr_t word(void)
+static intptr_t word(void)
 {
-    char ch, *s = word_buffer;
+    int ch;
+    char *s = word_buffer;
 
     do
     {
@@ -105,14 +120,14 @@ intptr_t word(void)
 
     do
     {
-        *s++ = ch;
+        *s++ = (char)ch;
         ch = key();
     } while (ch > ' ');
 
     return s - word_buffer;
 }
 
-struct word_t *find(struct word_t *word, char *name, size_t count)
+static struct word_t *find(struct word_t *word, char *name, size_t count)
 {
     while (word && (((word->flags & (F_HIDDEN | F_LENMASK)) != count) || memcmp(word->name, name, count)))
         word = word->link;
@@ -120,17 +135,31 @@ struct word_t *find(struct word_t *word, char *name, size_t count)
     return word;
 }
 
-void *code_field_address(struct word_t *word)
+static void *code_field_address(struct word_t *word)
 {
     size_t offset = offsetof(struct word_t, name) + (word->flags & F_LENMASK);
 
     offset += __SIZEOF_POINTER__ - 1;
-    offset &= -__SIZEOF_POINTER__;
+    offset &= -((size_t)__SIZEOF_POINTER__);
 
     if (offset < offsetof(struct word_t, code))
         offset = offsetof(struct word_t, code);
 
     return ((char *)word) + offset;
+}
+
+static inline intptr_t forth_pop(intptr_t **sp, intptr_t *stack_end)
+{
+    (void)stack_end;
+    assert(*sp < stack_end);
+    return *(*sp)++;
+}
+
+static inline void forth_push(intptr_t **sp, intptr_t *stack, intptr_t value)
+{
+    (void)stack;
+    assert(*sp > stack);
+    *--(*sp) = value;
 }
 
 #ifdef EMSCRIPTEN
@@ -142,40 +171,16 @@ int main(int argc __attribute__((unused)), char *argv[])
     /* https://briancallahan.net/blog/20200808.html */
     intptr_t stack[STACK_SIZE];  /* Parameter stack */
     void *return_stack[STACK_SIZE]; /* Return stack */
-#ifdef __clang__
-    __block
-#endif
     intptr_t *sp = &stack[STACK_SIZE];  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
     void **rsp = &return_stack[STACK_SIZE];  /* Initialize the return stack. (%ebp) */
     register void ***ip, **target;
-    register intptr_t a, b, c, d __attribute__((unused)), *p;
+    register intptr_t a, b, c, d, *p;
     char *r;
     register char *s, **t;
-    register struct word_t *new;
+    register struct word_t *created;
 
-#ifdef __clang__
-    /* https://clang.llvm.org/docs/BlockLanguageSpec.html */
-    intptr_t (^pop)(void) = ^(void)
-    {
-        return *sp++;
-    };
-    void (^push)(intptr_t) = ^(intptr_t a)
-    {
-        *--sp = a;
-    };
-#else
-    /* https://gcc.gnu.org/onlinedocs/gcc/Inline.html */
-    __always_inline intptr_t pop(void)
-    {
-        assert(sp < stack + STACK_SIZE);
-        return *sp++;
-    }
-    __always_inline void push(intptr_t a)
-    {
-        assert(sp > stack);
-        *--sp = a;
-    }
-#endif
+#define pop() forth_pop(&sp, stack + STACK_SIZE)
+#define push(value) forth_push(&sp, stack, value)
 
 goto _start;
 
@@ -342,7 +347,7 @@ DEFCODE(XOR, 0, "INVERT", INVERT):
     sp[0] = ~sp[0];
     NEXT;
 DEFCODE(INVERT, 0, "EXIT", EXIT):
-    ip = *rsp++;
+    ip = (void ***)*rsp++;
     NEXT;
 DEFCONST(EXIT, 0, "LIT", LIT, *ip++);
 DEFCODE(LIT, 0, "!", STORE):
@@ -448,30 +453,30 @@ DEFCODE(WORD, 0, "NUMBER", NUMBER):
     s = (char *)pop(); /* start address of string */
     a = s[c];
     s[c] = '\0';
-    push(strtol(s, &r, base));
+    push(strtol(s, &r, (int)base));
     push(r - s - c);
-    s[c] = a;
+    s[c] = (char)a;
     NEXT;
 DEFCODE(NUMBER, 0, "FIND", FIND):
     c = pop();
     s = (char *)pop();
-    new = find(latest, s, c);
-    push((intptr_t)new);
+    created = find(latest, s, (size_t)c);
+    push((intptr_t)created);
     NEXT;
 DEFCODE(FIND, 0, ">CFA", TCFA):
-    new = (struct word_t *)pop();
-    push((intptr_t)code_field_address(new));
+    created = (struct word_t *)pop();
+    push((intptr_t)code_field_address(created));
     NEXT;
 DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCRP), CODE(EXIT), CODE(EXIT));
 DEFCODE(TDFA, 0, "CREATE", CREATE):
     c = pop();
     s = (char *)pop();
-    new = (struct word_t *)((intptr_t)(here + __SIZEOF_POINTER__ - 1) & -__SIZEOF_POINTER__);
-    new->link = latest;
-    new->flags = c;
-    memcpy(new->name, s, c);
-    here = (char *)code_field_address(new);
-    latest = new;
+    created = (struct word_t *)((intptr_t)(here + __SIZEOF_POINTER__ - 1) & -__SIZEOF_POINTER__);
+    created->link = latest;
+    created->flags = (unsigned char)c;
+    memcpy(created->name, s, (size_t)c);
+    here = (char *)code_field_address(created);
+    latest = created;
     NEXT;
 DEFCODE(CREATE, 0, ",", COMMA):
     p = (intptr_t *)here;
@@ -488,8 +493,8 @@ DEFCODE(RBRAC, F_IMMED, "IMMEDIATE", IMMEDIATE):
     latest->flags ^= F_IMMED;
     NEXT;
 DEFCODE(IMMEDIATE, 0, "HIDDEN", HIDDEN):
-    new = (struct word_t *)pop();
-    new->flags ^= F_HIDDEN;
+    created = (struct word_t *)pop();
+    created->flags ^= F_HIDDEN;
     NEXT;
 DEFWORD(HIDDEN, 0, "HIDE", HIDE, CODE(WORD), CODE(FIND), CODE(HIDDEN), CODE(EXIT));
 DEFWORD(HIDE, 0, ":", COLON, CODE(WORD), CODE(CREATE), CODE(LIT), &&DOCOL,
@@ -514,26 +519,26 @@ DEFCODE(ZBRANCH, 0, "LITSTRING", LITSTRING):
 DEFCODE(LITSTRING, 0, "TELL", TELL):
     c = pop();
     s = (char *)pop();
-    (void)(write(STDOUT_FILENO, s, c) + 1);
+    (void)(write(STDOUT_FILENO, s, (size_t)c) + 1);
     NEXT;
     static char errmsg[] = "PARSE ERROR: ";
 DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
     p = (intptr_t *)here;
     c = word();
-    new = find(latest, word_buffer, c);
-    if (new) {
-        target = (void **)code_field_address(new);
-        if ((new->flags & F_IMMED) || !state)
+    created = find(latest, word_buffer, (size_t)c);
+    if (created) {
+        target = (void **)code_field_address(created);
+        if ((created->flags & F_IMMED) || !state)
             goto **target;
         *p++ = (intptr_t)target;
     } else {
         b = word_buffer[c];
         word_buffer[c] = '\0';
-        a = strtol(word_buffer, &r, base);
-        word_buffer[c] = b;
+        a = strtol(word_buffer, &r, (int)base);
+        word_buffer[c] = (char)b;
         if (r == word_buffer) {
             (void)(write(STDERR_FILENO, errmsg, sizeof errmsg - 1) + 1);
-            (void)(write(STDERR_FILENO, word_buffer, c) + 1);
+            (void)(write(STDERR_FILENO, word_buffer, (size_t)c) + 1);
             (void)(write(STDERR_FILENO, "\n", sizeof "\n" - 1) + 1);
         } else if (state) {
             *p++ = (intptr_t)CODE(LIT);
@@ -557,22 +562,22 @@ DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3):
     b = pop();
     c = pop();
     d = pop();
-    push(syscall(a, b, c, d));
+    push(syscall((int)a, b, c, d));
     NEXT;
 DEFCODE(SYSCALL3, 0, "SYSCALL2", SYSCALL2):
     a = pop();
     b = pop();
     c = pop();
-    push(syscall(a, b, c));
+    push(syscall((int)a, b, c));
     NEXT;
 DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1):
     a = pop();
     b = pop();
-    push(syscall(a, b));
+    push(syscall((int)a, b));
     NEXT;
 DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0):
     a = pop();
-    push(syscall(a));
+    push(syscall((int)a));
     NEXT;
 
     static void *cold_start[] = {CODE(QUIT)};
@@ -585,3 +590,5 @@ _start:
     ip = (void ***)cold_start;
     NEXT;  /* Run interpreter! */
 }
+#undef push
+#undef pop
