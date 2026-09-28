@@ -285,7 +285,8 @@ SEE_HEADER = (
     " RE-THREAD DUP 0BRANCH ( 16 ) >R BRANCH ( -24 ) DROP RE-LOAD"
 )
 
-# one line per block: character node, KLEENE or ALTERN
+# one line per block: character node, KLEENE or ALTERN.  RE-STRIP rewrites e* to
+# e'*, so a** and, further down, (a*b*)*c and (a*|b*)*c collapse to identical code.
 SEE_BLOCKS = {
     "abcdefg": (
         "BRANCH ( 4 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
@@ -300,7 +301,7 @@ SEE_BLOCKS = {
         "BRANCH ( 108 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
         "BRANCH ( 56 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
         "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT",
         "BRANCH ( 4 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
     ),
     "a(b|c)*d": (
@@ -308,44 +309,40 @@ SEE_BLOCKS = {
         "BRANCH ( 108 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
         "BRANCH ( 56 ) 99 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
         "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT",
         "BRANCH ( 4 ) 100 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
     ),
     "(a|a)*": (
         "BRANCH ( 108 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
         "BRANCH ( 56 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
         "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT",
     ),
     "a*": (
         "BRANCH ( 48 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT",
     ),
     "a**": (
-        "BRANCH ( 80 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT EXIT EXIT",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "BRANCH ( 48 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT",
     ),
     "(a*b*)*c": (
-        "BRANCH ( 148 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT EXIT EXIT",
-        "BRANCH ( 48 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "BRANCH ( 108 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 56 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT",
         "BRANCH ( 4 ) 99 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
     ),
     "(a*|b*)*c": (
-        "BRANCH ( 172 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT EXIT EXIT",
-        "BRANCH ( 88 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -72 )",
-        "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -104 )",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "BRANCH ( 108 ) 97 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 56 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
+        "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT",
         "BRANCH ( 4 ) 99 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
     ),
     "b*(c|d)": (
         "BRANCH ( 48 ) 98 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
-        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT BRANCH ( 4 )",
+        "XCALL RE-PAT BRANCH ( 20 ) XCALL RE-PAT",
         "BRANCH ( 76 ) 99 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
         "BRANCH ( 56 ) 100 RE-CHAR? 0BRANCH ( 8 ) EXIT (NNODE)",
         "BRANCH ( 20 ) XCALL RE-PAT BRANCH ( -84 )",
