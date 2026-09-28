@@ -293,7 +293,7 @@ impl Forth {
             match self.read_i32(cfa) {
                 0 => { // DOCOL
                     rsp -= 1;
-                    self.write_i32(rsp, ip as i32);
+                    self.write_i32(rsp, (ip << 2) as i32);
                     ip = cfa + 1;
                 }
                 1 => { // DROP
@@ -439,7 +439,7 @@ impl Forth {
                     self.write_i32(sp, !self.read_i32(sp));
                 }
                 35 => { // EXIT
-                    ip = self.read_i32(rsp) as usize;
+                    ip = (self.read_i32(rsp) >> 2) as usize;
                     rsp += 1;
                 }
                 36 => { // LIT
@@ -834,23 +834,20 @@ impl Forth {
                             sp += 1;
                         }
                         SYS_BRK => {
-                            if a == 0 {
-                                self.write_i32(sp + 1, self.memory.as_ptr() as i32 + self.memory.len() as i32);
-                            } else {
-                                let new_size = (a as usize).saturating_sub(self.memory.as_ptr() as usize);
-                                if new_size > self.memory.capacity() {
-                                    self.memory.reserve(new_size - self.memory.len());
-                                    if new_size > self.memory.capacity() {
-                                        self.write_i32(sp + 1, -1);
-                                    } else {
-                                        self.memory.resize(new_size, 0);
-                                        self.write_i32(sp + 1, a);
-                                    }
-                                } else {
-                                    self.memory.resize(new_size, 0);
-                                    self.write_i32(sp + 1, a);
-                                }
+                            // jonesforth's raw brk(2): 0 queries the current break, else
+                            // grows to it. self.memory's own length IS the break here,
+                            // since every forth-visible address is already an offset from
+                            // its start -- casting a real 64-bit Vec pointer to i32 (as this
+                            // used to) corrupts it and can panic self.memory.reserve() with
+                            // a bogus size. Only ever grows: a negative `a` would otherwise
+                            // sign-extend into a huge usize, and a request at or below the
+                            // current length would truncate (destroy) live memory instead
+                            // of being the no-op query/shrink-refusal it is here.
+                            let current = self.memory.len() as i32;
+                            if a > current {
+                                self.memory.resize(a as usize, 0);
                             }
+                            self.write_i32(sp + 1, self.memory.len() as i32);
                             sp += 1;
                         }
                         _ => {
@@ -876,9 +873,13 @@ fn main() {
         process::exit(1);
     });
 
+    // Running out of input is jonesforth.S's _KEY hitting eax <= 0 and exiting
+    // cleanly (code 0); only a genuine bug (e.g. an unknown opcode) is an error.
     if let Err(e) = forth.run() {
-        eprintln!("Runtime error: {}", e);
-        process::exit(1);
+        if e.kind() != io::ErrorKind::UnexpectedEof {
+            eprintln!("Runtime error: {}", e);
+            process::exit(1);
+        }
     }
 }
 
