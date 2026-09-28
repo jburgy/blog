@@ -238,8 +238,10 @@ def rank(
         key=lambda pair: pair[1][2],
     )
     ranks = {}
-    place, previous = 0, None
+    place: int = 0
+    previous: float | None = None
     for i, (_, _, median, _) in ranked:
+        assert median is not None
         if previous is None or median > previous * 1.03:
             place += 1
         ranks[i] = place
