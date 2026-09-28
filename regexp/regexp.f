@@ -10,7 +10,10 @@
 \ mprotect(PROT_EXEC) buffer and poked x86 opcodes into it, RE" is an
 \ IMMEDIATE word which pokes threaded code into the definition that is
 \ currently being compiled -- FORTH already owns a code generator, so
-\ there is no need to bring a second one.
+\ there is no need to bring a second one.  RE-STRIP is regexp/jit.py's
+\ `strip', ported here in place of x86.c's lambda revision: rewriting
+\ every e* as e'*, e' being e minus the empty string, means no star body
+\ ever matches epsilon, so THE COMPILER's fragments need only one slot.
 \
 \ The correspondence with x86.c is one to one:
 \
@@ -142,6 +145,95 @@ VARIABLE RE-IX
         RE-OUT @
 ;
 
+VARIABLE RE-NN          ( shared with RE-BUILD: number of tokens left to consume )
+
+(
+        STRIPPING -----------------------------------------------------------------------
+
+        RE-STRIP is regexp/jit.py's `strip': rewrite every e* as e'*, e' being e minus
+        the empty string, so no star loops on epsilon and a fragment in THE COMPILER
+        below needs only one slot, not Thompson's (slot, lambda) pair.
+
+        A pending term is ( p0 pl s0 sl nf ) on a 5-wide stack: p is e's own rewritten
+        postfix, s is e minus epsilon, nf is whether e matches epsilon; p and s are cell
+        regions of RE-SBUF, oversized because a nullable s can outgrow the input.
+)
+512 CELLS ALLOT CONSTANT RE-SBUF        VARIABLE RE-SN     ( RE-SBUF's HERE, in cells )
+5 128 * CELLS ALLOT CONSTANT RE-TSTK    VARIABLE RE-TTOP   ( the term stack's depth )
+0 CONSTANT F-P0  1 CONSTANT F-PL  2 CONSTANT F-S0  3 CONSTANT F-SL  4 CONSTANT F-NF
+
+: RE-S@         ( ix -- a )    CELLS RE-SBUF + ;
+: RE-S,         ( t -- )       RE-SN @ RE-S@ !   1 RE-SN +! ;
+: RE-T          ( depth field -- a )   >R RE-TTOP @ SWAP - 5 * R> + CELLS RE-TSTK + ;
+
+( Copy l cells starting at a0 to RE-SBUF's tail; answer where the copy starts. )
+VARIABLE RE-TL
+: RE-SCOPY      ( a0 l -- a0' )
+        RE-TL !  RE-S@  RE-SN @ DUP >R  RE-S@
+        RE-TL @ CELLS CMOVE  RE-TL @ RE-SN +!  R>
+;
+
+: RE-PUSH       ( p0 pl s0 sl nf -- )
+        0 F-NF RE-T !  0 F-SL RE-T !  0 F-S0 RE-T !  0 F-PL RE-T !  0 F-P0 RE-T !
+        1 RE-TTOP +!
+;
+
+( A character never matches epsilon: p and s are the same one-token region. )
+: RE-STRIP-LEAF ( t -- )
+        RE-SN @ >R  RE-S,  R> 1 OVER 1 0  RE-PUSH
+;
+
+VARIABLE RE-P0  VARIABLE RE-PL  VARIABLE RE-S0  VARIABLE RE-SL  VARIABLE RE-NF  VARIABLE RE-OPTOK
+
+( e* becomes e'*, e' being e's own s; e* always matches epsilon. )
+: RE-STRIP-KLEENE ( -- )
+        1 F-SL RE-T @ RE-SL !
+        1 F-S0 RE-T @ RE-SL @ RE-SCOPY RE-P0 !
+        KLEENE RE-S,
+        -1 RE-TTOP +!
+        RE-P0 @  RE-SL @ 1+  RE-P0 @  RE-SL @  1  RE-PUSH
+;
+
+( CONCAT or ALTERN of two terms; p1 and p2 are already adjacent unless a nested
+  KLEENE moved one of them, so appending the operator is free except then. )
+: RE-STRIP-OP   ( t -- )
+        RE-OPTOK !
+        2 F-P0 RE-T @ RE-P0 !   2 F-PL RE-T @ RE-PL !
+        2 F-S0 RE-T @ RE-S0 !   2 F-SL RE-T @ RE-SL !
+        2 F-NF RE-T @  1 F-NF RE-T @  RE-OPTOK @ CONCAT = IF AND ELSE OR THEN  RE-NF !
+        RE-P0 @ RE-PL @ +  1 F-P0 RE-T @  =
+        1 F-P0 RE-T @ 1 F-PL RE-T @ +  RE-SN @  =  AND IF
+                RE-OPTOK @ RE-S,
+        ELSE
+                RE-P0 @ RE-PL @ RE-SCOPY RE-P0 !
+                1 F-P0 RE-T @ 1 F-PL RE-T @ RE-SCOPY DROP
+                RE-OPTOK @ RE-S,
+        THEN
+        RE-PL @ 1 F-PL RE-T @ + 1+ RE-PL !
+        RE-NF @ IF
+                RE-S0 @ RE-SL @ RE-SCOPY RE-S0 !
+                1 F-S0 RE-T @ 1 F-SL RE-T @ RE-SCOPY DROP
+                ALTERN RE-S,
+                RE-SL @ 1 F-SL RE-T @ + 1+ RE-SL !
+        ELSE
+                RE-P0 @ RE-S0 !   RE-PL @ RE-SL !
+        THEN
+        -2 RE-TTOP +!
+        RE-P0 @ RE-PL @ RE-S0 @ RE-SL @ RE-NF @  RE-PUSH
+;
+
+: RE-STRIP      ( n -- p0 pl )
+        RE-NN !  0 RE-IX !   0 RE-SN !   0 RE-TTOP !
+        BEGIN RE-IX @ RE-NN @ < WHILE
+                RE-IX @ CELLS RE-POSTFIX + @   1 RE-IX +!
+                DUP LPAREN < IF RE-STRIP-LEAF
+                ELSE DUP KLEENE = IF DROP RE-STRIP-KLEENE
+                ELSE RE-STRIP-OP
+                THEN THEN
+        REPEAT
+        1 F-P0 RE-T @   1 F-PL RE-T @
+;
+
 (
         THE MACHINE -------------------------------------------------------------------
 
@@ -213,10 +305,9 @@ VARIABLE RE-RSP         ( %ebp: return stack mark to unwind to on success )
         rewire it.  A fragment is identified by that slot; RE-ENTRY reads the entry
         point back out of it.  This mirrors x86.c's `stack[top] = pc + 1'.
 
-        A fragment travels as ( slot lambda ).  lambda is Thompson's revision from the
-        Notes of his paper: the slot of the BRANCH taken when the fragment matches the
-        empty string, or 0.  Starring a fragment turns that BRANCH into EXIT so that
-        a** cannot recurse forever.
+        RE-STRIP above already rewrote every e* as e'*, so no star body ever matches the
+        empty string here, and a fragment is just that one slot -- Thompson's lambda
+        revision, tracking a second slot for the empty-string branch, is unneeded.
 )
 : RE-SLOT       ( -- slot )  ' BRANCH , HERE @ 4 , ;
 : RE-ENTRY      ( slot -- a )     DUP @ + ;
@@ -230,38 +321,31 @@ VARIABLE RE-RSP         ( %ebp: return stack mark to unwind to on success )
         EXIT is _fail; (NNODE) is last so that the successor it records is the next
         block, exactly like _nnode recording pc+11.
 )
-: RE-CHAR-NODE  ( c -- slot 0 )
+: RE-CHAR-NODE  ( c -- slot )
         RE-SLOT SWAP
         ' LIT , ,
         ' RE-CHAR? ,
         ' 0BRANCH , 8 ,
         ' EXIT ,
         ' (NNODE) ,
-        0
 ;
 
-: RE-CAT        ( s1 l1 s2 l2 -- s1 l )  NIP 0= IF DROP 0 THEN ;
-
 VARIABLE RE-A  VARIABLE RE-B  VARIABLE RE-PC
-VARIABLE RE-LA VARIABLE RE-LB
 
 (
-        KLEENE, 8 cells:
+        KLEENE, 6 cells:
 
-          0 XCALL  1 <entry>  2 BRANCH  3 <out>  4 XCALL  5 <entry>  6 BRANCH  7 <out>
+          0 XCALL  1 <entry>  2 BRANCH  3 <out>  4 XCALL  5 <entry>
 
-        Entry is cell 4, whose BRANCH recognizes lambda.  The fragment's own out is
-        rewired back to cell 0, which is the loop.
+        Entry is cell 4.  The fragment's own out is rewired back to cell 0, which is
+        the loop.
 )
-: RE-STAR       ( s l -- s l' )
-        ( the dead offset cell becomes EXIT too, else SEE would CFA> a small integer )
-        ?DUP IF ' EXIT OVER !  ' EXIT SWAP 4- ! THEN
+: RE-STAR       ( s -- s )
         HERE @ RE-PC !
         ' XCALL , DUP RE-ENTRY ,
         ' BRANCH , 20 ,
         ' XCALL , DUP RE-ENTRY ,
         DUP RE-PC @ 16 + RE-PATCH
-        ' BRANCH , HERE @ 4 ,
 ;
 
 (
@@ -270,11 +354,10 @@ VARIABLE RE-LA VARIABLE RE-LB
           0 BRANCH  1 <out>  2 XCALL  3 <B entry>  4 BRANCH  5 <A entry>
 
         Entry is cell 2: run B, then -- however B ended -- run A.  B's out slot (cell 0)
-        and A's out slot both become cell 6, the block after this one.  When both
-        branches recognize lambda, B's lambda BRANCH is sent to A's.
+        and A's out slot both become cell 6, the block after this one.
 )
-: RE-ALT        ( sA lA sB lB -- sA l )
-        RE-LB !  RE-B !  RE-LA !  RE-A !
+: RE-ALT        ( sA sB -- sA )
+        RE-B !  RE-A !
         HERE @ RE-PC !
         ' BRANCH , 20 ,
         ' XCALL , RE-B @ RE-ENTRY ,
@@ -282,12 +365,6 @@ VARIABLE RE-LA VARIABLE RE-LB
         RE-A @ RE-PC @  8 + RE-PATCH
         RE-B @ RE-PC @ 24 + RE-PATCH
         RE-A @
-        RE-LA @ 0= IF
-                RE-LB @
-        ELSE
-                RE-LB @ ?DUP IF RE-LA @ 4- RE-PATCH THEN
-                RE-LA @
-        THEN
 ;
 
 (
@@ -311,13 +388,13 @@ VARIABLE RE-LA VARIABLE RE-LB
         ( the start state's block follows, and is entered by falling into it )
 ;
 
-VARIABLE RE-NN
+VARIABLE RE-BASE                ( where in RE-SBUF RE-STRIP's postfix starts )
 
-: RE-BUILD      ( n -- slot lambda )
-        RE-NN !  0 RE-IX !
+: RE-BUILD      ( p0 pl -- slot )
+        RE-NN !  RE-BASE !   0 RE-IX !
         BEGIN RE-IX @ RE-NN @ < WHILE
-                RE-IX @ CELLS RE-POSTFIX + @   1 RE-IX +!
-                DUP CONCAT = IF DROP RE-CAT
+                RE-IX @ RE-BASE @ + CELLS RE-SBUF + @   1 RE-IX +!
+                DUP CONCAT = IF 2DROP
                 ELSE DUP KLEENE = IF DROP RE-STAR
                 ELSE DUP ALTERN = IF DROP RE-ALT
                 ELSE RE-CHAR-NODE
@@ -342,9 +419,9 @@ VARIABLE RE-NN
 )
 : RE" IMMEDIATE ( -- )
         RE-READ RE-PREPARE
-        RE-CONVERT
+        RE-CONVERT RE-STRIP
         RE-HEADER
-        RE-BUILD 2DROP
+        RE-BUILD DROP
         ' RE-ACCEPT ,
 ;
 

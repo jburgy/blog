@@ -245,6 +245,12 @@ char key(void) {
             write(STDERR_FILENO, s, strlen(s));
             exit(EIO);
         }
+        if (c == 0) {
+            /* EOF: match jonesforth.S's _KEY, which exits the whole process
+               cleanly here rather than ever returning to its caller; without
+               this check buftop == currkey forever, spinning on read() */
+            exit(0);
+        }
         buftop = 0x4000 + c;
     }
     return bytes[currkey++];
@@ -323,6 +329,25 @@ int code_field_address(int word) {
     return word;
 }
 
+int do_brk(int requested) {
+    /* jonesforth's raw brk(2): 0 queries the current break, else grows to
+       it, returning the (possibly unchanged, on failure) new break as an
+       absolute address -- not POSIX brk()'s 0/-1.  The raw syscall(2)
+       numbers jonesforth.f uses for SYS_BRK are Linux-specific and don't
+       exist on macOS (SIGSYS), so this calls the portable sbrk(2) library
+       wrapper on the same real process break set_up_data_segment already
+       grew the dictionary out of.  Only ever grows: a requested break at or
+       below the current one is treated as a no-op query rather than
+       actually shrinking, which would unmap memory the interpreter's own
+       dictionary or stacks may already occupy. */
+    char *cur = sbrk(0);
+    int current = (int)(cur - bytes);
+    if (requested <= current)
+        return current;
+    long delta = (bytes + requested) - cur;
+    return (int)((sbrk(delta) == (void *)-1 ? cur : cur + delta) - bytes);
+}
+
 void *set_up_data_segment(const void *src, size_t n) {
     void *here = sbrk(0x10000);
     if (here == (void *)-1)
@@ -344,7 +369,7 @@ int main(void) {
     while (1) {
         switch (memory[cfa]) {
             case DOCOL:
-                memory[--rsp] = ip;
+                memory[--rsp] = ip << 2;
                 ip = cfa + 1;
                 break;
             case DROP:
@@ -490,7 +515,7 @@ int main(void) {
                 memory[sp] = ~memory[sp];
                 break;
             case EXIT:
-                ip = memory[rsp++];
+                ip = memory[rsp++] >> 2;
                 break;
             case LIT:
                 memory[--sp] = memory[ip++];
@@ -604,10 +629,10 @@ int main(void) {
                 memory[--sp] = O_NONBLOCK;
                 break;
             case TOR:
-                memory[--rsp] = memory[sp++] >> 2;
+                memory[--rsp] = memory[sp++];
                 break;
             case FROMR:
-                memory[--sp] = memory[rsp++] << 2;
+                memory[--sp] = memory[rsp++];
                 break;
             case RSPFETCH:
                 memory[--sp] = rsp << 2;
@@ -733,9 +758,9 @@ int main(void) {
                 sp += 2;
                 break;
             case SYSCALL1:
-                memory[sp + 1] = syscall(memory[sp], memory[sp + 1]);
-                if (memory[sp] == SYS_brk)
-                    memory[sp + 1] -= (int)bytes;
+                memory[sp + 1] = (memory[sp] == SYS_brk)
+                    ? do_brk(memory[sp + 1])
+                    : syscall(memory[sp], memory[sp + 1]);
                 sp += 1;
                 break;
         }
