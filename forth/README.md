@@ -20,19 +20,33 @@ that sits at that intersection.
 |  | **switch** | **labels as values** | **tail calls** |
 | --- | --- | --- | --- |
 | **C** | [jansforth.c](jansforth.c)<br>[recurse.c](recurse.c) | [4th.c](4th.c) | [5th.c](5th.c) |
-| **Zig** | — | — | [6th.zig](6th.zig) |
+| **Zig** | [jansforth.zig](jansforth.zig)<br>[labeled.zig](labeled.zig) | — | [6th.zig](6th.zig) |
 | **Rust** | [jansforth.rs](jansforth.rs) | — | [4th.rs](4th.rs) |
 | **wasm** | [wasm/tabulate.wast](wasm/tabulate.wast)<br>[wasm/recurse.wast](wasm/recurse.wast) | — | [wasm/jonesforth.wast](wasm/jonesforth.wast)<br>[wasm/localize.wast](wasm/localize.wast) |
 
 Two holes are structural rather than accidental: neither Zig nor WebAssembly
 has anything like GCC's `&&label`, so the middle column can only ever be C.
+The Zig cell holds two implementations rather than one: same `switch`
+strategy, two different ways of writing it (see below).
 
 ## The strategies
 
 **switch** — one flat loop, `while (1) switch (memory[cfa]) { ... }`, with the
 code field holding a small integer opcode. Portable to anything, and the only
 strategy a stock WebAssembly engine can express without the tail-call proposal
-(`br_table`). Pays an indirect branch through the jump table on every word.
+(`br_table`). Pays an indirect branch through the jump table on every word,
+*plus* an unconditional jump back to the top of the loop before that branch.
+[labeled.zig](labeled.zig) trims that second jump: it is
+[jansforth.zig](jansforth.zig)'s VM again, cell for cell, but every prong ends
+with `continue :dispatch fetchOp(...)` -- Zig 0.14+'s labeled `switch`/
+`continue`, see https://simonklee.dk/labeled-switch and
+[regexp/labeled.zig](../regexp/labeled.zig) for the same trick applied to a
+regex VM -- instead of falling out to a shared dispatch site at the bottom of
+the loop. LLVM lowers each `continue` to its own indirect jump (its own
+jump-table entry), so it sits between plain `switch` and labels-as-values:
+still one shared jump *table*, but no more shared jump *site*. Keeping it a
+byte-for-byte copy of jansforth.zig save for that one change isolates the
+cost of the extra jump for benchmarking.
 
 **labels as values** — GCC's computed goto. The code field holds `&&label`
 directly, so `NEXT` is `goto **ip++`, and the branch predictor gets one
@@ -49,17 +63,19 @@ guarantee from the compiler: `__attribute__((musttail))`, `@call(.always_tail)`,
 
 | source | language | strategy | wasm | toolkit | notes | native ms (range) / rank | Wasmtime ms (range) / rank |
 | --- | --- | --- | :---: | --- | --- | ---: | ---: |
-| [4th.c](4th.c) | C | labels as values | ✅ | Emscripten (`make 4th.js`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | 163.4 (145.9-384.5) / 7 | 274.2 (255.8-348.8) / 6 |
-| [5th.c](5th.c) | C | tail calls | ✅ | Emscripten *and* wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 52.9 (46.8-69.7) / 1 | 220.3 (206.2-276.0) / 4 |
-| [jansforth.c](jansforth.c) | C | switch | — | — | Opcode enum, everything in one `memory[]` array | 69.8 (66.2-96.7) / 2 | — |
-| [recurse.c](recurse.c) | C | switch | — | — | `docol()` is the loop and recurses; return stack becomes a shadow stack | 76.9 (69.6-114.9) / 4 | — |
-| [6th.zig](6th.zig) | Zig | tail calls | ✅ | Emscripten via `zig build -Dtarget=wasm32-emscripten` | `@call(.always_tail, primitives[code], ...)`; native result only | 70.3 (62.3-124.6) / 2 | — |
-| [4th.rs](4th.rs) | Rust | tail calls | ✅ | wasm32-wasip1 (Wasmtime, and uwasi in the browser) | Nightly `become`; every primitive returns `!` | 79.7 (74.4-92.9) / 5 | 403.8 (357.0-611.2) / 7 |
-| [jansforth.rs](jansforth.rs) | Rust | switch | — | — | Transcription of jansforth.c, run with `rust-script` | 80.1 (69.6-110.1) / 5 | — |
-| [wasm/tabulate.wast](wasm/tabulate.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | One big `br_table`, no indirect calls | — | 56.8 (47.6-66.7) / 1 |
-| [wasm/recurse.wast](wasm/recurse.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | Tabulate with a recursive `$docol`; colon-word returns live on the wasm call stack | — | 56.6 (43.4-75.1) / 1 |
-| [wasm/jonesforth.wast](wasm/jonesforth.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | `return_call_indirect`; state in globals | — | 232.0 (187.4-296.2) / 5 |
-| [wasm/localize.wast](wasm/localize.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | Same, with `cfa`/`ip`/`sp`/`rsp` passed as parameters | — | 215.5 (187.8-361.5) / 3 |
+| [4th.c](4th.c) | C | labels as values | ✅ | Emscripten (`make 4th.js`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | 70.8 (57.8-219.5) / 2 | 92.6 (79.3-181.3) / 3 |
+| [5th.c](5th.c) | C | tail calls | ✅ | Emscripten *and* wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 66.9 (58.4-128.0) / 1 | 284.7 (277.5-355.3) / 5 |
+| [jansforth.c](jansforth.c) | C | switch | — | — | Opcode enum, everything in one `memory[]` array | 93.0 (87.8-111.0) / 6 | — |
+| [recurse.c](recurse.c) | C | switch | — | — | `docol()` is the loop and recurses; return stack becomes a shadow stack | 96.2 (88.2-189.6) / 6 | — |
+| [6th.zig](6th.zig) | Zig | tail calls | ✅ | Emscripten via `zig build -Dtarget=wasm32-emscripten` | `@call(.always_tail, primitives[code], ...)`; native result only | 89.1 (83.9-221.4) / 5 | — |
+| [jansforth.zig](jansforth.zig) | Zig | switch | — | — | `while (true) switch (op) { ... }`; dictionary generated like jansforth.rs's | 71.8 (65.1-104.3) / 2 | — |
+| [labeled.zig](labeled.zig) | Zig | labeled switch | — | — | jansforth.zig cell for cell; every prong `continue`s a labeled `switch` instead | 76.7 (65.7-88.2) / 4 | — |
+| [4th.rs](4th.rs) | Rust | tail calls | ✅ | wasm32-wasip1 (Wasmtime, and uwasi in the browser) | Nightly `become`; every primitive returns `!` | 105.0 (94.5-114.8) / 9 | 490.5 (448.0-549.3) / 7 |
+| [jansforth.rs](jansforth.rs) | Rust | switch | — | — | Transcription of jansforth.c, run with `rust-script` | 94.3 (84.7-111.3) / 6 | — |
+| [wasm/tabulate.wast](wasm/tabulate.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | One big `br_table`, no indirect calls | — | 72.8 (68.7-110.3) / 1 |
+| [wasm/recurse.wast](wasm/recurse.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | Tabulate with a recursive `$docol`; colon-word returns live on the wasm call stack | — | 76.1 (64.2-87.5) / 2 |
+| [wasm/jonesforth.wast](wasm/jonesforth.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | `return_call_indirect`; state in globals | — | 303.2 (287.7-371.3) / 6 |
+| [wasm/localize.wast](wasm/localize.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | Same, with `cfa`/`ip`/`sp`/`rsp` passed as parameters | — | 268.0 (241.3-391.6) / 4 |
 | [jonesforth.S](../jonesforth/jonesforth.S) | x86 assembly | indirect threaded | — | Linux/i386 | Requires Linux on x86; not runnable on this macOS/arm64 host | N/R | — |
 
 ## Benchmarks
@@ -130,7 +146,7 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 
 | command | covers |
 | --- | --- |
-| `make` | 4th, 5th, 6th, jansforth, recurse, and both Rust binaries |
+| `make` | 4th, 5th, 6th, jansforth-zig, jansforth-zig-labeled, jansforth, recurse, and both Rust binaries |
 | `pytest forth/` | [test_4th.py](test_4th.py) (native) and [test_4th_wasm.py](test_4th_wasm.py) (Emscripten) |
 | `npm test` | builds `5th.wasm` with wasi-sdk, then runs every vitest suite |
 | `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) only — the browser demo, driven in node |

@@ -205,6 +205,12 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
                 [str(native_rust_target / "release" / "jansforth")],
             ),
             ("6th.zig", "native", [str(zig_prefix / "bin" / "6th")]),
+            ("jansforth.zig", "native", [str(zig_prefix / "bin" / "jansforth-zig")]),
+            (
+                "labeled.zig",
+                "native",
+                [str(zig_prefix / "bin" / "labeled-zig")],
+            ),
         ]
     )
 

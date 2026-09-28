@@ -51,29 +51,40 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
 }
 
 fn buildNative(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
-    const exe = b.addExecutable(.{
-        .name = "6th",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("6th.zig"),
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
-        .use_llvm = true,
-    });
-    b.installArtifact(exe);
+    const test_step = b.step("test", "Run 6th.zig/jansforth.zig/labeled.zig tests");
 
-    const tests = b.addTest(.{
-        .name = "6th-tests",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("6th.zig"),
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
-        .use_llvm = true,
-    });
-    const run_tests = b.addRunArtifact(tests);
-    const test_step = b.step("test", "Run 6th.zig tests");
-    test_step.dependOn(&run_tests.step);
+    // (executable name, root source file, test description)
+    const sources = [_][2][]const u8{
+        .{ "6th", "6th.zig" },
+        .{ "jansforth-zig", "jansforth.zig" },
+        .{ "labeled-zig", "labeled.zig" },
+    };
+    for (sources) |entry| {
+        const name, const source_file = entry;
+
+        const exe = b.addExecutable(.{
+            .name = name,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(source_file),
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+            .use_llvm = true,
+        });
+        b.installArtifact(exe);
+
+        const tests = b.addTest(.{
+            .name = b.fmt("{s}-tests", .{name}),
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(source_file),
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+            .use_llvm = true,
+        });
+        const run_tests = b.addRunArtifact(tests);
+        test_step.dependOn(&run_tests.step);
+    }
 }
