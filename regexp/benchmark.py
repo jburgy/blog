@@ -2,9 +2,9 @@
 """Benchmark every runnable implementation in this directory on one shared
 workload: find the leftmost match of ``a(b|c)*d`` in ``abccbcccd`` -- a
 9-byte string the match consumes in full, so unanchored search-anywhere
-engines (the C variants, ``arm.c``, ``regexp.f``) and anchored-at-0
-interpreters (``regexp.py``'s ``Instructions``/``Graph``) report the same
-answer and their timings compare like for like.
+engines (the C variants, ``arm.c``, ``labeled.zig``, ``regexp.f``) and
+anchored-at-0 interpreters (``regexp.py``'s ``Instructions``/``Graph``)
+report the same answer and their timings compare like for like.
 
 Three files can't run on this host at all and are skipped:
 
@@ -19,6 +19,12 @@ Pike's recursive backtracking matcher, see beautiful.html in its docstring)
 that has no grouping or alternation, so it is timed on ``a.*d`` instead --
 the closest equivalent it can express -- rather than the shared pattern.
 Its number is not directly comparable to the others; see the README.
+
+``labeled.zig`` is timed through a small C-ABI dylib and ctypes, like the
+C variants and jit.py, rather than as a plain native `zig build-exe`
+benchmark (the way regexp.zig's is): a native call would skip the ctypes
+marshalling cost every other row pays, making labeled.zig look faster for
+a reason that has nothing to do with its dispatch strategy.
 
 Run `python3 benchmark.py` from this directory. Requires clang, Zig, and
 Node (for the regexp.f/forth.wasm target); each missing tool degrades that
@@ -126,6 +132,73 @@ def bench_arm(tmp: Path, iterations: int, trials: int, warmup: int) -> list[floa
     assert search(buf) is not None
     samples = time_calls(lambda: search(buf), iterations, trials, warmup)
     lib.forget(raw)
+    return samples
+
+
+# A thin C-ABI shim around labeled.zig's own study()/search(): a plain
+# `zig build-exe` benchmark (like regexp.zig's) would call them as native
+# Zig, with none of ctypes's per-call marshalling cost that the C variants
+# and jit.py all pay -- that would make labeled.zig look faster for a
+# reason that has nothing to do with its dispatch strategy. Going through
+# a dylib and ctypes here instead keeps the comparison to "which dispatch
+# is faster", not "which language avoids the Python FFI boundary".
+LABELED_FFI = """\
+const std = @import("std");
+const re = @import("labeled.zig");
+
+export fn zig_study(re_ptr: [*:0]const u8, len_out: *usize) callconv(.c) ?[*]re.Cell {
+    const pattern = std.mem.span(re_ptr);
+    const code = re.study(std.heap.c_allocator, pattern) catch return null;
+    len_out.* = code.len;
+    return code.ptr;
+}
+
+export fn zig_search(
+    code_ptr: [*]const re.Cell, code_len: usize, text_ptr: [*:0]const u8
+) callconv(.c) isize {
+    const code = code_ptr[0..code_len];
+    const text = std.mem.span(text_ptr);
+    return if (re.search(code, text)) |end| @as(isize, @intCast(end)) else -1;
+}
+
+export fn zig_free(code_ptr: [*]re.Cell, code_len: usize) callconv(.c) void {
+    std.heap.c_allocator.free(code_ptr[0..code_len]);
+}
+"""
+
+
+def bench_labeled(
+    tmp: Path, iterations: int, trials: int, warmup: int
+) -> list[float] | None:
+    zig = shutil.which("zig")
+    if zig is None:
+        return None
+    (tmp / "labeled.zig").write_text((HERE / "labeled.zig").read_text())
+    (tmp / "ffi.zig").write_text(LABELED_FFI)
+    subprocess.run(
+        [
+            zig, "build-lib", "ffi.zig", "-dynamic", "-O", "ReleaseFast",
+            "--name", "labeled_ffi",
+        ],
+        cwd=tmp, check=True, capture_output=True,
+    )
+    suffix = "dylib" if sys.platform == "darwin" else "so"
+    lib = ctypes.CDLL(str(tmp / f"liblabeled_ffi.{suffix}"))
+    lib.zig_study.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_size_t)]
+    lib.zig_study.restype = ctypes.c_void_p
+    lib.zig_search.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_char_p]
+    lib.zig_search.restype = ctypes.c_ssize_t
+    lib.zig_free.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+
+    length = ctypes.c_size_t(0)
+    code = lib.zig_study(PATTERN.encode(), ctypes.byref(length))
+    assert code is not None
+    buf = ctypes.create_string_buffer(TEXT.encode())
+    assert lib.zig_search(code, length, buf) == len(TEXT)
+    samples = time_calls(
+        lambda: lib.zig_search(code, length, buf), iterations, trials, warmup
+    )
+    lib.zig_free(code, length)
     return samples
 
 
@@ -290,6 +363,10 @@ def main() -> None:
         rows.append(summarize(
             "x86.c", "hand-written x86-64 codegen; needs Rosetta on arm64",
             None,
+        ))
+        rows.append(summarize(
+            "labeled.zig", "union cell + Zig's labeled switch/continue",
+            bench_labeled(tmp, args.iterations, args.trials, args.warmup),
         ))
         rows.append(summarize(
             "jit.py: Pattern", "Python port of arm.c/x86.c codegen via ctypes",
