@@ -37,6 +37,15 @@ longer have to double as label addresses. Both track Thompson's *Notes*
 revision (a `lambda` pointer per fragment) so a starred subexpression that can
 itself match the empty string, like `a**`, never loops on ε.
 
+`threaded.c`'s `search()` takes a `union cell **cache` precisely because a
+label's address (`&&JUMP`, `&&CHAR`, …) is only meaningful for `goto *` inside
+the function that declares it — so the one-time compile step can't be pulled
+out into its own function the way `switched.c`'s and `bytecode.c`'s `study()`
+are. Passing a NULL `*cache` with a pattern compiles once and caches the
+result there; passing NULL for the pattern on later calls skips straight to
+the dispatch loop and reuses it, since a label's address is a fixed constant
+of the compiled binary and stays valid across every call to that function.
+
 ### Native code generation (no interpreter loop)
 
 These skip the bytecode step entirely: the compiler emits real machine
@@ -119,15 +128,15 @@ existing [tracing/bench.mjs](tracing/bench.mjs)).
 
 | # | implementation | style | µs/op (median, range) | rank |
 | --- | --- | --- | ---: | ---: |
-| 1 | [regexp.zig](regexp.zig) | different algorithm | 0.0046 (0.0036–0.0049)\* | 1\* |
-| 2 | [arm.c](arm.c) | native codegen | 0.567 (0.520–0.578) | 2 |
-| 3 | [bytecode.c](bytecode.c) | bytecode + switch | 0.574 (0.547–0.592) | 2 |
-| 4 | [switched.c](switched.c) | bytecode + switch | 0.662 (0.591–0.707) | 3 |
-| 5 | [threaded.c](threaded.c) | bytecode + labels as values | 0.806 (0.749–0.895) | 4 |
-| 6 | [jit.py](jit.py) `Pattern` | native codegen (from Python) | 1.159 (1.087–1.235) | 5 |
-| 7 | [regexp.py](regexp.py) `Graph` | high-level interpreter | 4.758 (4.586–4.936) | 6 |
-| 8 | [regexp.py](regexp.py) `Instructions` | high-level interpreter | 6.122 (5.801–6.650) | 7 |
-| 9 | [regexp.f](regexp.f) | threaded code, hosted Forth | 39.0 (32.9–41.7) | 8 |
+| 1 | [regexp.zig](regexp.zig) | different algorithm | 0.0052 (0.0041–0.0060)\* | 1\* |
+| 2 | [bytecode.c](bytecode.c) | bytecode + switch | 0.652 (0.583–0.828) | 2 |
+| 3 | [arm.c](arm.c) | native codegen | 0.671 (0.593–0.927) | 2 |
+| 4 | [switched.c](switched.c) | bytecode + switch | 0.684 (0.669–0.764) | 2 |
+| 5 | [threaded.c](threaded.c) | bytecode + labels as values | 0.881 (0.856–0.951) | 3 |
+| 6 | [jit.py](jit.py) `Pattern` | native codegen (from Python) | 1.398 (1.293–1.487) | 4 |
+| 7 | [regexp.py](regexp.py) `Graph` | high-level interpreter | 5.159 (5.036–7.167) | 5 |
+| 8 | [regexp.py](regexp.py) `Instructions` | high-level interpreter | 7.011 (6.507–7.362) | 6 |
+| 9 | [regexp.f](regexp.f) | threaded code, hosted Forth | 31.8 (28.1–33.5) | 7 |
 | — | [x86.c](x86.c) | native codegen | N/R — needs Rosetta on this arm64 host | N/R |
 | — | [regexp.jl](regexp.jl) | host-language / PCRE2 | N/R — Julia is not installed here | N/R |
 | — | [thompson1968.a60](thompson1968.a60), [thompson1968-lambda.a60](thompson1968-lambda.a60) | historical | N/R — no ALGOL-60 compiler | N/R |
@@ -138,15 +147,19 @@ existing [tracing/bench.mjs](tracing/bench.mjs)).
 away at comptime. That workload is both algorithmically different and much
 cheaper (no thread-list bookkeeping at all), so its rank of 1 reflects the
 easier task, not a faster NFA engine; treat it as its own category rather
-than a win over `arm.c`.
+than a win over the C/JIT engines below it.
 
-At this 9-byte input, the four C/JIT engines (ranks 2–5) sit within about 2x
+At this 9-byte input, the five C/JIT engines (ranks 2–4) sit within about 2x
 of each other, and the gaps between them are the same order of magnitude as
 one `ctypes` call's own overhead — this benchmark mostly measures dispatch
-and call overhead, not asymptotic NFA performance. `regexp.f`'s cost is
-dominated by running inside `forth.wasm` under Node rather than by the
-matching algorithm itself; see [tracing/README.md](tracing/README.md) for a
-per-step breakdown of where that time goes.
+and call overhead, not asymptotic NFA performance. All five now time only the
+reusable execute/search step (see `threaded.c`'s note above), so the small
+gap between `threaded.c` and its switch-dispatched sibling `switched.c` is a
+real, if modest, difference in dispatch cost rather than an artifact of
+recompiling the pattern on every call. `regexp.f`'s cost is dominated by
+running inside `forth.wasm` under Node rather than by the matching algorithm
+itself; see [tracing/README.md](tracing/README.md) for a per-step breakdown
+of where that time goes.
 
 ## Supporting tooling (not implementations)
 

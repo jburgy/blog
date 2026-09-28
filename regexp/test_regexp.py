@@ -139,13 +139,21 @@ def shared(tmp: Path, source: str) -> ctypes.CDLL:
 @pytest.fixture(scope="module")
 def threaded(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], int]:
     lib = shared(tmp_path_factory.mktemp("threaded"), "threaded.c")
-    lib.search.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    lib.search.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p, ctypes.c_char_p,
+    ]
     lib.search.restype = ctypes.c_void_p
+    free = ctypes.CDLL(None).free
+    free.argtypes = [ctypes.c_void_p]
 
     def search(pattern: str, s: str) -> int:
+        code = ctypes.c_void_p(None)
         buf = ctypes.create_string_buffer(s.encode())
-        end = lib.search(pattern.encode(), buf)
-        return -1 if end is None else end - ctypes.addressof(buf)
+        try:
+            end = lib.search(ctypes.byref(code), pattern.encode(), buf)
+            return -1 if end is None else end - ctypes.addressof(buf)
+        finally:
+            free(code)
 
     return search
 

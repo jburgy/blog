@@ -99,12 +99,20 @@ def bench_switched(tmp: Path, iterations: int, trials: int, warmup: int) -> list
 
 def bench_threaded(tmp: Path, iterations: int, trials: int, warmup: int) -> list[float]:
     lib = cc_shared(tmp, "threaded.c")
-    lib.search.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    lib.search.argtypes = [
+        ctypes.POINTER(ctypes.c_void_p), ctypes.c_char_p, ctypes.c_char_p,
+    ]
     lib.search.restype = ctypes.c_void_p
+    code = ctypes.c_void_p(None)
     buf = ctypes.create_string_buffer(TEXT.encode())
-    pattern = PATTERN.encode()
-    assert lib.search(pattern, buf) is not None
-    return time_calls(lambda: lib.search(pattern, buf), iterations, trials, warmup)
+    # First call compiles PATTERN and caches it in `code`; passing NULL for
+    # `re` on every later call skips straight to threaded.c's dispatch loop,
+    # matching how bytecode.c/switched.c/arm.c separate study from execute.
+    assert lib.search(ctypes.byref(code), PATTERN.encode(), buf) is not None
+    assert lib.search(ctypes.byref(code), None, buf) is not None
+    return time_calls(
+        lambda: lib.search(ctypes.byref(code), None, buf), iterations, trials, warmup
+    )
 
 
 def bench_arm(tmp: Path, iterations: int, trials: int, warmup: int) -> list[float]:
