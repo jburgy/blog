@@ -10,6 +10,7 @@
  * Can be distributed under the MIT license, see bottom of file.
  */
 
+#include <assert.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -236,17 +237,35 @@ static union cell *compile(const unsigned char *src, void *const *op)
 
 #define NEXT goto *(pc++)->label
 
-char *search(const char *re, char *s)
+/*
+ * `op`'s addresses (&&JUMP etc.) are only valid for `goto *` from inside
+ * this function, so `compile` can't be hoisted out on its own -- but a
+ * label's address is a fixed constant of the compiled binary, the same on
+ * every call, so a `code` this function built on an earlier call is still
+ * good on a later one.  `*cache` lets a caller compile once (pass a NULL
+ * `*cache` with the pattern in `re`) and search many times after (pass
+ * NULL for `re`, whatever came back in `*cache` for `s`'s repeat runs);
+ * the caller now owns `*cache` and must `free` it.  `re` is silently
+ * ignored once `*cache` is set, so the assert below catches a caller
+ * that passes a *different* pattern without resetting `*cache` to NULL
+ * first -- that would otherwise search with a stale compiled program
+ * instead of failing loudly.
+ */
+char *search(union cell **cache, const char *re, char *s)
 {
     void *op[] = {&&JUMP, &&CHAR, &&FORK, &&STOP, &&FAIL};
-    unsigned char *p = convert(re);
     union cell xchg = {&&XCHG};
-    union cell *code = compile(p, op), *pc;
+    union cell *code, *pc;
     union cell *clist[BUFSIZ], *nlist[BUFSIZ];
     char *found = NULL;
     int cnode = 0, nnode = 0, c = EOF, i; /* any non-NUL c primes the first exchange */
 
-    free(p);
+    assert((*cache == NULL) || (re == NULL));
+    if (!(code = *cache)) {
+        unsigned char *p = convert(re);
+        code = *cache = compile(p, op);
+        free(p);
+    }
 
 XCHG:
     /* CLIST is exhausted: swap the lists and plant XCHG as its sentinel */
@@ -285,7 +304,6 @@ STOP:
     found = s - 1;
 
 done:
-    free(code);
     return found;
 }
 
@@ -314,10 +332,12 @@ int main(void)
         {NULL, NULL}};
 
     for (i = 0; test[i].r; i++) {
+        union cell *code = NULL;
         char *t;
 
         printf("search %s %s\n", test[i].r, test[i].s);
-        t = search(test[i].r, test[i].s);
+        t = search(&code, test[i].r, test[i].s);
+        free(code);
         if (t)
             printf("match found after %td bytes\n", t - test[i].s);
         else
