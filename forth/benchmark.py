@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import os
 from pathlib import Path
 import random
@@ -21,6 +22,7 @@ FIBONACCI_FILE = FORTH_DIR.parent / "talks" / "fibonacci.fs"
 SUCCESS = 0x7F
 FAILURE = 0x80
 EXPECTED = 1_836_311_903
+DEFAULT_ITERATIONS = 100_000
 
 
 def require(command: str) -> str:
@@ -48,6 +50,113 @@ def benchmark_input(iterations: int) -> bytes:
         "RUN VERIFY\n"
     )
     return program.encode()
+
+
+# Enough of jonesforth.f to write the non-Fibonacci workloads. `CELLW` measures
+# the cell width by comma-ing one cell and differencing HERE, so the same source
+# runs on the 32-bit and 64-bit interpreters alike. `BUF` is scratch space well
+# clear of the dictionary; both are frozen into literals so the inner loops do
+# not re-measure them.
+PREAMBLE = """: / /MOD SWAP DROP ;
+: RECURSE IMMEDIATE LATEST @ >CFA , ;
+: IF      IMMEDIATE ' 0BRANCH , HERE @ 0 , ;
+: THEN    IMMEDIATE DUP HERE @ SWAP - SWAP ! ;
+: ELSE    IMMEDIATE ' BRANCH , HERE @ 0 , SWAP DUP HERE @ SWAP - SWAP ! ;
+: BEGIN   IMMEDIATE HERE @ ;
+: WHILE   IMMEDIATE ' 0BRANCH , HERE @ 0 , ;
+: REPEAT  IMMEDIATE ' BRANCH , SWAP HERE @ - , DUP HERE @ SWAP - SWAP ! ;
+: LITERAL IMMEDIATE ' LIT , , ;
+: U. BASE @ /MOD ?DUP IF RECURSE THEN DUP 10 < IF 48 ELSE 55 THEN + EMIT ;
+HERE @ 0 , HERE @ SWAP -
+: CELLW LITERAL ;
+HERE @ 16384 +
+: BUF LITERAL ;
+"""
+
+# Inner-loop repeat counts. They are only roughly equalised -- `printing` is
+# several times the others -- but each is large enough to swamp process startup.
+WORKLOAD_BODIES: dict[str, tuple[int, str]] = {
+    "cells": (
+        400,
+        """: FILL BEGIN DUP 0> WHILE DUP DUP CELLW * BUF + ! 1- REPEAT DROP ;
+: SUM 0 SWAP BEGIN DUP 0> WHILE DUP CELLW * BUF + @ ROT + SWAP 1- REPEAT DROP ;
+: ONE 2000 FILL 2000 SUM DROP ;
+: VERIFY 2000 FILL 2000 SUM 2001000 = IF {ok} EMIT ELSE {bad} EMIT THEN ;""",
+    ),
+    "bytes": (
+        300,
+        """: BFILL BEGIN DUP 0> WHILE DUP DUP 255 AND SWAP BUF + C! 1- REPEAT DROP ;
+: BSUM 0 SWAP BEGIN DUP 0> WHILE DUP BUF + C@ ROT + SWAP 1- REPEAT DROP ;
+: COPY BEGIN DUP 0> WHILE DUP BUF + C@ OVER 8192 + BUF + C! 1- REPEAT DROP ;
+: ONE 4000 BFILL 4000 COPY 4000 BSUM DROP ;
+: VERIFY 4000 BFILL 4000 BSUM 502480 = IF {ok} EMIT ELSE {bad} EMIT THEN ;""",
+    ),
+    "calls": (
+        40000,
+        """: L0 1+ ;
+: L1 L0 L0 ;
+: L2 L1 L1 ;
+: L3 L2 L2 ;
+: L4 L3 L3 ;
+: L5 L4 L4 ;
+: L6 L5 L5 ;
+: L7 L6 L6 ;
+: STASH >R >R R> R> ;
+: ONE 0 L7 DROP 1 2 STASH 2DROP ;
+: VERIFY 0 L7 128 = IF {ok} EMIT ELSE {bad} EMIT THEN ;""",
+    ),
+    "printing": (
+        60,
+        """: UWIDTH BASE @ / ?DUP IF RECURSE 1+ ELSE 1 THEN ;
+: PR BEGIN DUP 0> WHILE DUP U. 1- REPEAT DROP ;
+: ONE 500 PR ;
+: VERIFY 500 UWIDTH 3 = IF {ok} EMIT ELSE {bad} EMIT THEN ;""",
+    ),
+}
+
+# How many colon definitions `compile` keeps live at once. 4th.c has the
+# tightest budget (a 64 KiB sbrk'd dictionary, unchecked), so the workload
+# rewinds HERE/LATEST between batches instead of defining everything at once.
+COMPILE_BATCH = 200
+
+
+def loop_input(name: str, iterations: int) -> bytes:
+    """A workload whose body is a stack-neutral `ONE` run `reps` times."""
+    default, body = WORKLOAD_BODIES[name]
+    reps = max(1, round(default * iterations / DEFAULT_ITERATIONS))
+    program = (
+        PREAMBLE
+        + body.format(ok=SUCCESS, bad=FAILURE)
+        + f"\n: RUN {reps} BEGIN DUP 0> WHILE ONE 1- REPEAT DROP ;\nRUN VERIFY\n"
+    )
+    return program.encode()
+
+
+def compile_input(iterations: int) -> bytes:
+    """Dictionary-building workload: INTERPRET/WORD/FIND/CREATE/`,` dominate."""
+    batches = max(1, round(150 * iterations / DEFAULT_ITERATIONS))
+    batch = "\n".join(f": Q{n} 1 2 + ;" for n in range(COMPILE_BATCH))
+    # `REWIND` must be defined before the mark it restores, or it deletes itself.
+    program = (
+        PREAMBLE + ": REWIND BUF @ HERE ! BUF CELLW + @ LATEST ! ;\n"
+        "HERE @ BUF ! LATEST @ BUF CELLW + !\n"
+        + "".join(f"{batch}\nREWIND\n" for _ in range(batches - 1))
+        # The last batch survives so VERIFY can call something it defined.
+        + f"{batch}\n"
+        f": VERIFY Q{COMPILE_BATCH - 1} 3 = "
+        f"IF {SUCCESS} EMIT ELSE {FAILURE} EMIT THEN ;\nVERIFY\n"
+    )
+    return program.encode()
+
+
+WORKLOADS: dict[str, Callable[[int], bytes]] = {
+    "fibonacci": benchmark_input,
+    "cells": lambda n: loop_input("cells", n),
+    "bytes": lambda n: loop_input("bytes", n),
+    "calls": lambda n: loop_input("calls", n),
+    "compile": compile_input,
+    "printing": lambda n: loop_input("printing", n),
+}
 
 
 def time_once(command: list[str], program: bytes, timeout: float) -> float:
@@ -81,7 +190,7 @@ def time_once(command: list[str], program: bytes, timeout: float) -> float:
                 break
             output.extend(chunk)
             if FAILURE in chunk:
-                error = "FIBONACCI(46) returned the wrong value"
+                error = "the workload's VERIFY reported a wrong result"
                 break
             if SUCCESS in chunk:
                 return (time.perf_counter() - start) * 1000
@@ -211,6 +320,11 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
                 "native",
                 [str(zig_prefix / "bin" / "labeled-zig")],
             ),
+            (
+                "hybrid.zig",
+                "native",
+                [str(zig_prefix / "bin" / "hybrid-zig")],
+            ),
         ]
     )
 
@@ -314,53 +428,68 @@ def compile_wasm(wasmtime: str, source: Path, work: Path) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--iterations", type=int, default=100_000)
+    parser.add_argument("--iterations", type=int, default=DEFAULT_ITERATIONS)
     parser.add_argument("--trials", type=int, default=11)
     parser.add_argument("--timeout", type=float, default=60)
+    parser.add_argument(
+        "--workload",
+        choices=[*WORKLOADS, "all"],
+        default="fibonacci",
+        help="which program to time; 'all' runs the whole suite",
+    )
     args = parser.parse_args()
     if args.iterations < 1 or args.trials < 1:
         parser.error("--iterations and --trials must be positive")
 
-    program = benchmark_input(args.iterations)
+    chosen = list(WORKLOADS) if args.workload == "all" else [args.workload]
+    programs = {name: WORKLOADS[name](args.iterations) for name in chosen}
     try:
         with tempfile.TemporaryDirectory(prefix="forth-benchmark-") as directory:
             targets = build_targets(Path(directory))
-            for name, group, command in targets:
-                try:
-                    time_once(command, program, args.timeout)
-                except RuntimeError as exc:
-                    print(
-                        f"{group}: {name}\tWARM-UP FAILED\t{exc}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                    return 1
-
-            samples = {name: [] for name, _, _ in targets}
-            rng = random.Random(2026)
-            for _ in range(args.trials):
-                order = targets.copy()
-                rng.shuffle(order)
-                for name, _, command in order:
+            print(
+                "workload\tsource\tmedian_ms\tmin_ms\tmax_ms\ttrials_ms",
+                flush=True,
+            )
+            for workload, program in programs.items():
+                for name, group, command in targets:
                     try:
-                        samples[name].append(time_once(command, program, args.timeout))
+                        time_once(command, program, args.timeout)
                     except RuntimeError as exc:
                         print(
-                            f"{name}\tFAILED\t{exc}",
+                            f"{workload}\t{group}: {name}\tWARM-UP FAILED\t{exc}",
                             file=sys.stderr,
                             flush=True,
                         )
                         return 1
 
-            print("source\tmedian_ms\tmin_ms\tmax_ms\ttrials_ms", flush=True)
-            for name, group, _ in targets:
-                timings = samples[name]
-                print(
-                    f"{group}: {name}\t{statistics.median(timings):.3f}\t"
-                    f"{min(timings):.2f}\t{max(timings):.2f}\t"
-                    + ",".join(f"{sample:.2f}" for sample in timings),
-                    flush=True,
-                )
+                samples = {name: [] for name, _, _ in targets}
+                # Reseeded per workload so every workload sees the same order.
+                rng = random.Random(2026)
+                for _ in range(args.trials):
+                    order = targets.copy()
+                    rng.shuffle(order)
+                    for name, group, command in order:
+                        try:
+                            samples[name].append(
+                                time_once(command, program, args.timeout)
+                            )
+                        except RuntimeError as exc:
+                            print(
+                                f"{workload}\t{group}: {name}\tFAILED\t{exc}",
+                                file=sys.stderr,
+                                flush=True,
+                            )
+                            return 1
+
+                for name, group, _ in targets:
+                    timings = samples[name]
+                    print(
+                        f"{workload}\t{group}: {name}\t"
+                        f"{statistics.median(timings):.3f}\t"
+                        f"{min(timings):.2f}\t{max(timings):.2f}\t"
+                        + ",".join(f"{sample:.2f}" for sample in timings),
+                        flush=True,
+                    )
     except (OSError, subprocess.CalledProcessError, RuntimeError) as exc:
         print(f"benchmark setup failed: {exc}", file=sys.stderr)
         return 1

@@ -109,10 +109,9 @@ words = {
         "(call $push (local.get 0))",
     ],
     "CMOVE": [
-        "(local i32 i32)",
-        "(local.set 1 (call $pop))",
-        "(memory.copy (local.tee 0 (call $pop)) (call $pop) (local.get 1))",
-        "(call $push (local.get 0))",
+        "(local i32)",
+        "(local.set 0 (call $pop))",
+        "(memory.copy (call $pop) (call $pop) (local.get 0))",
     ],
     "STATE": ["(call $push (global.get $state))"],
     "HERE": ["(call $push (global.get $here))"],

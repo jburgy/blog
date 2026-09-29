@@ -7,7 +7,7 @@ CPPFLAGS = -include cosmopolitan.h -I.
 LDFLAGS = -Wl,--oformat=binary -Wl,--gc-sections -Wl,-z,max-page-size=0x1000 -fuse-ld=bfd -gdwarf-4 -Wl,-T,ape.lds
 LDLIBS = cosmopolitan.a
 
-all: 4th 5th zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig jansforth recurse 4th-rs jansforth-rs
+all: 4th 5th zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig jansforth recurse 4th-rs jansforth-rs
 
 .PHONY: all 4th-rs jansforth-rs
 
@@ -63,7 +63,7 @@ cosmopolitan-amalgamation-2.2.zip :
 %.gcov : %.c
 	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
-zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig : 6th.zig jansforth.zig labeled.zig build.zig
+zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig : 6th.zig jansforth.zig labeled.zig hybrid.zig build.zig
 	zig build
 
 web : web/4th.wasm

@@ -372,7 +372,7 @@ DEFCODE(SUBSTORE, 0, "C!", STOREBYTE):
     NEXT;
 DEFCODE(STOREBYTE, 0, "C@", FETCHBYTE):
     s = (char *)pop();
-    push(*s);
+    push((unsigned char)*s);
     NEXT;
 DEFCODE(FETCHBYTE, 0, "C@C!", CCOPY):
     s = (char *)pop();
@@ -384,7 +384,7 @@ DEFCODE(CCOPY, 0, "CMOVE", CMOVE):
     c = pop();
     r = (char *)pop();
     s = (char *)pop();
-    push((intptr_t)memmove(r, s, c));
+    (void)memmove(r, s, c);
     NEXT;
     intptr_t state;
 DEFCONST(CMOVE, 0, "STATE", STATE, &state);

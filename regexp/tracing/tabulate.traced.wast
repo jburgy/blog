@@ -473,9 +473,8 @@
             (br $next))
 
             ;; cmove
-            (memory.copy (local.tee 4 (i32.load offset=4 (local.get $sp))) (i32.load offset=8 (local.get $sp)) (i32.load (local.get $sp)))
-            (i32.store offset=8 (local.get $sp) (local.get 4))
-            (local.set $sp (i32.add (local.get $sp) (i32.const 8)))
+            (memory.copy (i32.load offset=4 (local.get $sp)) (i32.load offset=8 (local.get $sp)) (i32.load (local.get $sp)))
+            (local.set $sp (i32.add (local.get $sp) (i32.const 12)))
             (br $next))
 
             ;; state

@@ -368,7 +368,7 @@ DEFCODE(SUBSTORE, 0, "C!", STOREBYTE)
 DEFCODE(STOREBYTE, 0, "C@", FETCHBYTE)
 {
     register char *s = (char *)sp[0];
-    sp[0] = s[0];
+    sp[0] = (unsigned char)s[0];
     NEXT;
 }
 DEFCODE(FETCHBYTE, 0, "C@C!", CCOPY)
@@ -379,8 +379,8 @@ DEFCODE(FETCHBYTE, 0, "C@C!", CCOPY)
 }
 DEFCODE(CCOPY, 0, "CMOVE", CMOVE)
 {
-    sp[2] = (intptr_t)memmove((void *)sp[1], (const void *)sp[2], sp[0]);
-    sp += 2;
+    (void)memmove((void *)sp[1], (const void *)sp[2], sp[0]);
+    sp += 3;
     NEXT;
 }
 DEFCONST(CMOVE, 0, "STATE", STATE, &env->state)
