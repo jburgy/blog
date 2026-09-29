@@ -61,6 +61,9 @@ package-lock.json
 
 forth/web/4th.wasm
 regexp/web/forth.wasm
+forth/4th
+forth/jansforth
+forth/recurse
 .zig-cache/
 zig-cache/
 zig-out/

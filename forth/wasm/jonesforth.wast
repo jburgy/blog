@@ -589,10 +589,9 @@
 
     (data (i32.const 0x5278) "\68\52\00\00\05CMOVE\00\00\2c\00\00\00")
     (func $cmove
-        (local i32 i32)
-        (local.set 1 (call $pop))
-        (memory.copy (local.tee 0 (call $pop)) (call $pop) (local.get 1))
-        (call $push (local.get 0))
+        (local i32)
+        (local.set 0 (call $pop))
+        (memory.copy (call $pop) (call $pop) (local.get 0))
         (return_call $next)
     )
     (elem (i32.const 0x2c) $cmove)

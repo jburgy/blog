@@ -1,20 +1,27 @@
-//! [jansforth.zig](jansforth.zig)'s VM, cell for cell, dispatched with Zig
-//! 0.14+'s labeled `switch`/`continue` instead of a plain `while (true)
-//! switch (...)` -- see https://simonklee.dk/labeled-switch, and
-//! [regexp/labeled.zig](../regexp/labeled.zig) for the same trick applied to
-//! a regex VM. Every prong there falls out to jansforth.zig's one shared
-//! `cfa = addrOf(self.readI32(ip)); ip += 1;` dispatch site at the bottom of
-//! the loop; every prong here instead ends with `continue :dispatch
-//! fetchOp(...)`, jumping straight to the next opcode's own case (its own
-//! jump-table entry) without ever returning to a shared merge point.
-//! `INTERPRET`'s and `EXECUTE`'s immediate-execution paths, which skip
-//! `NEXT` entirely and dispatch on a freshly computed `cfa`, `continue
-//! :dispatch` directly on `@enumFromInt(self.readI32(cfa))` instead.
+//! [labeled.zig](labeled.zig)'s VM again, but the `continue :dispatch` is
+//! replicated for only the *hot* opcodes; the other 63 prongs fall out of the
+//! switch to a single shared `op = fetchOp(...)` at the bottom of the loop,
+//! the way [jansforth.zig](jansforth.zig) dispatches everything.
 //!
-//! Everything else -- the dictionary layout, every opcode's semantics, the
-//! struct fields, `main()`, the tests -- is a byte-for-byte copy of
-//! jansforth.zig, on purpose: the only difference the benchmark should be
-//! able to see is this one extra jump (or its absence).
+//! labeled.zig gives every one of its 100 `fetchOp` prongs its own dispatch
+//! site, which makes each prong a predecessor of every other prong. LLVM
+//! answers that with 104 copies of the jump table (+41 KB of `.rodata`) and,
+//! worse, gives up on register-allocating the VM state: `ip`/`cfa`/`sp`/`rsp`
+//! end up in stack slots that every primitive read-modify-writes. Replicating
+//! only the prongs that actually run often keeps the branch-prediction benefit
+//! where it pays and lets the rest share one site; see README.md for the
+//! instruction counts.
+//!
+//! The hot set is every opcode reaching >=1% of executed instructions on at
+//! least one workload in `benchmark.py`'s suite -- deliberately not just the
+//! Fibonacci benchmark, which is a tight integer/stack loop and would have
+//! nominated only 20 opcodes covering 40% of the compile-heavy workload.
+//! Re-deriving it needs an opcode counter patched into the dispatch loop,
+//! which is not committed.
+//!
+//! Everything else is a copy of labeled.zig, which is itself a copy of
+//! jansforth.zig: the dictionary, every opcode's semantics, `main()` and the
+//! tests are identical, so the benchmark only sees the dispatch shape.
 const std = @import("std");
 const builtin = @import("builtin");
 const native = builtin.cpu.arch.endian();
@@ -511,598 +518,539 @@ pub const Forth = struct {
         var cfa: usize = 5530;
         var ip: usize = 0;
 
-        dispatch: switch (@as(Op, @enumFromInt(self.readI32(cfa)))) {
-            .DOCOL => {
-                rsp -= 1;
-                self.writeI32(rsp, @intCast(ip << 2));
-                ip = cfa + 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .DROP => {
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SWAP => {
-                const a = self.readI32(sp);
-                const b = self.readI32(sp + 1);
-                self.writeI32(sp, b);
-                self.writeI32(sp + 1, a);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .DUP => {
-                sp -= 1;
-                self.writeI32(sp, self.readI32(sp + 1));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .OVER => {
-                sp -= 1;
-                self.writeI32(sp, self.readI32(sp + 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ROT => {
-                const a = self.readI32(sp);
-                const b = self.readI32(sp + 1);
-                const c = self.readI32(sp + 2);
-                self.writeI32(sp + 2, b);
-                self.writeI32(sp + 1, a);
-                self.writeI32(sp, c);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .NROT => {
-                const a = self.readI32(sp);
-                const b = self.readI32(sp + 1);
-                const c = self.readI32(sp + 2);
-                self.writeI32(sp + 2, a);
-                self.writeI32(sp + 1, c);
-                self.writeI32(sp, b);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .TWODROP => {
-                sp += 2;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .TWODUP => {
-                sp -= 2;
-                self.writeI32(sp, self.readI32(sp + 2));
-                self.writeI32(sp + 1, self.readI32(sp + 3));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .TWOSWAP => {
-                const a = self.readI32(sp);
-                const b = self.readI32(sp + 1);
-                const c = self.readI32(sp + 2);
-                const d = self.readI32(sp + 3);
-                self.writeI32(sp + 3, b);
-                self.writeI32(sp + 2, a);
-                self.writeI32(sp + 1, d);
-                self.writeI32(sp, c);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .QDUP => {
-                const a = self.readI32(sp);
-                if (a != 0) {
+        var op: Op = @enumFromInt(self.readI32(cfa));
+        while (true) {
+            dispatch: switch (op) {
+                .DOCOL => {
+                    rsp -= 1;
+                    self.writeI32(rsp, @intCast(ip << 2));
+                    ip = cfa + 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .DROP => {
+                    sp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .SWAP => {
+                    const a = self.readI32(sp);
+                    const b = self.readI32(sp + 1);
+                    self.writeI32(sp, b);
+                    self.writeI32(sp + 1, a);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .DUP => {
                     sp -= 1;
-                    self.writeI32(sp, a);
-                }
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .INCR => {
-                self.writeI32(sp, self.readI32(sp) +% 1);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .DECR => {
-                self.writeI32(sp, self.readI32(sp) -% 1);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .INCR4 => {
-                self.writeI32(sp, self.readI32(sp) +% 4);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .DECR4 => {
-                self.writeI32(sp, self.readI32(sp) -% 4);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ADD => {
-                self.writeI32(sp + 1, self.readI32(sp + 1) +% self.readI32(sp));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SUB => {
-                self.writeI32(sp + 1, self.readI32(sp + 1) -% self.readI32(sp));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .MUL => {
-                self.writeI32(sp + 1, self.readI32(sp + 1) *% self.readI32(sp));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .DIVMOD => {
-                const a = self.readI32(sp + 1);
-                const b = self.readI32(sp);
-                self.writeI32(sp + 1, @rem(a, b));
-                self.writeI32(sp, @divTrunc(a, b));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .EQU => {
-                self.writeI32(sp + 1, if (self.readI32(sp + 1) == self.readI32(sp)) -1 else 0);
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .NEQU => {
-                self.writeI32(sp + 1, if (self.readI32(sp + 1) != self.readI32(sp)) -1 else 0);
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .LT => {
-                self.writeI32(sp + 1, if (self.readI32(sp + 1) < self.readI32(sp)) -1 else 0);
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .GT => {
-                self.writeI32(sp + 1, if (self.readI32(sp + 1) > self.readI32(sp)) -1 else 0);
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .LE => {
-                self.writeI32(sp + 1, if (self.readI32(sp + 1) <= self.readI32(sp)) -1 else 0);
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .GE => {
-                self.writeI32(sp + 1, if (self.readI32(sp + 1) >= self.readI32(sp)) -1 else 0);
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ZEQU => {
-                self.writeI32(sp, if (self.readI32(sp) == 0) -1 else 0);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ZNEQU => {
-                self.writeI32(sp, if (self.readI32(sp) != 0) -1 else 0);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ZLT => {
-                self.writeI32(sp, if (self.readI32(sp) < 0) -1 else 0);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ZGT => {
-                self.writeI32(sp, if (self.readI32(sp) > 0) -1 else 0);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ZLE => {
-                self.writeI32(sp, if (self.readI32(sp) <= 0) -1 else 0);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ZGE => {
-                self.writeI32(sp, if (self.readI32(sp) >= 0) -1 else 0);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .AND => {
-                self.writeI32(sp + 1, self.readI32(sp + 1) & self.readI32(sp));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .OR => {
-                self.writeI32(sp + 1, self.readI32(sp + 1) | self.readI32(sp));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .XOR => {
-                self.writeI32(sp + 1, self.readI32(sp + 1) ^ self.readI32(sp));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .INVERT => {
-                self.writeI32(sp, ~self.readI32(sp));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .EXIT => {
-                ip = addrOf(self.readI32(rsp));
-                rsp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .LIT => {
-                sp -= 1;
-                self.writeI32(sp, self.readI32(ip));
-                ip += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .STORE => {
-                self.writeI32(addrOf(self.readI32(sp)), self.readI32(sp + 1));
-                sp += 2;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .FETCH => {
-                const addr = addrOf(self.readI32(sp));
-                self.writeI32(sp, self.readI32(addr));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ADDSTORE => {
-                const addr = addrOf(self.readI32(sp));
-                self.writeI32(addr, self.readI32(addr) +% self.readI32(sp + 1));
-                sp += 2;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SUBSTORE => {
-                const addr = addrOf(self.readI32(sp));
-                self.writeI32(addr, self.readI32(addr) -% self.readI32(sp + 1));
-                sp += 2;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .STOREBYTE => {
-                const addr: usize = @intCast(self.readI32(sp));
-                self.memory.items[addr] = @truncate(@as(u32, @bitCast(self.readI32(sp + 1))));
-                sp += 2;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .FETCHBYTE => {
-                const addr: usize = @intCast(self.readI32(sp));
-                self.writeI32(sp, self.memory.items[addr]);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .CCOPY => {
-                const src: usize = @intCast(self.readI32(sp));
-                const dst: usize = @intCast(self.readI32(sp + 1));
-                self.memory.items[dst] = self.memory.items[src];
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .CMOVE => {
-                const src: usize = @intCast(self.readI32(sp + 2));
-                const dst: usize = @intCast(self.readI32(sp + 1));
-                const len: usize = @intCast(self.readI32(sp));
-                const s = self.memory.items[src..][0..len];
-                const d = self.memory.items[dst..][0..len];
-                if (dst <= src) std.mem.copyForwards(u8, d, s) else std.mem.copyBackwards(u8, d, s);
-                sp += 3;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .STATE => {
-                sp -= 1;
-                self.writeI32(sp, @intCast(STATE_ADDR << 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .HERE => {
-                sp -= 1;
-                self.writeI32(sp, @intCast(HERE_ADDR << 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .LATEST => {
-                sp -= 1;
-                self.writeI32(sp, @intCast(LATEST_ADDR << 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SZ => {
-                sp -= 1;
-                self.writeI32(sp, @intCast(S0_ADDR << 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .BASE => {
-                sp -= 1;
-                self.writeI32(sp, @intCast(BASE_ADDR << 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .VERSION => {
-                sp -= 1;
-                self.writeI32(sp, 47);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .RZ => {
-                sp -= 1;
-                self.writeI32(sp, 0x1000 << 2);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .__DOCOL => {
-                sp -= 1;
-                self.writeI32(sp, 0);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .F_IMMED => {
-                sp -= 1;
-                self.writeI32(sp, 0x80);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .F_HIDDEN => {
-                sp -= 1;
-                self.writeI32(sp, 0x20);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .F_LENMASK => {
-                sp -= 1;
-                self.writeI32(sp, 0x1F);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SYS_EXIT => {
-                sp -= 1;
-                self.writeI32(sp, SysNum.EXIT);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SYS_OPEN => {
-                sp -= 1;
-                self.writeI32(sp, SysNum.OPEN);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SYS_CLOSE => {
-                sp -= 1;
-                self.writeI32(sp, SysNum.CLOSE);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SYS_READ => {
-                sp -= 1;
-                self.writeI32(sp, SysNum.READ);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SYS_WRITE => {
-                sp -= 1;
-                self.writeI32(sp, SysNum.WRITE);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SYS_CREAT => {
-                sp -= 1;
-                self.writeI32(sp, SysNum.CREAT);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SYS_BRK => {
-                sp -= 1;
-                self.writeI32(sp, SysNum.BRK);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .__O_RDONLY => {
-                sp -= 1;
-                self.writeI32(sp, O_RDONLY);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .__O_WRONLY => {
-                sp -= 1;
-                self.writeI32(sp, O_WRONLY);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .__O_RDWR => {
-                sp -= 1;
-                self.writeI32(sp, O_RDWR);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .__O_CREAT => {
-                sp -= 1;
-                self.writeI32(sp, O_CREAT);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .__O_EXCL => {
-                sp -= 1;
-                self.writeI32(sp, O_EXCL);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .__O_TRUNC => {
-                sp -= 1;
-                self.writeI32(sp, O_TRUNC);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .__O_APPEND => {
-                sp -= 1;
-                self.writeI32(sp, O_APPEND);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .__O_NONBLOCK => {
-                sp -= 1;
-                self.writeI32(sp, O_NONBLOCK);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .TOR => {
-                rsp -= 1;
-                self.writeI32(rsp, self.readI32(sp));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .FROMR => {
-                sp -= 1;
-                self.writeI32(sp, self.readI32(rsp));
-                rsp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .RSPFETCH => {
-                sp -= 1;
-                self.writeI32(sp, @intCast(rsp << 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .RSPSTORE => {
-                rsp = addrOf(self.readI32(sp));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .RDROP => {
-                rsp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .DSPFETCH => {
-                const a = sp;
-                sp -= 1;
-                self.writeI32(sp, @intCast(a << 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .DSPSTORE => {
-                sp = addrOf(self.readI32(sp));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .KEY => {
-                sp -= 1;
-                const ch = try self.key();
-                self.writeI32(sp, ch);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .EMIT => {
-                const ch: u8 = @truncate(@as(u32, @bitCast(self.readI32(sp))));
-                try self.writer.writeByte(ch);
-                try self.writer.flush();
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .WORD => {
-                sp -= 1;
-                self.writeI32(sp, @intCast(WORD_BUFFER));
-                sp -= 1;
-                self.writeI32(sp, try self.word());
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .NUMBER => {
-                const num = self.number(self.readI32(sp), @intCast(self.readI32(sp + 1)));
-                self.writeI32(sp + 1, num.result);
-                self.writeI32(sp, num.remaining);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .FIND => {
-                const result = self.find(self.readI32(sp), @intCast(self.readI32(sp + 1)));
-                self.writeI32(sp + 1, result);
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .TCFA => {
-                self.writeI32(sp, self.codeFieldAddress(self.readI32(sp)));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .CREATE => {
-                const count: usize = @intCast(self.readI32(sp));
-                const name: usize = @intCast(self.readI32(sp + 1));
-                const here: usize = @intCast(self.readI32(HERE_ADDR));
-                self.writeI32(here >> 2, self.readI32(LATEST_ADDR));
-                self.memory.items[here + 4] = @truncate(count);
-                std.mem.copyForwards(u8, self.memory.items[here + 5 ..][0..count], self.memory.items[name..][0..count]);
-                self.writeI32(HERE_ADDR, self.codeFieldAddress(@intCast(here)));
-                self.writeI32(LATEST_ADDR, @intCast(here));
-                sp += 2;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .COMMA => {
-                const here: usize = @intCast(self.readI32(HERE_ADDR));
-                self.writeI32(here >> 2, self.readI32(sp));
-                self.writeI32(HERE_ADDR, @intCast(here + 4));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .LBRAC => {
-                self.writeI32(STATE_ADDR, 0);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .RBRAC => {
-                self.writeI32(STATE_ADDR, 1);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .IMMEDIATE => {
-                const latest = addrOf(self.readI32(LATEST_ADDR));
-                self.writeI32(latest + 1, self.readI32(latest + 1) ^ 0x80);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .HIDDEN => {
-                const target = addrOf(self.readI32(sp));
-                self.writeI32(target + 1, self.readI32(target + 1) ^ 0x20);
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .TICK => {
-                sp -= 1;
-                self.writeI32(sp, self.readI32(ip));
-                ip += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .BRANCH => {
-                ip = @intCast(@as(i32, @intCast(ip)) + (self.readI32(ip) >> 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .ZBRANCH => {
-                if (self.readI32(sp) != 0) {
-                    ip += 1;
-                } else {
-                    ip = @intCast(@as(i32, @intCast(ip)) + (self.readI32(ip) >> 2));
-                }
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .LITSTRING => {
-                sp -= 1;
-                self.writeI32(sp, @intCast((ip + 1) << 2));
-                sp -= 1;
-                const len = self.readI32(ip);
-                self.writeI32(sp, len);
-                ip += 1 + @as(usize, @intCast((len +% 3) >> 2));
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .TELL => {
-                const len: usize = @intCast(self.readI32(sp));
-                const addr: usize = @intCast(self.readI32(sp + 1));
-                try self.writer.writeAll(self.memory.items[addr..][0..len]);
-                try self.writer.flush();
-                sp += 2;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .INTERPRET => {
-                const a = try self.word();
-                const b = self.find(a, WORD_BUFFER);
-                if (b != 0) {
-                    cfa = @intCast(self.codeFieldAddress(b));
-                    if ((self.memory.items[@intCast(b + 4)] & 0x80) != 0 or self.readI32(STATE_ADDR) == 0) {
-                        cfa >>= 2;
-                        continue :dispatch @enumFromInt(self.readI32(cfa));
+                    self.writeI32(sp, self.readI32(sp + 1));
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .OVER => {
+                    sp -= 1;
+                    self.writeI32(sp, self.readI32(sp + 2));
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .ROT => {
+                    const a = self.readI32(sp);
+                    const b = self.readI32(sp + 1);
+                    const c = self.readI32(sp + 2);
+                    self.writeI32(sp + 2, b);
+                    self.writeI32(sp + 1, a);
+                    self.writeI32(sp, c);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .NROT => {
+                    const a = self.readI32(sp);
+                    const b = self.readI32(sp + 1);
+                    const c = self.readI32(sp + 2);
+                    self.writeI32(sp + 2, a);
+                    self.writeI32(sp + 1, c);
+                    self.writeI32(sp, b);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .TWODROP => {
+                    sp += 2;
+                },
+                .TWODUP => {
+                    sp -= 2;
+                    self.writeI32(sp, self.readI32(sp + 2));
+                    self.writeI32(sp + 1, self.readI32(sp + 3));
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .TWOSWAP => {
+                    const a = self.readI32(sp);
+                    const b = self.readI32(sp + 1);
+                    const c = self.readI32(sp + 2);
+                    const d = self.readI32(sp + 3);
+                    self.writeI32(sp + 3, b);
+                    self.writeI32(sp + 2, a);
+                    self.writeI32(sp + 1, d);
+                    self.writeI32(sp, c);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .QDUP => {
+                    const a = self.readI32(sp);
+                    if (a != 0) {
+                        sp -= 1;
+                        self.writeI32(sp, a);
                     }
-                    const here = self.readI32(HERE_ADDR);
-                    self.writeI32(@intCast(here >> 2), @intCast(cfa));
-                    self.writeI32(HERE_ADDR, here + 4);
-                } else {
-                    const num = self.number(a, WORD_BUFFER);
-                    if (num.remaining != 0) {
-                        try std.fs.File.stderr().writeAll("PARSE ERROR: ");
-                        try std.fs.File.stderr().writeAll(self.memory.items[WORD_BUFFER..][0..@intCast(a)]);
-                        try std.fs.File.stderr().writeAll("\n");
-                    } else if (self.readI32(STATE_ADDR) != 0) {
-                        var here = self.readI32(HERE_ADDR);
-                        self.writeI32(@intCast(here >> 2), LIT_CFA << 2);
-                        here += 4;
-                        self.writeI32(HERE_ADDR, here);
-                        self.writeI32(@intCast(here >> 2), num.result);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .INCR => {
+                    self.writeI32(sp, self.readI32(sp) +% 1);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .DECR => {
+                    self.writeI32(sp, self.readI32(sp) -% 1);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .INCR4 => {
+                    self.writeI32(sp, self.readI32(sp) +% 4);
+                },
+                .DECR4 => {
+                    self.writeI32(sp, self.readI32(sp) -% 4);
+                },
+                .ADD => {
+                    self.writeI32(sp + 1, self.readI32(sp + 1) +% self.readI32(sp));
+                    sp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .SUB => {
+                    self.writeI32(sp + 1, self.readI32(sp + 1) -% self.readI32(sp));
+                    sp += 1;
+                },
+                .MUL => {
+                    self.writeI32(sp + 1, self.readI32(sp + 1) *% self.readI32(sp));
+                    sp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .DIVMOD => {
+                    const a = self.readI32(sp + 1);
+                    const b = self.readI32(sp);
+                    self.writeI32(sp + 1, @rem(a, b));
+                    self.writeI32(sp, @divTrunc(a, b));
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .EQU => {
+                    self.writeI32(sp + 1, if (self.readI32(sp + 1) == self.readI32(sp)) -1 else 0);
+                    sp += 1;
+                },
+                .NEQU => {
+                    self.writeI32(sp + 1, if (self.readI32(sp + 1) != self.readI32(sp)) -1 else 0);
+                    sp += 1;
+                },
+                .LT => {
+                    self.writeI32(sp + 1, if (self.readI32(sp + 1) < self.readI32(sp)) -1 else 0);
+                    sp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .GT => {
+                    self.writeI32(sp + 1, if (self.readI32(sp + 1) > self.readI32(sp)) -1 else 0);
+                    sp += 1;
+                },
+                .LE => {
+                    self.writeI32(sp + 1, if (self.readI32(sp + 1) <= self.readI32(sp)) -1 else 0);
+                    sp += 1;
+                },
+                .GE => {
+                    self.writeI32(sp + 1, if (self.readI32(sp + 1) >= self.readI32(sp)) -1 else 0);
+                    sp += 1;
+                },
+                .ZEQU => {
+                    self.writeI32(sp, if (self.readI32(sp) == 0) -1 else 0);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .ZNEQU => {
+                    self.writeI32(sp, if (self.readI32(sp) != 0) -1 else 0);
+                },
+                .ZLT => {
+                    self.writeI32(sp, if (self.readI32(sp) < 0) -1 else 0);
+                },
+                .ZGT => {
+                    self.writeI32(sp, if (self.readI32(sp) > 0) -1 else 0);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .ZLE => {
+                    self.writeI32(sp, if (self.readI32(sp) <= 0) -1 else 0);
+                },
+                .ZGE => {
+                    self.writeI32(sp, if (self.readI32(sp) >= 0) -1 else 0);
+                },
+                .AND => {
+                    self.writeI32(sp + 1, self.readI32(sp + 1) & self.readI32(sp));
+                    sp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .OR => {
+                    self.writeI32(sp + 1, self.readI32(sp + 1) | self.readI32(sp));
+                    sp += 1;
+                },
+                .XOR => {
+                    self.writeI32(sp + 1, self.readI32(sp + 1) ^ self.readI32(sp));
+                    sp += 1;
+                },
+                .INVERT => {
+                    self.writeI32(sp, ~self.readI32(sp));
+                },
+                .EXIT => {
+                    ip = addrOf(self.readI32(rsp));
+                    rsp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .LIT => {
+                    sp -= 1;
+                    self.writeI32(sp, self.readI32(ip));
+                    ip += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .STORE => {
+                    self.writeI32(addrOf(self.readI32(sp)), self.readI32(sp + 1));
+                    sp += 2;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .FETCH => {
+                    const addr = addrOf(self.readI32(sp));
+                    self.writeI32(sp, self.readI32(addr));
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .ADDSTORE => {
+                    const addr = addrOf(self.readI32(sp));
+                    self.writeI32(addr, self.readI32(addr) +% self.readI32(sp + 1));
+                    sp += 2;
+                },
+                .SUBSTORE => {
+                    const addr = addrOf(self.readI32(sp));
+                    self.writeI32(addr, self.readI32(addr) -% self.readI32(sp + 1));
+                    sp += 2;
+                },
+                .STOREBYTE => {
+                    const addr: usize = @intCast(self.readI32(sp));
+                    self.memory.items[addr] = @truncate(@as(u32, @bitCast(self.readI32(sp + 1))));
+                    sp += 2;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .FETCHBYTE => {
+                    const addr: usize = @intCast(self.readI32(sp));
+                    self.writeI32(sp, self.memory.items[addr]);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .CCOPY => {
+                    const src: usize = @intCast(self.readI32(sp));
+                    const dst: usize = @intCast(self.readI32(sp + 1));
+                    self.memory.items[dst] = self.memory.items[src];
+                    sp += 1;
+                },
+                .CMOVE => {
+                    const src: usize = @intCast(self.readI32(sp + 2));
+                    const dst: usize = @intCast(self.readI32(sp + 1));
+                    const len: usize = @intCast(self.readI32(sp));
+                    const s = self.memory.items[src..][0..len];
+                    const d = self.memory.items[dst..][0..len];
+                    if (dst <= src) std.mem.copyForwards(u8, d, s) else std.mem.copyBackwards(u8, d, s);
+                    sp += 3;
+                },
+                .STATE => {
+                    sp -= 1;
+                    self.writeI32(sp, @intCast(STATE_ADDR << 2));
+                },
+                .HERE => {
+                    sp -= 1;
+                    self.writeI32(sp, @intCast(HERE_ADDR << 2));
+                },
+                .LATEST => {
+                    sp -= 1;
+                    self.writeI32(sp, @intCast(LATEST_ADDR << 2));
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .SZ => {
+                    sp -= 1;
+                    self.writeI32(sp, @intCast(S0_ADDR << 2));
+                },
+                .BASE => {
+                    sp -= 1;
+                    self.writeI32(sp, @intCast(BASE_ADDR << 2));
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .VERSION => {
+                    sp -= 1;
+                    self.writeI32(sp, 47);
+                },
+                .RZ => {
+                    sp -= 1;
+                    self.writeI32(sp, 0x1000 << 2);
+                },
+                .__DOCOL => {
+                    sp -= 1;
+                    self.writeI32(sp, 0);
+                },
+                .F_IMMED => {
+                    sp -= 1;
+                    self.writeI32(sp, 0x80);
+                },
+                .F_HIDDEN => {
+                    sp -= 1;
+                    self.writeI32(sp, 0x20);
+                },
+                .F_LENMASK => {
+                    sp -= 1;
+                    self.writeI32(sp, 0x1F);
+                },
+                .SYS_EXIT => {
+                    sp -= 1;
+                    self.writeI32(sp, SysNum.EXIT);
+                },
+                .SYS_OPEN => {
+                    sp -= 1;
+                    self.writeI32(sp, SysNum.OPEN);
+                },
+                .SYS_CLOSE => {
+                    sp -= 1;
+                    self.writeI32(sp, SysNum.CLOSE);
+                },
+                .SYS_READ => {
+                    sp -= 1;
+                    self.writeI32(sp, SysNum.READ);
+                },
+                .SYS_WRITE => {
+                    sp -= 1;
+                    self.writeI32(sp, SysNum.WRITE);
+                },
+                .SYS_CREAT => {
+                    sp -= 1;
+                    self.writeI32(sp, SysNum.CREAT);
+                },
+                .SYS_BRK => {
+                    sp -= 1;
+                    self.writeI32(sp, SysNum.BRK);
+                },
+                .__O_RDONLY => {
+                    sp -= 1;
+                    self.writeI32(sp, O_RDONLY);
+                },
+                .__O_WRONLY => {
+                    sp -= 1;
+                    self.writeI32(sp, O_WRONLY);
+                },
+                .__O_RDWR => {
+                    sp -= 1;
+                    self.writeI32(sp, O_RDWR);
+                },
+                .__O_CREAT => {
+                    sp -= 1;
+                    self.writeI32(sp, O_CREAT);
+                },
+                .__O_EXCL => {
+                    sp -= 1;
+                    self.writeI32(sp, O_EXCL);
+                },
+                .__O_TRUNC => {
+                    sp -= 1;
+                    self.writeI32(sp, O_TRUNC);
+                },
+                .__O_APPEND => {
+                    sp -= 1;
+                    self.writeI32(sp, O_APPEND);
+                },
+                .__O_NONBLOCK => {
+                    sp -= 1;
+                    self.writeI32(sp, O_NONBLOCK);
+                },
+                .TOR => {
+                    rsp -= 1;
+                    self.writeI32(rsp, self.readI32(sp));
+                    sp += 1;
+                },
+                .FROMR => {
+                    sp -= 1;
+                    self.writeI32(sp, self.readI32(rsp));
+                    rsp += 1;
+                },
+                .RSPFETCH => {
+                    sp -= 1;
+                    self.writeI32(sp, @intCast(rsp << 2));
+                },
+                .RSPSTORE => {
+                    rsp = addrOf(self.readI32(sp));
+                    sp += 1;
+                },
+                .RDROP => {
+                    rsp += 1;
+                },
+                .DSPFETCH => {
+                    const a = sp;
+                    sp -= 1;
+                    self.writeI32(sp, @intCast(a << 2));
+                },
+                .DSPSTORE => {
+                    sp = addrOf(self.readI32(sp));
+                },
+                .KEY => {
+                    sp -= 1;
+                    const ch = try self.key();
+                    self.writeI32(sp, ch);
+                },
+                .EMIT => {
+                    const ch: u8 = @truncate(@as(u32, @bitCast(self.readI32(sp))));
+                    try self.writer.writeByte(ch);
+                    try self.writer.flush();
+                    sp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .WORD => {
+                    sp -= 1;
+                    self.writeI32(sp, @intCast(WORD_BUFFER));
+                    sp -= 1;
+                    self.writeI32(sp, try self.word());
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .NUMBER => {
+                    const num = self.number(self.readI32(sp), @intCast(self.readI32(sp + 1)));
+                    self.writeI32(sp + 1, num.result);
+                    self.writeI32(sp, num.remaining);
+                },
+                .FIND => {
+                    const result = self.find(self.readI32(sp), @intCast(self.readI32(sp + 1)));
+                    self.writeI32(sp + 1, result);
+                    sp += 1;
+                },
+                .TCFA => {
+                    self.writeI32(sp, self.codeFieldAddress(self.readI32(sp)));
+                },
+                .CREATE => {
+                    const count: usize = @intCast(self.readI32(sp));
+                    const name: usize = @intCast(self.readI32(sp + 1));
+                    const here: usize = @intCast(self.readI32(HERE_ADDR));
+                    self.writeI32(here >> 2, self.readI32(LATEST_ADDR));
+                    self.memory.items[here + 4] = @truncate(count);
+                    std.mem.copyForwards(u8, self.memory.items[here + 5 ..][0..count], self.memory.items[name..][0..count]);
+                    self.writeI32(HERE_ADDR, self.codeFieldAddress(@intCast(here)));
+                    self.writeI32(LATEST_ADDR, @intCast(here));
+                    sp += 2;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .COMMA => {
+                    const here: usize = @intCast(self.readI32(HERE_ADDR));
+                    self.writeI32(here >> 2, self.readI32(sp));
+                    self.writeI32(HERE_ADDR, @intCast(here + 4));
+                    sp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .LBRAC => {
+                    self.writeI32(STATE_ADDR, 0);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .RBRAC => {
+                    self.writeI32(STATE_ADDR, 1);
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .IMMEDIATE => {
+                    const latest = addrOf(self.readI32(LATEST_ADDR));
+                    self.writeI32(latest + 1, self.readI32(latest + 1) ^ 0x80);
+                },
+                .HIDDEN => {
+                    const target = addrOf(self.readI32(sp));
+                    self.writeI32(target + 1, self.readI32(target + 1) ^ 0x20);
+                    sp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .TICK => {
+                    sp -= 1;
+                    self.writeI32(sp, self.readI32(ip));
+                    ip += 1;
+                },
+                .BRANCH => {
+                    ip = @intCast(@as(i32, @intCast(ip)) + (self.readI32(ip) >> 2));
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .ZBRANCH => {
+                    if (self.readI32(sp) != 0) {
+                        ip += 1;
+                    } else {
+                        ip = @intCast(@as(i32, @intCast(ip)) + (self.readI32(ip) >> 2));
+                    }
+                    sp += 1;
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .LITSTRING => {
+                    sp -= 1;
+                    self.writeI32(sp, @intCast((ip + 1) << 2));
+                    sp -= 1;
+                    const len = self.readI32(ip);
+                    self.writeI32(sp, len);
+                    ip += 1 + @as(usize, @intCast((len +% 3) >> 2));
+                },
+                .TELL => {
+                    const len: usize = @intCast(self.readI32(sp));
+                    const addr: usize = @intCast(self.readI32(sp + 1));
+                    try self.writer.writeAll(self.memory.items[addr..][0..len]);
+                    try self.writer.flush();
+                    sp += 2;
+                },
+                .INTERPRET => {
+                    const a = try self.word();
+                    const b = self.find(a, WORD_BUFFER);
+                    if (b != 0) {
+                        cfa = @intCast(self.codeFieldAddress(b));
+                        if ((self.memory.items[@intCast(b + 4)] & 0x80) != 0 or self.readI32(STATE_ADDR) == 0) {
+                            cfa >>= 2;
+                            continue :dispatch @enumFromInt(self.readI32(cfa));
+                        }
+                        const here = self.readI32(HERE_ADDR);
+                        self.writeI32(@intCast(here >> 2), @intCast(cfa));
                         self.writeI32(HERE_ADDR, here + 4);
                     } else {
-                        sp -= 1;
-                        self.writeI32(sp, num.result);
+                        const num = self.number(a, WORD_BUFFER);
+                        if (num.remaining != 0) {
+                            try std.fs.File.stderr().writeAll("PARSE ERROR: ");
+                            try std.fs.File.stderr().writeAll(self.memory.items[WORD_BUFFER..][0..@intCast(a)]);
+                            try std.fs.File.stderr().writeAll("\n");
+                        } else if (self.readI32(STATE_ADDR) != 0) {
+                            var here = self.readI32(HERE_ADDR);
+                            self.writeI32(@intCast(here >> 2), LIT_CFA << 2);
+                            here += 4;
+                            self.writeI32(HERE_ADDR, here);
+                            self.writeI32(@intCast(here >> 2), num.result);
+                            self.writeI32(HERE_ADDR, here + 4);
+                        } else {
+                            sp -= 1;
+                            self.writeI32(sp, num.result);
+                        }
                     }
-                }
 
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .CHAR => {
-                _ = try self.word();
-                sp -= 1;
-                self.writeI32(sp, self.memory.items[WORD_BUFFER]);
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .EXECUTE => {
-                cfa = addrOf(self.readI32(sp));
-                sp += 1;
-                continue :dispatch @enumFromInt(self.readI32(cfa));
-            },
-            .SYSCALL3 => {
-                const n = self.readI32(sp);
-                const a = self.readI32(sp + 1);
-                const b = self.readI32(sp + 2);
-                const c = self.readI32(sp + 3);
-                self.writeI32(sp + 3, self.doSyscall3(n, a, b, c));
-                sp += 3;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SYSCALL2 => {
-                const n = self.readI32(sp);
-                const a = self.readI32(sp + 1);
-                const b = self.readI32(sp + 2);
-                self.writeI32(sp + 2, self.doSyscall2(n, a, b));
-                sp += 2;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            .SYSCALL1 => {
-                const n = self.readI32(sp);
-                const a = self.readI32(sp + 1);
-                self.writeI32(sp + 1, self.doSyscall1(n, a));
-                sp += 1;
-                continue :dispatch fetchOp(self, &cfa, &ip);
-            },
-            _ => return error.UnknownOpcode,
+                    continue :dispatch fetchOp(self, &cfa, &ip);
+                },
+                .CHAR => {
+                    _ = try self.word();
+                    sp -= 1;
+                    self.writeI32(sp, self.memory.items[WORD_BUFFER]);
+                },
+                .EXECUTE => {
+                    cfa = addrOf(self.readI32(sp));
+                    sp += 1;
+                    continue :dispatch @enumFromInt(self.readI32(cfa));
+                },
+                .SYSCALL3 => {
+                    const n = self.readI32(sp);
+                    const a = self.readI32(sp + 1);
+                    const b = self.readI32(sp + 2);
+                    const c = self.readI32(sp + 3);
+                    self.writeI32(sp + 3, self.doSyscall3(n, a, b, c));
+                    sp += 3;
+                },
+                .SYSCALL2 => {
+                    const n = self.readI32(sp);
+                    const a = self.readI32(sp + 1);
+                    const b = self.readI32(sp + 2);
+                    self.writeI32(sp + 2, self.doSyscall2(n, a, b));
+                    sp += 2;
+                },
+                .SYSCALL1 => {
+                    const n = self.readI32(sp);
+                    const a = self.readI32(sp + 1);
+                    self.writeI32(sp + 1, self.doSyscall1(n, a));
+                    sp += 1;
+                },
+                _ => return error.UnknownOpcode,
+            }
+            op = fetchOp(self, &cfa, &ip);
         }
     }
 };

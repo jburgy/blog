@@ -678,7 +678,7 @@ pub const Forth = struct {
                     const s = self.memory.items[src..][0..len];
                     const d = self.memory.items[dst..][0..len];
                     if (dst <= src) std.mem.copyForwards(u8, d, s) else std.mem.copyBackwards(u8, d, s);
-                    sp += 2;
+                    sp += 3;
                 },
                 .STATE => {
                     sp -= 1;
@@ -1098,6 +1098,7 @@ test "interp" {
         \\: SLOW WORD FIND >CFA EXECUTE ; 65 SLOW EMIT CR \ A
         \\1179010630 DSP@ 4 TELL 2DROP CR \ FFFF
         \\1179010630 DSP@ HERE @ 4 CMOVE HERE @ 4 TELL DROP CR \ FFFF
+        \\S0 @ DSP@ - HERE @ HERE @ 4 + 4 CMOVE S0 @ DSP@ - SWAP - . CR \ 4
         \\13622 DSP@ 2 NUMBER DROP EMIT CR \ A
         \\64 >R RSP@ 1 TELL RDROP CR \ @
         \\64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL 2DROP CR \ @
@@ -1120,9 +1121,9 @@ test "interp" {
         \\0 -1 XOR . CR \ -1
         \\-1 INVERT . CR \ 0
         \\0 INVERT . CR \ -1
-        \\F_IMMED F_HIDDEN .S 2DROP CR \ 32 128 13622
+        \\F_IMMED F_HIDDEN .S 2DROP CR \ 32 128
         \\: CFA@ WORD FIND >CFA @ ; CFA@ >DFA DOCOL = . CR \ -1
-        \\3 4 5 .S 2DROP DROP CR \ 5 4 3 13622
+        \\3 4 5 .S 2DROP DROP CR \ 5 4 3
         \\3 4 5 WITHIN . CR \ 0
         \\SEE >DFA \ : >DFA >CFA 4+ ;
         \\SEE HIDE \ : HIDE WORD FIND HIDDEN ;

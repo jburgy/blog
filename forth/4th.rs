@@ -67,11 +67,14 @@ mod header {
 
     pub const STACK: usize = 0; // data stack, 2048 cells
     pub const STACK_TOP: usize = STACK + 2048 * CELL;
-    pub const RETURN_STACK: usize = STACK_TOP; // return stack, 2048 cells
+    // `DSP@`/`RSP@` hand S0/R0 straight to Forth code, which may store through
+    // them, so each stack needs a guard cell above it rather than butting
+    // directly against whatever comes next.
+    pub const RETURN_STACK: usize = STACK_TOP + CELL; // return stack, 2048 cells
     pub const RETURN_STACK_TOP: usize = RETURN_STACK + 2048 * CELL;
 
     // Interpreter variables, one cell each.
-    pub const STATE: usize = RETURN_STACK_TOP; // 0 = interpret, 1 = compile
+    pub const STATE: usize = RETURN_STACK_TOP + CELL; // 0 = interpret, 1 = compile
     pub const HERE: usize = STATE + CELL; // next free dictionary address
     pub const LATEST: usize = HERE + CELL; // most recent dictionary entry
     pub const S0: usize = LATEST + CELL; // base of the data stack
@@ -992,12 +995,14 @@ fn store_byte(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, target: usi
     become interp.next(sp2, rsp, ip, target);
 }
 
+// ( dest src -- dest ), as in 4th.c/6th.zig/jansforth.*; jonesforth.S instead
+// leaves both addresses incremented.
 fn c_copy(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, target: usize) -> ! {
     let (src, sp1) = pop(interp, sp);
-    let (dst, sp2) = pop(interp, sp1);
+    let dst = interp.read_cell(sp1);
     let byte = interp.memory[src as usize];
     interp.memory[dst as usize] = byte;
-    become interp.next(sp2, rsp, ip, target);
+    become interp.next(sp1, rsp, ip, target);
 }
 
 fn c_move(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, target: usize) -> ! {

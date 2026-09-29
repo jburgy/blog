@@ -20,14 +20,14 @@ that sits at that intersection.
 |  | **switch** | **labels as values** | **tail calls** |
 | --- | --- | --- | --- |
 | **C** | [jansforth.c](jansforth.c)<br>[recurse.c](recurse.c) | [4th.c](4th.c) | [5th.c](5th.c) |
-| **Zig** | [jansforth.zig](jansforth.zig)<br>[labeled.zig](labeled.zig) | — | [6th.zig](6th.zig) |
+| **Zig** | [jansforth.zig](jansforth.zig)<br>[labeled.zig](labeled.zig)<br>[hybrid.zig](hybrid.zig) | — | [6th.zig](6th.zig) |
 | **Rust** | [jansforth.rs](jansforth.rs) | — | [4th.rs](4th.rs) |
 | **wasm** | [wasm/tabulate.wast](wasm/tabulate.wast)<br>[wasm/recurse.wast](wasm/recurse.wast) | — | [wasm/jonesforth.wast](wasm/jonesforth.wast)<br>[wasm/localize.wast](wasm/localize.wast) |
 
 Two holes are structural rather than accidental: neither Zig nor WebAssembly
 has anything like GCC's `&&label`, so the middle column can only ever be C.
-The Zig cell holds two implementations rather than one: same `switch`
-strategy, two different ways of writing it (see below).
+The Zig cell holds three implementations rather than one: same `switch`
+strategy, three different ways of writing it (see below).
 
 ## The strategies
 
@@ -42,11 +42,29 @@ with `continue :dispatch fetchOp(...)` -- Zig 0.14+'s labeled `switch`/
 `continue`, see https://simonklee.dk/labeled-switch and
 [regexp/labeled.zig](../regexp/labeled.zig) for the same trick applied to a
 regex VM -- instead of falling out to a shared dispatch site at the bottom of
-the loop. LLVM lowers each `continue` to its own indirect jump (its own
-jump-table entry), so it sits between plain `switch` and labels-as-values:
-still one shared jump *table*, but no more shared jump *site*. Keeping it a
-byte-for-byte copy of jansforth.zig save for that one change isolates the
-cost of the extra jump for benchmarking.
+the loop. The expectation was that this lands somewhere between plain `switch`
+and labels-as-values. It does not: on x86-64 it is *slower* than the plain
+switch on most of the workload suite. Giving all 101 prongs their own dispatch
+site makes every prong a predecessor of every other, and LLVM answers with 104
+copies of the jump table (+41 KB of `.rodata`) and, worse, stops
+register-allocating the VM state -- `ip`/`cfa`/`sp`/`rsp` move into stack slots
+that every primitive then read-modify-writes.
+
+[hybrid.zig](hybrid.zig) is the same file with the `continue :dispatch`
+replicated for only the 37 hot opcodes; the remaining 63 prongs fall out of the
+switch to one shared dispatch site. That keeps the per-site branch prediction
+where it pays without the register pressure. On x86-64 it is the fastest of the
+three, but the table below was measured on macOS/arm64 and has not been rerun,
+so hybrid carries no number there yet. Measured on `Forth.run`:
+
+| variant | prongs | insns | indirect jmp | stack-slot operands |
+| --- | ---: | ---: | ---: | ---: |
+| [jansforth.zig](jansforth.zig) | — | 2403 | 2 | 310 |
+| [labeled.zig](labeled.zig) | 100 | 3814 | 104 | 1067 |
+| [hybrid.zig](hybrid.zig) | 37 | 2452 | 41 | 229 |
+
+The three are otherwise byte-for-byte copies of one another, so the benchmark
+only ever sees the dispatch shape.
 
 **labels as values** — GCC's computed goto. The code field holds `&&label`
 directly, so `NEXT` is `goto **ip++`, and the branch predictor gets one
@@ -70,6 +88,7 @@ guarantee from the compiler: `__attribute__((musttail))`, `@call(.always_tail)`,
 | [6th.zig](6th.zig) | Zig | tail calls | ✅ | Emscripten via `zig build -Dtarget=wasm32-emscripten` | `@call(.always_tail, primitives[code], ...)`; native result only | 89.1 (83.9-221.4) / 5 | — |
 | [jansforth.zig](jansforth.zig) | Zig | switch | — | — | `while (true) switch (op) { ... }`; dictionary generated like jansforth.rs's | 71.8 (65.1-104.3) / 2 | — |
 | [labeled.zig](labeled.zig) | Zig | labeled switch | — | — | jansforth.zig cell for cell; every prong `continue`s a labeled `switch` instead | 76.7 (65.7-88.2) / 4 | — |
+| [hybrid.zig](hybrid.zig) | Zig | labeled switch, hot prongs only | — | — | labeled.zig with the dispatch replicated for 37 hot opcodes; the rest share one site | — | — |
 | [4th.rs](4th.rs) | Rust | tail calls | ✅ | wasm32-wasip1 (Wasmtime, and uwasi in the browser) | Nightly `become`; every primitive returns `!` | 105.0 (94.5-114.8) / 9 | 490.5 (448.0-549.3) / 7 |
 | [jansforth.rs](jansforth.rs) | Rust | switch | — | — | Transcription of jansforth.c, run with `rust-script` | 94.3 (84.7-111.3) / 6 | — |
 | [wasm/tabulate.wast](wasm/tabulate.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | One big `br_table`, no indirect calls | — | 72.8 (68.7-110.3) / 1 |
@@ -104,6 +123,34 @@ At the common-width input `46`, the benchmark verifies the computed result for
 each target. `wasm/jonesforth.wast` now passes after correcting its `-ROT`
 stack permutation. `4th.c` uses 16 KiB data and return stacks, enough for the
 recursive workloads on this host.
+
+### The workload suite
+
+The numbers above are Fibonacci only, and Fibonacci is not representative: it
+is a tight integer/stack loop that never executes `WORD`, `FIND`, `CREATE`,
+`C@`, `!` or a syscall in anger. Twenty opcodes account for 99% of it, but only
+40% of a compile-heavy program. Rankings move accordingly — on x86-64
+`labeled.zig` ranges from 0.81x to 1.69x of `jansforth.zig` depending on which
+program is timed.
+
+`python3 benchmark.py --workload all` therefore times six programs with
+deliberately different opcode mixes:
+
+| workload | exercises |
+| --- | --- |
+| `fibonacci` | integer arithmetic and stack shuffling |
+| `cells` | `!`/`@` over an array, cell-strided |
+| `bytes` | `C!`/`C@` and byte copying |
+| `calls` | nested colon words: `DOCOL`/`EXIT`/`>R`/`R>` |
+| `compile` | `INTERPRET`/`WORD`/`FIND`/`CREATE`/`,` |
+| `printing` | `U.`/`EMIT`/`/MOD` |
+
+Each is self-verifying and cell-width agnostic (`CELLW` measures the cell size
+at run time by comma-ing one cell and differencing `HERE`), so the same source
+runs on the 32-bit and 64-bit interpreters alike. The `bytes` workload stores
+values above 127 and sums them back, which caught `C@` sign-extending in all
+four C ports; the `CMOVE` arity and `4th.rs`'s `R0`/`STATE` aliasing came from
+auditing the ports against `jonesforth.S` rather than from the suite.
 
 Run `python3 benchmark.py` from this directory to rebuild the native and Wasm
 targets in a temporary directory, validate each result, and print medians,
@@ -146,7 +193,7 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 
 | command | covers |
 | --- | --- |
-| `make` | 4th, 5th, 6th, jansforth-zig, jansforth-zig-labeled, jansforth, recurse, and both Rust binaries |
+| `make` | 4th, 5th, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and both Rust binaries |
 | `pytest forth/` | [test_4th.py](test_4th.py) (native) and [test_4th_wasm.py](test_4th_wasm.py) (Emscripten) |
 | `npm test` | builds `5th.wasm` with wasi-sdk, then runs every vitest suite |
 | `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) only — the browser demo, driven in node |

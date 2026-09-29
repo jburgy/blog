@@ -578,7 +578,7 @@ static void docol(int cfa) {
                 sp += 2;
                 break;
             case FETCHBYTE:
-                memory[sp] = bytes[memory[sp]];
+                memory[sp] = (unsigned char)bytes[memory[sp]];
                 break;
             case CCOPY:
                 bytes[memory[sp + 1]] = bytes[memory[sp]];
@@ -586,7 +586,7 @@ static void docol(int cfa) {
                 break;
             case CMOVE:
                 (void)memmove(bytes + memory[sp + 1], bytes + memory[sp + 2], (size_t)memory[sp]);
-                sp += 2;
+                sp += 3;
                 break;
             case STATE:
                 memory[--sp] = 0x1400 << 2;

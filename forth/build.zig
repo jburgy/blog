@@ -51,13 +51,14 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
 }
 
 fn buildNative(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
-    const test_step = b.step("test", "Run 6th.zig/jansforth.zig/labeled.zig tests");
+    const test_step = b.step("test", "Run 6th.zig/jansforth.zig/labeled.zig/hybrid.zig tests");
 
     // (executable name, root source file, test description)
     const sources = [_][2][]const u8{
         .{ "6th", "6th.zig" },
         .{ "jansforth-zig", "jansforth.zig" },
         .{ "labeled-zig", "labeled.zig" },
+        .{ "hybrid-zig", "hybrid.zig" },
     };
     for (sources) |entry| {
         const name, const source_file = entry;
