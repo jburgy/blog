@@ -82,6 +82,16 @@ so its own `Arm64`/`X86_64` encoders never need a `lambda[]` array at all;
 `regexp.f`, discussed below, has since adopted the same `strip()` in place of
 `x86.c`'s lambda pointers.
 
+> **No `XCHG`, no `clist`/`nlist` swap:** unlike Thompson's PDP-11 code and
+> `threaded.c` (which keep two thread arrays and swap them every character —
+> literally via `XCHG` on the PDP-11, via a copy loop in `threaded.c`),
+> `x86.c` keeps only one small array. Each character, it pushes that array
+> back onto the real x86 stack as return addresses, then `call`s into the
+> freshly compiled matcher; a matched character's `CALL _nnode` pops its own
+> continuation off that same stack into the array, and a failed match just
+> `ret`s. The CPU's native call/return stack plays the role of `clist`, so
+> the swap happens for free instead of via an explicit instruction or loop.
+
 ### High-level / managed-runtime interpreters
 
 | source | representation | notes |
