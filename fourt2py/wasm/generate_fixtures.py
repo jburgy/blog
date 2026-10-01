@@ -62,7 +62,8 @@ def complex_cases(rng, lengths, iform):
 
 def main():
     rng = np.random.default_rng(0)
-    cases = complex_cases(rng, COMPLEX_LENGTHS, iform=1) + complex_cases(rng, REAL_LENGTHS, iform=0)
+    cases = complex_cases(rng, COMPLEX_LENGTHS, iform=1)
+    cases += complex_cases(rng, REAL_LENGTHS, iform=0)
     payload = {"tolerance": TOLERANCE, "cases": cases}
     out = HERE / "fixtures.json"
     out.write_text(json.dumps(payload, indent=2) + "\n")
