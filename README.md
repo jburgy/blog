@@ -74,6 +74,7 @@ What comes out, and where it comes from:
 | `/blog/6th.mjs` | [`forth/6th.zig`](forth/6th.zig) | [Why not try Zig next?](https://bur.gy/2024/08/31/why-not-zig.html) |
 | `/blog/jonesforth.wasm` | [`forth/wasm/jonesforth.wast`](forth/wasm/jonesforth.wast) | [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html) |
 | `/blog/regexp/web/` | [`regexp/web/`](regexp/web/) + [`forth/wasm/tabulate.wast`](forth/wasm/tabulate.wast) | [What Makes an Expression Regular?](https://bur.gy/2026/09/24/what-makes-an-expression-regular.html) |
+| `/blog/fourt2py/web/` | [`fourt2py/web/`](fourt2py/web/) + [`fourt2py/wasm/fourt.c`](fourt2py/wasm/fourt.c) | shape a waveform's spectrum and hear `FOURT.F` transform it back, post forthcoming |
 | `/blog/lisp.worker.js` | [`lisp/assembly/`](lisp/assembly/) | [What do you mean, homoiconic?](https://bur.gy/2023/03/09/what-do-you-mean-homoiconic.html) |
 | `/blog/TinyBasic.worker.js` | [`TinyBasic/assembly/`](TinyBasic/assembly/) | [When did Basic become insulting?](https://bur.gy/2023/03/16/put-it-in-a-brandy-snifter.html) |
 | `/blog/jonesforth.f` | the [`jonesforth`](jonesforth/) submodule | every Forth terminal |
@@ -93,7 +94,7 @@ Folders that feed a demo are marked ▶.
 | [`simplex/`](simplex/) — [README](simplex/README.md) | | The NSWC `SMPLX` revised simplex solver: the Fortran, a NumPy transcription, an f2py wrapper and benchmarks |
 | [`linprog/`](linprog/) | | Linear-programming odds and ends around the same posts |
 | [`sudoku/`](sudoku/) | | Sudoku as an exact-cover / satisfiability problem |
-| [`fourt2py/`](fourt2py/) | | Calling 1960s Fortran (`FOURT`) from Python — the "what ever happened to Fortran?" experiment |
+| [`fourt2py/`](fourt2py/) | ▶ | Calling 1960s Fortran (`FOURT`) from Python — the "what ever happened to Fortran?" experiment. [`fourt2py/web/`](fourt2py/web/) is a browser demo: drag knots on a frequency-domain chart and a C transliteration of `FOURT.F`, compiled to WebAssembly, turns it into an oscilloscope trace and a tone |
 | [`progress/`](progress/) | | Foreign-function and progress-reporting experiments |
 | [`talks/`](talks/) | | Slide decks, including the Zig-from-Python and data-visualisation talks |
 | [`fun/`](fun/) | | The scratch drawer: n-body, bytecode assemblers, Prechelt's benchmark, Zig toys |

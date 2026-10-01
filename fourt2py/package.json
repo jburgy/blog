@@ -1,0 +1,14 @@
+{
+  "name": "fourt2py",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser demo for FOURT.F (shape a waveform in the frequency domain) compiled to WebAssembly",
+  "scripts": {
+    "build": "emcc -O2 -s MODULARIZE=1 -s EXPORT_ES6=1 -s SINGLE_FILE=0 -s EXPORTED_FUNCTIONS=_fourt_,_malloc,_free -s EXPORTED_RUNTIME_METHODS=cwrap,ccall,getValue,setValue -o wasm/fourt.mjs wasm/fourt.c",
+    "test": "npm run build && vitest run web/"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.11"
+  }
+}

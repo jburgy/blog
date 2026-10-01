@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>FOURT.F &mdash; shape a waveform in the frequency domain, in your browser</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+			--accent: #39ff6a;
+		}
+
+		body {
+			margin: 0 auto;
+			max-width: 46rem;
+			padding: 2rem 1rem 4rem;
+			font: 16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+		}
+
+		h1 {
+			font-size: 1.6rem;
+			margin-bottom: .25rem;
+		}
+
+		.blurb {
+			margin-top: 0;
+			opacity: .75;
+		}
+
+		code {
+			font-family: Menlo, Consolas, monospace;
+		}
+
+		.panel {
+			display: flex;
+			flex-direction: column;
+			gap: .75rem;
+		}
+
+		.scope-wrap {
+			border-radius: .25rem;
+			overflow: hidden;
+			border: 1px solid rgba(128, 128, 128, .4);
+			background: #000;
+		}
+
+		canvas[data-role="scope"] {
+			display: block;
+			width: 100%;
+			height: auto;
+		}
+
+		.chart-wrap {
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+			padding: .25rem 0;
+		}
+
+		svg.chart {
+			display: block;
+			width: 100%;
+			height: auto;
+		}
+
+		.chart__zero {
+			stroke: currentColor;
+			stroke-opacity: .35;
+			stroke-dasharray: 2 3;
+		}
+
+		.chart__stem {
+			stroke: var(--accent);
+			stroke-opacity: .5;
+			stroke-width: 2;
+		}
+
+		.chart__line {
+			stroke: var(--accent);
+			stroke-width: 1.5;
+			stroke-opacity: .6;
+		}
+
+		.chart__knot {
+			fill: var(--accent);
+			stroke: #000;
+			stroke-opacity: .25;
+			cursor: ns-resize;
+			touch-action: none;
+		}
+
+		.chart__label {
+			font-size: 9px;
+			fill: currentColor;
+			opacity: .6;
+			text-anchor: middle;
+			font-family: Menlo, Consolas, monospace;
+		}
+
+		.controls {
+			display: flex;
+			align-items: center;
+			gap: .75rem;
+		}
+
+		.controls button {
+			font: inherit;
+			padding: .5rem 1rem;
+			border: 1px solid currentColor;
+			border-radius: .25rem;
+			background: transparent;
+			color: inherit;
+			cursor: pointer;
+		}
+
+		.status {
+			font-size: .9rem;
+			opacity: .75;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>FOURT.F</h1>
+	<p class="blurb">
+		<a href="https://github.com/jburgy/blog/blob/main/fourt2py/FOURT.F">FOURT.F</a> is Norman Brenner's
+		classic mixed-radix Fast Fourier Transform. Drag the knots below to set the amplitude of each harmonic;
+		a <a href="https://github.com/jburgy/blog/blob/main/fourt2py/wasm/fourt.c">transliteration of FOURT.F
+			compiled to WebAssembly</a> transforms that frequency-domain spectrum into a 200-sample time-domain
+		waveform &mdash; 200 is deliberately not a power of two, so the demo exercises FOURT's general mixed-radix
+		path rather than the textbook radix-2 case. The result is traced on the oscilloscope and looped through
+		the Web Audio API.
+	</p>
+
+	<div id="demo"></div>
+
+	<p class="blurb">
+		Each knot's Y position is split across its FFT bin and that bin's conjugate (<code>k</code> and
+		<code>N-k</code>), so FOURT's inverse transform (<code>ISIGN=+1</code>) hands back a real-valued
+		signal with no imaginary leftovers to discard.
+	</p>
+
+	<script type="module">
+		import { createPanel, attach } from './demo.mjs';
+
+		const panel = createPanel(document);
+		document.getElementById('demo').append(panel);
+		panel.querySelector('[data-role="status"]').textContent = 'booting FOURT.F\u2026';
+
+		await attach(panel);
+		panel.querySelector('[data-role="status"]').textContent = '';
+	</script>
+</body>
+
+</html>
