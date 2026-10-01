@@ -1,795 +1,560 @@
-#include <math.h>
+// fourt.c -- idiomatic C rewrite of FOURT.F (Norman Brenner's mixed-radix
+// FFT), using native 0-based array indexing and structured control flow
+// (if/else/for/while/break/continue) instead of labeled GOTOs. See
+// ../FOURT.F for the Fortran source; the previous commit has a literal,
+// label-for-label transliteration of it (`git show HEAD~:fourt2py/wasm/fourt.c`)
+// for side-by-side comparison, in case this rewrite needs reverting.
+//
+// A few GOTOs survive, in the classic "goto cleanup" style for early exits
+// to a shared tail (search for `goto` below); everything else is
+// structured. The one subtlety worth flagging for reviewers: the radix-4
+// butterfly loop's `l`/`m` counters are deliberately left at their
+// Fortran-original (not shifted) values, because they are used directly in
+// a trig/twiddle-factor formula where the *absolute* numeric value matters,
+// not just as array offsets -- shifting them would change the computed
+// angle. They still combine correctly with the (now 0-based) `i1` to
+// produce a correct 0-based `kmin` (see the comment at that call site).
+//
+// DATA holds interleaved real/imaginary doubles, one complex number per 2
+// consecutive entries (same storage convention as the Fortran). NN(i) in
+// the Fortran becomes nn[i] directly (nn is already a plain 0-based C array
+// of length ndim). IFACT is a local scratch array, also 0-based here.
 
-#define DATA(i) data[(i) - 1]
-#define NN(i) nn[(i) - 1]
-#define WORK(i) work[(i) - 1]
-#define IFACT(i) ifact[(i) - 1]
+#include <math.h>
+#include <stdbool.h>
 
 void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work) {
     int ifact[32];
+    const double twopi = 8.0 * atan(1.0);
+    const double rthlf = sqrt(0.5);
 
-    double twopi, rthlf;
-    double theta, thtm, wstpr, wstpi, wminr, wmini, wmstr, wmsti;
-    double wr, wi, w2r, w2i, w3r, w3i, wtemp, twowr;
-    double tempr, tempi, t2r, t2i, t3r, t3i, t4r, t4i;
-    double u1r, u1i, u2r, u2i, u3r, u3i, u4r, u4i;
-    double sr, si, oldsr, oldsi, stmpr, stmpi;
-    double sumr, sumi, difr, difi;
+    int np0 = 0, np1, np2;
+    int nprev = 0;
 
-    int np0, np1, np2, np2hf, np1tw, nprev, ntot, ntwo, non2p;
-    int idim, n, m, if_, idiv, iquot, irem, inon2;
-    int ifmin, i1rng, icase, nwork, ifp1, ifp2;
-    int i, i1, i1max, i2, i2max, i3, imin, imax, itot;
-    int j, j1, j2, j2max, j3, j3max, jmax, jmin;
-    int ipar, mmax, lmax, l, k1, k2, k3, k4, kmin, kdif, kstep;
-    int nhalf, ntothf;
-
-    twopi = 8.0 * atan(1.0);
-    rthlf = sqrt(0.5);
-    np0 = 0;
-    nprev = 0;
-
-    if (ndim - 1 < 0) {
-        goto L920;
+    if (ndim < 1) {
+        goto normalize;
     }
-    goto L1;
 
-L1: /* Fortran label 1 */
-    ntot = 2;
-    for (idim = 1; idim <= ndim; ++idim) {
-        if (NN(idim) <= 0) {
-            goto L920;
+    int ntot = 2;
+    for (int idim = 0; idim < ndim; ++idim) {
+        if (nn[idim] <= 0) {
+            goto normalize;
         }
-L2:    /* Fortran label 2 */
-        ntot = ntot * NN(idim);
+        ntot *= nn[idim];
     }
 
+    // Main loop for each dimension.
     np1 = 2;
-    for (idim = 1; idim <= ndim; ++idim) {
-        n = NN(idim);
+    for (int idim = 0; idim < ndim; ++idim) {
+        int n = nn[idim];
         np2 = np1 * n;
-        if (n - 1 < 0) {
-            goto L920;
-        } else if (n - 1 == 0) {
-            goto L900;
-        } else {
-            goto L5;
+        if (n < 1) {
+            goto normalize;
+        }
+        if (n == 1) {
+            // Nothing to transform along this dimension.
+            np0 = np1;
+            np1 = np2;
+            nprev = n;
+            continue;
         }
 
-L5:     /* Fortran label 5 */
-        m = n;
-        ntwo = np1;
-        if_ = 1;
-        idiv = 2;
-
-L10:    /* Fortran label 10 */
-        iquot = m / idiv;
-        irem = m - idiv * iquot;
-        if (iquot - idiv < 0) {
-            goto L50;
-        } else {
-            goto L11;
-        }
-
-L11:    /* Fortran label 11 */
-        if (irem < 0) {
-            goto L20;
-        } else if (irem == 0) {
-            goto L12;
-        } else {
-            goto L20;
-        }
-
-L12:    /* Fortran label 12 */
-        ntwo = ntwo + ntwo;
-        IFACT(if_) = idiv;
-        if_ = if_ + 1;
-        m = iquot;
-        goto L10;
-
-L20:    /* Fortran label 20 */
-        idiv = 3;
-        inon2 = if_;
-
-L30:    /* Fortran label 30 */
-        iquot = m / idiv;
-        irem = m - idiv * iquot;
-        if (iquot - idiv < 0) {
-            goto L60;
-        } else {
-            goto L31;
-        }
-
-L31:    /* Fortran label 31 */
-        if (irem < 0) {
-            goto L40;
-        } else if (irem == 0) {
-            goto L32;
-        } else {
-            goto L40;
-        }
-
-L32:    /* Fortran label 32 */
-        IFACT(if_) = idiv;
-        if_ = if_ + 1;
-        m = iquot;
-        goto L30;
-
-L40:    /* Fortran label 40 */
-        idiv = idiv + 2;
-        goto L30;
-
-L50:    /* Fortran label 50 */
-        inon2 = if_;
-        if (irem < 0) {
-            goto L60;
-        } else if (irem == 0) {
-            goto L51;
-        } else {
-            goto L60;
-        }
-
-L51:    /* Fortran label 51 */
-        ntwo = ntwo + ntwo;
-        goto L70;
-
-L60:    /* Fortran label 60 */
-        IFACT(if_) = m;
-
-L70:    /* Fortran label 70 */
-        non2p = np2 / ntwo;
-        ifmin = 1;
-        i1rng = np1;
-        if (iform <= 0 && idim < 4) {
-            goto L71;
-        }
-        icase = 1;
-        goto L100;
-
-L71:    /* Fortran label 71 */
-        if (idim <= 1) {
-            goto L72;
-        }
-        icase = 2;
-        i1rng = np0 * (1 + nprev / 2);
-        goto L100;
-
-L72:    /* Fortran label 72 */
-        if (ntwo > np1) {
-            goto L73;
-        }
-        icase = 3;
-        goto L100;
-
-L73:    /* Fortran label 73 */
-        icase = 4;
-        ifmin = 2;
-        ntwo = ntwo / 2;
-        n = n / 2;
-        np2 = np2 / 2;
-        ntot = ntot / 2;
-
-        i = -1;
-        for (j = 1; j <= ntot; ++j) {
-            i = i + 2;
-            DATA(j) = DATA(i);
-L80:        /* Fortran label 80 */
-            ;
-        }
-
-L100:   /* Fortran label 100 */
-        if (non2p - 1 <= 0) {
-            goto L101;
-        }
-        goto L200;
-
-L101:   /* Fortran label 101 */
-        np2hf = np2 / 2;
-        j = 1;
-        for (i2 = 1; i2 <= np2; i2 += np1) {
-            if (j - i2 < 0) {
-                goto L121;
+        // Is n a power of two, and if not, what are its factors?
+        int m = n;
+        int ntwo = np1;
+        int if_ = 0;
+        int idiv = 2;
+        int iquot = 0, irem = 0;
+        bool prime_tail = false;
+        for (;;) {
+            iquot = m / idiv;
+            irem = m - idiv * iquot;
+            if (iquot < idiv) {
+                prime_tail = true;
+                break;
             }
-            goto L130;
+            if (irem != 0) {
+                break;
+            }
+            ntwo += ntwo;
+            ifact[if_++] = idiv;
+            m = iquot;
+        }
 
-L121:       /* Fortran label 121 */
-            i1max = i2 + np1 - 2;
-            for (i1 = i2; i1 <= i1max; i1 += 2) {
-                for (i3 = i1; i3 <= ntot; i3 += np2) {
-                    j3 = j + i3 - i2;
-                    tempr = DATA(i3);
-                    tempi = DATA(i3 + 1);
-                    DATA(i3) = DATA(j3);
-                    DATA(i3 + 1) = DATA(j3 + 1);
-                    DATA(j3) = tempr;
-L125:               /* Fortran label 125 */
-                    DATA(j3 + 1) = tempi;
+        int inon2;
+        if (prime_tail) {
+            inon2 = if_;
+            if (irem == 0) {
+                ntwo += ntwo;
+            } else {
+                ifact[if_++] = m;
+            }
+        } else {
+            idiv = 3;
+            inon2 = if_;
+            for (;;) {
+                iquot = m / idiv;
+                irem = m - idiv * iquot;
+                if (iquot < idiv) {
+                    break;
+                }
+                if (irem == 0) {
+                    ifact[if_++] = idiv;
+                    m = iquot;
+                } else {
+                    idiv += 2;
                 }
             }
-
-L130:       /* Fortran label 130 */
-            m = np2hf;
-L140:       /* Fortran label 140 */
-            if (j - m <= 0) {
-                goto L150;
-            }
-
-L141:       /* Fortran label 141 */
-            j = j - m;
-            m = m / 2;
-            if (m - np1 < 0) {
-                goto L150;
-            }
-            goto L140;
-
-L150:       /* Fortran label 150 */
-            j = j + m;
+            ifact[if_++] = m;
         }
-        goto L300;
+        int non2p = np2 / ntwo;
 
-L200:   /* Fortran label 200 */
-        nwork = 2 * n;
-        for (i1 = 1; i1 <= np1; i1 += 2) {
-            for (i3 = i1; i3 <= ntot; i3 += np2) {
-                j = i3;
-                for (i = 1; i <= nwork; i += 2) {
-                    if (icase - 3 < 0) {
-                        goto L210;
-                    } else if (icase - 3 == 0) {
-                        goto L220;
-                    } else {
-                        goto L210;
-                    }
-
-L210:               /* Fortran label 210 */
-                    WORK(i) = DATA(j);
-                    WORK(i + 1) = DATA(j + 1);
-                    goto L240;
-
-L220:               /* Fortran label 220 */
-                    WORK(i) = DATA(j);
-                    WORK(i + 1) = 0.0;
-
-L240:               /* Fortran label 240 */
-                    ifp2 = np2;
-                    if_ = ifmin;
-L250:               /* Fortran label 250 */
-                    ifp1 = ifp2 / IFACT(if_);
-                    j = j + ifp1;
-                    if (j - i3 - ifp2 < 0) {
-                        goto L260;
-                    }
-                    goto L255;
-
-L255:               /* Fortran label 255 */
-                    j = j - ifp2;
-                    ifp2 = ifp1;
-                    if_ = if_ + 1;
-                    if (ifp2 - np1 <= 0) {
-                        goto L260;
-                    }
-                    goto L250;
-
-L260:               /* Fortran label 260 */
-                    ;
-                }
-                i2max = i3 + np2 - np1;
-                i = 1;
-                for (i2 = i3; i2 <= i2max; i2 += np1) {
-                    DATA(i2) = WORK(i);
-                    DATA(i2 + 1) = WORK(i + 1);
-L270:               /* Fortran label 270 */
-                    i = i + 2;
-                }
-            }
-        }
-
-L300:   /* Fortran label 300 */
-        if (ntwo - np1 <= 0) {
-            goto L600;
-        }
-        goto L305;
-
-L305:   /* Fortran label 305 */
-        np1tw = np1 + np1;
-        ipar = ntwo / np1;
-
-L310:   /* Fortran label 310 */
-        if (ipar - 2 < 0) {
-            goto L350;
-        } else if (ipar - 2 == 0) {
-            goto L330;
+        // Separate four cases --
+        //   1. complex transform.
+        //   2. real transform for the 2nd, 3rd, etc. dimension. Method --
+        //      transform half the data, supplying the other half by
+        //      conjugate symmetry.
+        //   3. real transform for the 1st dimension, n odd. Method -- set
+        //      the imaginary parts to zero.
+        //   4. real transform for the 1st dimension, n even. Method --
+        //      transform a complex array of length n/2 whose real parts
+        //      are the even numbered real values and whose imaginary parts
+        //      are the odd numbered real values. Separate and supply the
+        //      second half by conjugate symmetry.
+        int ifmin = 0;
+        int i1rng = np1;
+        int icase;
+        if (!(iform <= 0 && idim < 3)) {
+            icase = 1;
+        } else if (idim > 0) {
+            icase = 2;
+            i1rng = np0 * (1 + nprev / 2);
+        } else if (ntwo <= np1) {
+            icase = 3;
         } else {
-            goto L320;
-        }
-
-L320:   /* Fortran label 320 */
-        ipar = ipar / 4;
-        goto L310;
-
-L330:   /* Fortran label 330 */
-        for (i1 = 1; i1 <= i1rng; i1 += 2) {
-            for (k1 = i1; k1 <= ntot; k1 += np1tw) {
-                k2 = k1 + np1;
-                tempr = DATA(k2);
-                tempi = DATA(k2 + 1);
-                DATA(k2) = DATA(k1) - tempr;
-                DATA(k2 + 1) = DATA(k1 + 1) - tempi;
-                DATA(k1) = DATA(k1) + tempr;
-L340:           /* Fortran label 340 */
-                DATA(k1 + 1) = DATA(k1 + 1) + tempi;
+            icase = 4;
+            ifmin = 1;
+            ntwo /= 2;
+            n /= 2;
+            np2 /= 2;
+            ntot /= 2;
+            for (int j = 0; j < ntot; ++j) {
+                data[j] = data[2 * j];
             }
         }
 
-L350:   /* Fortran label 350 */
-        mmax = np1;
-L360:   /* Fortran label 360 */
-        if (mmax - ntwo / 2 < 0) {
-            goto L370;
-        }
-        goto L600;
-
-L370:   /* Fortran label 370 */
-        lmax = (np1tw > mmax / 2) ? np1tw : (mmax / 2);
-        for (l = np1; l <= lmax; l += np1tw) {
-            m = l;
-            if (mmax - np1 <= 0) {
-                goto L420;
-            }
-
-L380:       /* Fortran label 380 */
-            theta = -twopi * (double)l / (double)(4 * mmax);
-            if (isign < 0) {
-                goto L400;
-            }
-
-L390:       /* Fortran label 390 */
-            theta = -theta;
-
-L400:       /* Fortran label 400 */
-            wr = cos(theta);
-            wi = sin(theta);
-
-L410:       /* Fortran label 410 */
-            w2r = wr * wr - wi * wi;
-            w2i = 2.0 * wr * wi;
-            w3r = w2r * wr - w2i * wi;
-            w3i = w2r * wi + w2i * wr;
-
-L420:       /* Fortran label 420 */
-            for (i1 = 1; i1 <= i1rng; i1 += 2) {
-                kmin = i1 + ipar * m;
-                if (mmax - np1 <= 0) {
-                    goto L430;
-                }
-                goto L440;
-
-L430:           /* Fortran label 430 */
-                kmin = i1;
-
-L440:           /* Fortran label 440 */
-                kdif = ipar * mmax;
-L450:           /* Fortran label 450 */
-                kstep = 4 * kdif;
-                if (kstep - ntwo <= 0) {
-                    goto L460;
-                }
-                goto L530;
-
-L460:           /* Fortran label 460 */
-                for (k1 = kmin; k1 <= ntot; k1 += kstep) {
-                    k2 = k1 + kdif;
-                    k3 = k2 + kdif;
-                    k4 = k3 + kdif;
-                    if (mmax - np1 <= 0) {
-                        goto L470;
+        // Shuffle data by bit reversal (n a power of two: non2p<=1, no
+        // working array needed) or by digit reversal for general n.
+        if (non2p <= 1) {
+            int np2hf = np2 / 2;
+            int j = 0;
+            for (int i2 = 0; i2 < np2; i2 += np1) {
+                if (j < i2) {
+                    int i1max = i2 + np1 - 2;
+                    for (int i1 = i2; i1 <= i1max; i1 += 2) {
+                        for (int i3 = i1; i3 < ntot; i3 += np2) {
+                            int j3 = j + i3 - i2;
+                            double tempr = data[i3];
+                            double tempi = data[i3 + 1];
+                            data[i3] = data[j3];
+                            data[i3 + 1] = data[j3 + 1];
+                            data[j3] = tempr;
+                            data[j3 + 1] = tempi;
+                        }
                     }
-                    goto L480;
-
-L470:               /* Fortran label 470 */
-                    u1r = DATA(k1) + DATA(k2);
-                    u1i = DATA(k1 + 1) + DATA(k2 + 1);
-                    u2r = DATA(k3) + DATA(k4);
-                    u2i = DATA(k3 + 1) + DATA(k4 + 1);
-                    u3r = DATA(k1) - DATA(k2);
-                    u3i = DATA(k1 + 1) - DATA(k2 + 1);
-                    if (isign < 0) {
-                        goto L471;
-                    }
-                    goto L472;
-
-L471:               /* Fortran label 471 */
-                    u4r = DATA(k3 + 1) - DATA(k4 + 1);
-                    u4i = DATA(k4) - DATA(k3);
-                    goto L510;
-
-L472:               /* Fortran label 472 */
-                    u4r = DATA(k4 + 1) - DATA(k3 + 1);
-                    u4i = DATA(k3) - DATA(k4);
-                    goto L510;
-
-L480:               /* Fortran label 480 */
-                    t2r = w2r * DATA(k2) - w2i * DATA(k2 + 1);
-                    t2i = w2r * DATA(k2 + 1) + w2i * DATA(k2);
-                    t3r = wr * DATA(k3) - wi * DATA(k3 + 1);
-                    t3i = wr * DATA(k3 + 1) + wi * DATA(k3);
-                    t4r = w3r * DATA(k4) - w3i * DATA(k4 + 1);
-                    t4i = w3r * DATA(k4 + 1) + w3i * DATA(k4);
-                    u1r = DATA(k1) + t2r;
-                    u1i = DATA(k1 + 1) + t2i;
-                    u2r = t3r + t4r;
-                    u2i = t3i + t4i;
-                    u3r = DATA(k1) - t2r;
-                    u3i = DATA(k1 + 1) - t2i;
-                    if (isign < 0) {
-                        goto L490;
-                    }
-                    goto L500;
-
-L490:               /* Fortran label 490 */
-                    u4r = t3i - t4i;
-                    u4i = t4r - t3r;
-                    goto L510;
-
-L500:               /* Fortran label 500 */
-                    u4r = t4i - t3i;
-                    u4i = t3r - t4r;
-
-L510:               /* Fortran label 510 */
-                    DATA(k1) = u1r + u2r;
-                    DATA(k1 + 1) = u1i + u2i;
-                    DATA(k2) = u3r + u4r;
-                    DATA(k2 + 1) = u3i + u4i;
-                    DATA(k3) = u1r - u2r;
-                    DATA(k3 + 1) = u1i - u2i;
-                    DATA(k4) = u3r - u4r;
-L520:               /* Fortran label 520 */
-                    DATA(k4 + 1) = u3i - u4i;
                 }
-                kdif = kstep;
-                kmin = 4 * (kmin - i1) + i1;
-                goto L450;
+                int m2 = np2hf;
+                // Careful: this is `J-M` compared against the literal 0 in
+                // the Fortran, with J a shifted (0-based) position and M an
+                // unshifted stride -- the comparison boundary itself shifts
+                // (J<=M, not J<M, is the 0-based "stop" condition here).
+                while (j >= m2) {
+                    j -= m2;
+                    m2 /= 2;
+                    if (m2 < np1) {
+                        break;
+                    }
+                }
+                j += m2;
             }
-
-L530:       /* Fortran label 530 */
-            m = m + lmax;
-            if (m - mmax <= 0) {
-                goto L540;
-            }
-            goto L570;
-
-L540:       /* Fortran label 540 */
-            if (isign < 0) {
-                goto L550;
-            }
-            goto L560;
-
-L550:       /* Fortran label 550 */
-            tempr = wr;
-            wr = (wr + wi) * rthlf;
-            wi = (wi - tempr) * rthlf;
-            goto L410;
-
-L560:       /* Fortran label 560 */
-            tempr = wr;
-            wr = (wr - wi) * rthlf;
-            wi = (tempr + wi) * rthlf;
-            goto L410;
-
-L570:       /* Fortran label 570 */
-            ;
-        }
-        ipar = 3 - ipar;
-        mmax = mmax + mmax;
-        goto L360;
-
-L600:   /* Fortran label 600 */
-        if (non2p - 1 <= 0) {
-            goto L700;
-        }
-        goto L601;
-
-L601:   /* Fortran label 601 */
-        ifp1 = ntwo;
-        if_ = inon2;
-
-L610:   /* Fortran label 610 */
-        ifp2 = IFACT(if_) * ifp1;
-        theta = -twopi / (double)IFACT(if_);
-        if (isign >= 0) {
-L611:       /* Fortran label 611 */
-            theta = -theta;
         } else {
-L612:       /* Fortran label 612 */
-            ;
-        }
-        thtm = theta / (double)(ifp1 / np1);
-        wstpr = cos(theta);
-        wstpi = sin(theta);
-        wmstr = cos(thtm);
-        wmsti = sin(thtm);
-        wminr = 1.0;
-        wmini = 0.0;
-        for (j1 = 1; j1 <= ifp1; j1 += np1) {
-L613:       /* Fortran label 613 */
-L614:       /* Fortran label 614 */
-            i1max = j1 + i1rng - 2;
-            for (i1 = j1; i1 <= i1max; i1 += 2) {
-                for (i3 = i1; i3 <= ntot; i3 += np2) {
-                    i = 1;
-                    wr = wminr;
-                    wi = wmini;
-                    j2max = i3 + ifp2 - ifp1;
-                    for (j2 = i3; j2 <= j2max; j2 += ifp1) {
-                        twowr = wr + wr;
-                        jmin = i3;
-                        j3max = j2 + np2 - ifp2;
-                        for (j3 = j2; j3 <= j3max; j3 += ifp2) {
-                            j = jmin + ifp2 - ifp1;
-                            sr = DATA(j);
-                            si = DATA(j + 1);
-                            oldsr = 0.0;
-                            oldsi = 0.0;
-                            j = j - ifp1;
-
-L620:                       /* Fortran label 620 */
-                            stmpr = sr;
-                            stmpi = si;
-                            sr = twowr * sr - oldsr + DATA(j);
-                            si = twowr * si - oldsi + DATA(j + 1);
-                            oldsr = stmpr;
-                            oldsi = stmpi;
-                            j = j - ifp1;
-                            if (j - jmin <= 0) {
-                                goto L621;
+            int nwork = 2 * n;
+            for (int i1 = 0; i1 < np1; i1 += 2) {
+                for (int i3 = i1; i3 < ntot; i3 += np2) {
+                    int j = i3;
+                    for (int i = 0; i < nwork; i += 2) {
+                        if (icase == 3) {
+                            work[i] = data[j];
+                            work[i + 1] = 0.0;
+                        } else {
+                            work[i] = data[j];
+                            work[i + 1] = data[j + 1];
+                        }
+                        int ifp2 = np2;
+                        int ifx = ifmin;
+                        for (;;) {
+                            int ifp1 = ifp2 / ifact[ifx];
+                            j += ifp1;
+                            if (j < i3 + ifp2) {
+                                break;
                             }
-                            goto L620;
+                            j -= ifp2;
+                            ifp2 = ifp1;
+                            ifx += 1;
+                            if (ifp2 <= np1) {
+                                break;
+                            }
+                        }
+                    }
+                    int i2max = i3 + np2 - np1;
+                    int i = 0;
+                    for (int i2 = i3; i2 <= i2max; i2 += np1) {
+                        data[i2] = work[i];
+                        data[i2 + 1] = work[i + 1];
+                        i += 2;
+                    }
+                }
+            }
+        }
 
-L621:                       /* Fortran label 621 */
-                            WORK(i) = wr * sr - wi * si - oldsr + DATA(j);
-                            WORK(i + 1) = wi * sr + wr * si - oldsi + DATA(j + 1);
-                            jmin = jmin + ifp2;
+        // Main loop for factors of two. w=exp(isign*2*pi*sqrt(-1)*m /
+        // (4*mmax)); check for w=isign*sqrt(-1) and repeat for
+        // w=w*(1+isign*sqrt(-1))/sqrt(2).
+        if (ntwo > np1) {
+            int np1tw = np1 + np1;
+            int ipar = ntwo / np1;
+            while (ipar > 2) {
+                ipar /= 4;
+            }
 
-L630:                       /* Fortran label 630 */
-                            i = i + 2;
+            if (ipar == 2) {
+                for (int i1 = 0; i1 < i1rng; i1 += 2) {
+                    for (int k1 = i1; k1 < ntot; k1 += np1tw) {
+                        int k2 = k1 + np1;
+                        double tempr = data[k2];
+                        double tempi = data[k2 + 1];
+                        data[k2] = data[k1] - tempr;
+                        data[k2 + 1] = data[k1 + 1] - tempi;
+                        data[k1] = data[k1] + tempr;
+                        data[k1 + 1] = data[k1 + 1] + tempi;
+                    }
+                }
+            }
+
+            // The Fortran test is `IF(MMAX-NTWO/2)370,600,600`, i.e. continue
+            // the doubling loop only while mmax < ntwo/2 (equal or greater
+            // both exit).
+            for (int mmax = np1; mmax < ntwo / 2; mmax += mmax) {
+                int lmax = np1tw > mmax / 2 ? np1tw : mmax / 2;
+                bool use_twiddle = mmax > np1;
+                double wr = 0.0, wi = 0.0;
+
+                for (int l = np1; l <= lmax; l += np1tw) {
+                    int m = l;
+                    if (use_twiddle) {
+                        double theta = -twopi * (double)l / (double)(4 * mmax);
+                        if (isign >= 0) {
+                            theta = -theta;
+                        }
+                        wr = cos(theta);
+                        wi = sin(theta);
+                    }
+
+                    for (;;) {
+                        double w2r = 0.0, w2i = 0.0, w3r = 0.0, w3i = 0.0;
+                        if (use_twiddle) {
+                            w2r = wr * wr - wi * wi;
+                            w2i = 2.0 * wr * wi;
+                            w3r = w2r * wr - w2i * wi;
+                            w3i = w2r * wi + w2i * wr;
                         }
 
-                        wtemp = wr * wstpi;
-                        wr = wr * wstpr - wi * wstpi;
-L640:                   /* Fortran label 640 */
-                        wi = wi * wstpr + wtemp;
+                        for (int i1 = 0; i1 < i1rng; i1 += 2) {
+                            // See the file comment: l/m keep their Fortran
+                            // numeric values on purpose, so this matches
+                            // `I1+IPAR*M` from the original exactly once i1
+                            // is the (now 0-based) position.
+                            int kmin = use_twiddle ? i1 + ipar * m : i1;
+                            int kdif = ipar * mmax;
+                            for (int kstep = 4 * kdif; kstep <= ntwo; kdif = kstep, kstep = 4 * kdif) {
+                                for (int k1 = kmin; k1 < ntot; k1 += kstep) {
+                                    int k2 = k1 + kdif;
+                                    int k3 = k2 + kdif;
+                                    int k4 = k3 + kdif;
+                                    double u1r, u1i, u2r, u2i, u3r, u3i, u4r, u4i;
+                                    if (!use_twiddle) {
+                                        u1r = data[k1] + data[k2];
+                                        u1i = data[k1 + 1] + data[k2 + 1];
+                                        u2r = data[k3] + data[k4];
+                                        u2i = data[k3 + 1] + data[k4 + 1];
+                                        u3r = data[k1] - data[k2];
+                                        u3i = data[k1 + 1] - data[k2 + 1];
+                                        if (isign < 0) {
+                                            u4r = data[k3 + 1] - data[k4 + 1];
+                                            u4i = data[k4] - data[k3];
+                                        } else {
+                                            u4r = data[k4 + 1] - data[k3 + 1];
+                                            u4i = data[k3] - data[k4];
+                                        }
+                                    } else {
+                                        double t2r = w2r * data[k2] - w2i * data[k2 + 1];
+                                        double t2i = w2r * data[k2 + 1] + w2i * data[k2];
+                                        double t3r = wr * data[k3] - wi * data[k3 + 1];
+                                        double t3i = wr * data[k3 + 1] + wi * data[k3];
+                                        double t4r = w3r * data[k4] - w3i * data[k4 + 1];
+                                        double t4i = w3r * data[k4 + 1] + w3i * data[k4];
+                                        u1r = data[k1] + t2r;
+                                        u1i = data[k1 + 1] + t2i;
+                                        u2r = t3r + t4r;
+                                        u2i = t3i + t4i;
+                                        u3r = data[k1] - t2r;
+                                        u3i = data[k1 + 1] - t2i;
+                                        if (isign < 0) {
+                                            u4r = t3i - t4i;
+                                            u4i = t4r - t3r;
+                                        } else {
+                                            u4r = t4i - t3i;
+                                            u4i = t3r - t4r;
+                                        }
+                                    }
+                                    data[k1] = u1r + u2r;
+                                    data[k1 + 1] = u1i + u2i;
+                                    data[k2] = u3r + u4r;
+                                    data[k2 + 1] = u3i + u4i;
+                                    data[k3] = u1r - u2r;
+                                    data[k3 + 1] = u1i - u2i;
+                                    data[k4] = u3r - u4r;
+                                    data[k4 + 1] = u3i - u4i;
+                                }
+                                kmin = 4 * (kmin - i1) + i1;
+                            }
+                        }
+
+                        m += lmax;
+                        if (m > mmax) {
+                            break;
+                        }
+                        double tempr = wr;
+                        if (isign < 0) {
+                            wr = (wr + wi) * rthlf;
+                            wi = (wi - tempr) * rthlf;
+                        } else {
+                            wr = (wr - wi) * rthlf;
+                            wi = (tempr + wi) * rthlf;
+                        }
                     }
-                    i = 1;
-                    for (j2 = i3; j2 <= j2max; j2 += ifp1) {
-                        j3max = j2 + np2 - ifp2;
-                        for (j3 = j2; j3 <= j3max; j3 += ifp2) {
-                            DATA(j3) = WORK(i);
-                            DATA(j3 + 1) = WORK(i + 1);
-                            i = i + 2;
+                }
+
+                ipar = 3 - ipar;
+            }
+        }
+
+        // Main loop for factors not equal to two. w=exp(isign*2*pi*sqrt(-1)
+        // *(j1+j2-i3-1)/ifp2).
+        if (non2p > 1) {
+            int ifp1 = ntwo;
+            int ifx = inon2;
+            for (;;) {
+                int ifp2 = ifact[ifx] * ifp1;
+                double theta = -twopi / (double)ifact[ifx];
+                if (isign >= 0) {
+                    theta = -theta;
+                }
+                double thtm = theta / (double)(ifp1 / np1);
+                double wstpr = cos(theta);
+                double wstpi = sin(theta);
+                double wmstr = cos(thtm);
+                double wmsti = sin(thtm);
+                double wminr = 1.0;
+                double wmini = 0.0;
+
+                for (int j1 = 0; j1 < ifp1; j1 += np1) {
+                    int i1max = j1 + i1rng - 2;
+                    for (int i1 = j1; i1 <= i1max; i1 += 2) {
+                        for (int i3 = i1; i3 < ntot; i3 += np2) {
+                            int i = 0;
+                            double wr = wminr, wi = wmini;
+                            int j2max = i3 + ifp2 - ifp1;
+                            for (int j2 = i3; j2 <= j2max; j2 += ifp1) {
+                                double twowr = wr + wr;
+                                int jmin = i3;
+                                int j3max = j2 + np2 - ifp2;
+                                for (int j3 = j2; j3 <= j3max; j3 += ifp2) {
+                                    int j = jmin + ifp2 - ifp1;
+                                    double sr = data[j];
+                                    double si = data[j + 1];
+                                    double oldsr = 0.0, oldsi = 0.0;
+                                    j -= ifp1;
+                                    while (j > jmin) {
+                                        double stmpr = sr, stmpi = si;
+                                        sr = twowr * sr - oldsr + data[j];
+                                        si = twowr * si - oldsi + data[j + 1];
+                                        oldsr = stmpr;
+                                        oldsi = stmpi;
+                                        j -= ifp1;
+                                    }
+                                    work[i] = wr * sr - wi * si - oldsr + data[j];
+                                    work[i + 1] = wi * sr + wr * si - oldsi + data[j + 1];
+                                    jmin += ifp2;
+                                    i += 2;
+                                }
+                                double wtemp = wr * wstpi;
+                                wr = wr * wstpr - wi * wstpi;
+                                wi = wi * wstpr + wtemp;
+                            }
+                            i = 0;
+                            for (int j2 = i3; j2 <= j2max; j2 += ifp1) {
+                                int j3max = j2 + np2 - ifp2;
+                                for (int j3 = j2; j3 <= j3max; j3 += ifp2) {
+                                    data[j3] = work[i];
+                                    data[j3 + 1] = work[i + 1];
+                                    i += 2;
+                                }
+                            }
+                        }
+                    }
+                    double wtemp = wminr * wmsti;
+                    wminr = wminr * wmstr - wmini * wmsti;
+                    wmini = wmini * wmstr + wtemp;
+                }
+
+                ifx += 1;
+                ifp1 = ifp2;
+                if (ifp1 >= np2) {
+                    break;
+                }
+            }
+        }
+
+        // Dispatch on which of the four cases above we're completing.
+        if (icase == 2) {
+            // Complete a real transform for the 2nd, 3rd, etc. dimension by
+            // conjugate symmetries.
+            if (i1rng < np1) {
+                for (int i3 = 0; i3 < ntot; i3 += np2) {
+                    int i2max = i3 + np2 - np1;
+                    for (int i2 = i3; i2 <= i2max; i2 += np1) {
+                        int imax = i2 + np1 - 2;
+                        int imin = i2 + i1rng;
+                        int jmax = 2 * i3 + np1 - imin + (i2 > i3 ? np2 : 0);
+                        int j;
+                        if (idim > 1) {
+                            j = jmax + np0;
+                            for (int i = imin; i <= imax; i += 2) {
+                                data[i] = data[j];
+                                data[i + 1] = -data[j + 1];
+                                j -= 2;
+                            }
+                        }
+                        j = jmax;
+                        for (int i = imin; i <= imax; i += np0) {
+                            data[i] = data[j];
+                            data[i + 1] = -data[j + 1];
+                            j -= np0;
                         }
                     }
                 }
             }
-            wtemp = wminr * wmsti;
-            wminr = wminr * wmstr - wmini * wmsti;
-L650:       /* Fortran label 650 */
-            wmini = wmini * wmstr + wtemp;
-        }
-        if_ = if_ + 1;
-        ifp1 = ifp2;
-        if (ifp1 - np2 < 0) {
-            goto L610;
-        }
-        goto L700;
+        } else if (icase == 4) {
+            // Complete a real transform in the 1st dimension, n even, by
+            // conjugate symmetries.
+            int nhalf = n;
+            n += n;
+            double theta = -twopi / (double)n;
+            if (isign >= 0) {
+                theta = -theta;
+            }
+            double wstpr = cos(theta);
+            double wstpi = sin(theta);
+            double wr = wstpr, wi = wstpi;
+            int imin = 2;
+            int jmin = 2 * nhalf - 2;
 
-L700:   /* Fortran label 700 */
-        switch (icase) {
-            case 1:
-                goto L900;
-            case 2:
-                goto L800;
-            case 3:
-                goto L900;
-            case 4:
-                goto L701;
-            default:
-                goto L900;
-        }
-
-L701:   /* Fortran label 701 */
-        nhalf = n;
-        n = n + n;
-        theta = -twopi / (double)n;
-        if (isign < 0) {
-            goto L703;
-        }
-
-L702:   /* Fortran label 702 */
-        theta = -theta;
-
-L703:   /* Fortran label 703 */
-        wstpr = cos(theta);
-        wstpi = sin(theta);
-        wr = wstpr;
-        wi = wstpi;
-        imin = 3;
-        jmin = 2 * nhalf - 1;
-        goto L725;
-
-L710:   /* Fortran label 710 */
-        j = jmin;
-        for (i = imin; i <= ntot; i += np2) {
-            sumr = (DATA(i) + DATA(j)) / 2.0;
-            sumi = (DATA(i + 1) + DATA(j + 1)) / 2.0;
-            difr = (DATA(i) - DATA(j)) / 2.0;
-            difi = (DATA(i + 1) - DATA(j + 1)) / 2.0;
-            tempr = wr * sumi + wi * difr;
-            tempi = wi * sumi - wr * difr;
-            DATA(i) = sumr + tempr;
-            DATA(i + 1) = difi + tempi;
-            DATA(j) = sumr - tempr;
-            DATA(j + 1) = -difi + tempi;
-L720:       /* Fortran label 720 */
-            j = j + np2;
-        }
-        imin = imin + 2;
-        jmin = jmin - 2;
-        wtemp = wr * wstpi;
-        wr = wr * wstpr - wi * wstpi;
-        wi = wi * wstpr + wtemp;
-
-L725:   /* Fortran label 725 */
-        if (imin - jmin < 0) {
-            goto L710;
-        } else if (imin - jmin == 0) {
-            goto L730;
-        }
-        goto L740;
-
-L730:   /* Fortran label 730 */
-        if (isign < 0) {
-            goto L731;
-        }
-        goto L740;
-
-L731:   /* Fortran label 731 */
-        for (i = imin; i <= ntot; i += np2) {
-L735:       /* Fortran label 735 */
-            DATA(i + 1) = -DATA(i + 1);
-        }
-
-L740:   /* Fortran label 740 */
-        np2 = np2 + np2;
-        ntot = ntot + ntot;
-        j = ntot + 1;
-        imax = ntot / 2 + 1;
-
-L745:   /* Fortran label 745 */
-        imin = imax - 2 * nhalf;
-        i = imin;
-        goto L755;
-
-L750:   /* Fortran label 750 */
-        DATA(j) = DATA(i);
-        DATA(j + 1) = -DATA(i + 1);
-
-L755:   /* Fortran label 755 */
-        i = i + 2;
-        j = j - 2;
-        if (i - imax < 0) {
-            goto L750;
-        }
-        goto L760;
-
-L760:   /* Fortran label 760 */
-        DATA(j) = DATA(imin) - DATA(imin + 1);
-        DATA(j + 1) = 0.0;
-        if (i - j < 0) {
-            goto L770;
-        }
-        goto L780;
-
-L765:   /* Fortran label 765 */
-        DATA(j) = DATA(i);
-        DATA(j + 1) = DATA(i + 1);
-
-L770:   /* Fortran label 770 */
-        i = i - 2;
-        j = j - 2;
-        if (i - imin <= 0) {
-            goto L775;
-        }
-        goto L765;
-
-L775:   /* Fortran label 775 */
-        DATA(j) = DATA(imin) + DATA(imin + 1);
-        DATA(j + 1) = 0.0;
-        imax = imin;
-        goto L745;
-
-L780:   /* Fortran label 780 */
-        DATA(1) = DATA(1) + DATA(2);
-        DATA(2) = 0.0;
-        goto L900;
-
-L800:   /* Fortran label 800 -- NOTE: only reached when ndim>1 (ICASE=2 is
-         * selected earlier only for IDIM>1; see the IDIM.LE.1 check near the
-         * top of the per-dimension loop). fourt2py/web always calls this
-         * function with ndim=1, and fourt2py's f2py binding -- the oracle
-         * used to validate this port against the real Fortran -- only
-         * accepts rank-1 arrays, so this branch has no test coverage here.
-         * Kept for fidelity to the original multi-dimensional FOURT.F rather
-         * than trimming untested code from an otherwise fully validated,
-         * literal transliteration; validate against a multi-dimensional
-         * oracle before relying on it. */
-        if (i1rng - np1 < 0) {
-            goto L805;
-        }
-        goto L900;
-
-L805:   /* Fortran label 805 */
-        for (i3 = 1; i3 <= ntot; i3 += np2) {
-            i2max = i3 + np2 - np1;
-            for (i2 = i3; i2 <= i2max; i2 += np1) {
-                imax = i2 + np1 - 2;
-                imin = i2 + i1rng;
-                jmax = 2 * i3 + np1 - imin;
-                if (i2 - i3 < 0) {
-                    goto L820;
-                } else if (i2 - i3 == 0) {
-                    goto L820;
+            while (imin < jmin) {
+                int j = jmin;
+                for (int i = imin; i < ntot; i += np2) {
+                    double sumr = (data[i] + data[j]) / 2.0;
+                    double sumi = (data[i + 1] + data[j + 1]) / 2.0;
+                    double difr = (data[i] - data[j]) / 2.0;
+                    double difi = (data[i + 1] - data[j + 1]) / 2.0;
+                    double tempr = wr * sumi + wi * difr;
+                    double tempi = wi * sumi - wr * difr;
+                    data[i] = sumr + tempr;
+                    data[i + 1] = difi + tempi;
+                    data[j] = sumr - tempr;
+                    data[j + 1] = -difi + tempi;
+                    j += np2;
                 }
-                goto L810;
+                imin += 2;
+                jmin -= 2;
+                double wtemp = wr * wstpi;
+                wr = wr * wstpr - wi * wstpi;
+                wi = wi * wstpr + wtemp;
+            }
 
-L810:           /* Fortran label 810 */
-                jmax = jmax + np2;
-
-L820:           /* Fortran label 820 */
-                if (idim - 2 <= 0) {
-                    goto L850;
-                }
-                goto L830;
-
-L830:           /* Fortran label 830 */
-                j = jmax + np0;
-                for (i = imin; i <= imax; i += 2) {
-                    DATA(i) = DATA(j);
-                    DATA(i + 1) = -DATA(j + 1);
-L840:               /* Fortran label 840 */
-                    j = j - 2;
-                }
-
-L850:           /* Fortran label 850 */
-                j = jmax;
-                for (i = imin; i <= imax; i += np0) {
-                    DATA(i) = DATA(j);
-                    DATA(i + 1) = -DATA(j + 1);
-L860:               /* Fortran label 860 */
-                    j = j - np0;
+            if (imin == jmin && isign < 0) {
+                for (int i = imin; i < ntot; i += np2) {
+                    data[i + 1] = -data[i + 1];
                 }
             }
+
+            np2 += np2;
+            ntot += ntot;
+            int j = ntot;
+            int imax = ntot / 2;
+            // Sweep inward from both ends of the (now doubled) buffer,
+            // mirroring the first half into the second half by conjugate
+            // symmetry, shrinking the swept range (via imax=imin) each pass
+            // until the two ends meet.
+            for (;;) {
+                imin = imax - 2 * nhalf;
+                int i = imin;
+                for (;;) {
+                    i += 2;
+                    j -= 2;
+                    if (i >= imax) {
+                        break;
+                    }
+                    data[j] = data[i];
+                    data[j + 1] = -data[i + 1];
+                }
+                data[j] = data[imin] - data[imin + 1];
+                data[j + 1] = 0.0;
+                if (i >= j) {
+                    break;
+                }
+                for (;;) {
+                    i -= 2;
+                    j -= 2;
+                    if (i <= imin) {
+                        break;
+                    }
+                    data[j] = data[i];
+                    data[j + 1] = data[i + 1];
+                }
+                data[j] = data[imin] + data[imin + 1];
+                data[j + 1] = 0.0;
+                imax = imin;
+            }
+            data[0] = data[0] + data[1];
+            data[1] = 0.0;
         }
 
-L900:   /* Fortran label 900 */
         np0 = np1;
         np1 = np2;
-
-L910:   /* Fortran label 910 */
         nprev = n;
     }
 
-L920:   /* Fortran label 920 */
+normalize:
     if (isign == 1) {
         return;
     }
-    ntot = 2;
-    for (idim = 1; idim <= ndim; ++idim) {
-L930:   /* Fortran label 930 */
-        ntot = ntot * NN(idim);
+    int ntot2 = 2;
+    for (int idim = 0; idim < ndim; ++idim) {
+        ntot2 *= nn[idim];
     }
-    ntothf = ntot / 2;
-    for (itot = 1; itot <= ntot; ++itot) {
-L940:   /* Fortran label 940 */
-        DATA(itot) = DATA(itot) / ntothf;
+    int ntothf = ntot2 / 2;
+    for (int itot = 0; itot < ntot2; ++itot) {
+        data[itot] /= ntothf;
     }
 }
