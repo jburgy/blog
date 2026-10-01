@@ -67,7 +67,8 @@ def main():
                 }
             )
 
-    OUT.write_text(json.dumps({"tolerance": TOLERANCE, "cases": cases}, indent=2) + "\n")
+    payload = {"tolerance": TOLERANCE, "cases": cases}
+    OUT.write_text(json.dumps(payload, indent=2) + "\n")
     print(f"wrote {len(cases)} cases to {OUT}")
 
 
