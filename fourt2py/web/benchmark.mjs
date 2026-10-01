@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Benchmarks fourt2py/web/fourt.pure.mjs (asm.js-flavored pure JS) against
-// fourt2py/wasm/fourt.c compiled to wasm, on the same workload.
+// Benchmarks fourt2py/web/fourt.pure.mjs (asm.js-flavored pure JS, general
+// NDIM=1 case) and fourt2py/web/fourt.pow2.mjs (the same, specialized to
+// power-of-two lengths) against fourt2py/wasm/fourt.c compiled to wasm, on
+// the same workload.
 //
 // Two numbers are reported for wasm, because they answer different
 // questions:
@@ -19,12 +21,14 @@
 //                        the per-call allocator cost, which has nothing to
 //                        do with wasm vs JS codegen.
 //
-// fourt.pure.mjs has no such boundary to cross (it's plain JS operating on
-// a Float64Array directly), so it only gets one number.
+// Neither pure-JS candidate has such a boundary to cross, so each gets one
+// number. fourt.pow2.mjs only applies at power-of-two lengths; other rows
+// show "--" for it.
 //
 // Usage: node web/benchmark.mjs [--iterations N] [--trials N] [--warmup N]
 import { Fourt } from './fourt.mjs';
 import { fourt as fourtPure } from './fourt.pure.mjs';
+import { fourt as fourtPow2 } from './fourt.pow2.mjs';
 
 function parseArgs(argv) {
     const options = { iterations: 2000, trials: 7, warmup: 2000 };
@@ -35,6 +39,10 @@ function parseArgs(argv) {
         }
     }
     return options;
+}
+
+function isPowerOfTwo(n) {
+    return n > 0 && (n & (n - 1)) === 0;
 }
 
 function median(samples) {
@@ -107,7 +115,7 @@ async function main() {
     const fourtRaw = module.cwrap('fourt_', null, ['number', 'number', 'number', 'number', 'number', 'number']);
     const wasm = { module, fourtRaw };
 
-    const lengths = [200, 256, 360, 1000, 4096];
+    const lengths = [200, 256, 360, 512, 1000, 4096];
     const rows = [];
 
     for (const n of lengths) {
@@ -127,20 +135,36 @@ async function main() {
             fourtPure(pureInput, nn, 1, 1, 1, work);
         }, options);
 
+        let pow2 = null;
+        if (isPowerOfTwo(n)) {
+            const pow2Input = input.slice();
+            const pow2Samples = timeCalls(() => {
+                pow2Input.set(input);
+                fourtPow2(pow2Input, n, 1);
+            }, options);
+            pow2 = median(pow2Samples);
+        }
+
         rows.push({
             n,
             wasmCall: median(callSamples),
             wasmKernel: median(kernelSamples),
             pure: median(pureSamples),
+            pow2,
         });
     }
 
     const col = (s, w) => s.toString().padStart(w);
-    console.log(`${'n'.padStart(6)}  ${'wasm (call)'.padStart(14)}  ${'wasm (kernel)'.padStart(14)}  ${'pure JS'.padStart(14)}  ${'JS/kernel'.padStart(10)}`);
+    console.log(
+        `${'n'.padStart(6)}  ${'wasm (call)'.padStart(14)}  ${'wasm (kernel)'.padStart(14)}  ` +
+        `${'pure JS'.padStart(14)}  ${'pow2 JS'.padStart(14)}  ${'pow2/kernel'.padStart(12)}`,
+    );
     for (const row of rows) {
+        const pow2Str = row.pow2 === null ? '--' : row.pow2.toFixed(2) + 'us';
+        const ratioStr = row.pow2 === null ? '--' : (row.pow2 / row.wasmKernel).toFixed(2) + 'x';
         console.log(
             `${col(row.n, 6)}  ${col(row.wasmCall.toFixed(2) + 'us', 14)}  ${col(row.wasmKernel.toFixed(2) + 'us', 14)}  ` +
-            `${col(row.pure.toFixed(2) + 'us', 14)}  ${col((row.pure / row.wasmKernel).toFixed(2) + 'x', 10)}`,
+            `${col(row.pure.toFixed(2) + 'us', 14)}  ${col(pow2Str, 14)}  ${col(ratioStr, 12)}`,
         );
     }
 }
