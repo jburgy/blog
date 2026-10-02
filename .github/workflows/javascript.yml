@@ -9,6 +9,7 @@ on:
       - "forth/**"
       - "regexp/regexp.f"
       - "regexp/web/**"
+      - "fourt2py/**"
       - ".github/workflows/javascript.yml"
 
 jobs:
@@ -60,3 +61,24 @@ jobs:
       # The runner's kernel blocks Chrome's sandbox, and every page under test
       # is a local file.
       - run: npm test -- -a no-sandbox
+
+  fourt2py:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fourt2py
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pyodide/setup-emsdk@v15
+        with:
+          version: 4.0.15
+          actions-cache-folder: 'emsdk-cache'
+      - run: npm ci
+
+      # npm test builds wasm/fourt.mjs from wasm/fourt.c (a transliteration of
+      # FOURT.F) before running vitest.
+      - run: npm test

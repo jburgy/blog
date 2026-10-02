@@ -64,6 +64,8 @@ regexp/web/forth.wasm
 forth/4th
 forth/jansforth
 forth/recurse
+fourt2py/wasm/fourt.mjs
+fourt2py/wasm/fourt.wasm
 .zig-cache/
 zig-cache/
 zig-out/
