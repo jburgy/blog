@@ -125,11 +125,14 @@
 	<p class="blurb">
 		<a href="https://github.com/jburgy/blog/blob/main/fourt2py/FOURT.F">FOURT.F</a> is Norman Brenner's
 		classic mixed-radix Fast Fourier Transform. Drag the knots below to set the amplitude of each harmonic;
-		a <a href="https://github.com/jburgy/blog/blob/main/fourt2py/wasm/fourt.c">transliteration of FOURT.F
-			compiled to WebAssembly</a> transforms that frequency-domain spectrum into a 200-sample time-domain
-		waveform &mdash; 200 is deliberately not a power of two, so the demo exercises FOURT's general mixed-radix
-		path rather than the textbook radix-2 case. The result is traced on the oscilloscope and looped through
-		the Web Audio API.
+		<a href="https://github.com/jburgy/blog/blob/main/fourt2py/web/fourt.pow2.mjs">a specialization of
+			FOURT.F for one dimension and power-of-two lengths</a> &mdash; plain JavaScript, no WebAssembly
+		&mdash; transforms that frequency-domain spectrum into a 256-sample time-domain waveform. Fixing those
+		two things at compile time strips out everything FOURT.F needs for the general case (factor-finding,
+		the mixed-radix recurrence, a scratch array) and leaves just the classic radix-4 butterfly, which runs
+		at least as fast as a <a href="https://github.com/jburgy/blog/blob/main/fourt2py/wasm/fourt.c">general
+			transliteration of FOURT.F compiled to WebAssembly</a> would for this case. The result is traced
+		on the oscilloscope and looped through the Web Audio API.
 	</p>
 
 	<div id="demo"></div>
@@ -145,10 +148,7 @@
 
 		const panel = createPanel(document);
 		document.getElementById('demo').append(panel);
-		panel.querySelector('[data-role="status"]').textContent = 'booting FOURT.F\u2026';
-
-		await attach(panel);
-		panel.querySelector('[data-role="status"]').textContent = '';
+		attach(panel);
 	</script>
 </body>
 

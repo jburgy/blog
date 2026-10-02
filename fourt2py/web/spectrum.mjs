@@ -14,9 +14,10 @@
 // calling it on this spectrum yields a real time-domain signal whose
 // harmonic content is literally what the chart shows.
 
-/** Sample count per period. 200 = 2^3*5^2: deliberately not a power of two, to
- * exercise FOURT's general mixed-radix path rather than only the radix-2 one. */
-export const N = 200;
+/** Sample count per period. A power of two, so fourt2py/web/fourt.pow2.mjs's
+ * specialization of FOURT.F applies -- see its header comment for why that
+ * version runs faster than even the wasm build for this case. */
+export const N = 256;
 
 /** Predefined knot frequencies, as harmonics 1..10 of the fundamental. */
 export const HARMONICS = Array.from({ length: 10 }, (_, i) => i + 1);

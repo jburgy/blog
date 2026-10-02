@@ -5,7 +5,7 @@
 import { N, HARMONICS, DEFAULT_AMPLITUDES, buildSpectrum, normalizedWaveform } from './spectrum.mjs';
 import { createChart, attachChart } from './chart.mjs';
 import { drawOscilloscope } from './oscilloscope.mjs';
-import { Fourt } from './fourt.mjs';
+import { fourt } from './fourt.pow2.mjs';
 
 const NOMINAL_SAMPLE_RATE = 44100;
 const frequencyLabel = (k, sampleRate = NOMINAL_SAMPLE_RATE) => `${Math.round((k * sampleRate) / N)} Hz`;
@@ -32,8 +32,7 @@ export function createPanel(document) {
  * Wire `panel` up: drag knots -> FOURT inverse transform -> oscilloscope + audio.
  * Returns a controller so tests can drive it without synthesizing real pointer events.
  */
-export async function attach(panel, { fourt = null } = {}) {
-    const engine = fourt ?? (await Fourt.instantiate());
+export function attach(panel, { transform = fourt } = {}) {
     const amplitudes = DEFAULT_AMPLITUDES.slice();
 
     const labels = HARMONICS.map((k) => frequencyLabel(k));
@@ -73,7 +72,8 @@ export async function attach(panel, { fourt = null } = {}) {
 
     const recompute = () => {
         const spectrum = buildSpectrum(amplitudes, HARMONICS, N);
-        samples = normalizedWaveform(engine.transform(spectrum, N));
+        transform(spectrum, N, 1);
+        samples = normalizedWaveform(spectrum);
         if (source) {
             source.stop();
             startSource();

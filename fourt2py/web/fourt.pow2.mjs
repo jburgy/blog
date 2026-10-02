@@ -24,11 +24,10 @@
 //
 // Signature intentionally drops `nn`, `ndim`, `iform` and `work` from
 // fourt.pure.mjs's -- this isn't a drop-in replacement, it's a narrower
-// tool for a narrower job. See ./benchmark.mjs for how it compares to wasm
-// and to the general pure-JS port at the one length (256) the demo could
-// plausibly switch to (its current N=200 is deliberately *not* a power of
-// two, to show off FOURT's general mixed-radix path -- swapping to this
-// would trade that demonstration for speed).
+// tool for a narrower job. fourt2py/web/demo.mjs uses this directly, at
+// N=256; fourt2py/wasm/fourt.c and fourt.pure.mjs remain as the general,
+// non-power-of-two-capable versions. See ./benchmark.mjs for how this
+// compares to wasm and to the general pure-JS port.
 
 export function fourt(data, n, isign) {
     n = n | 0;

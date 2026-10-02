@@ -5,7 +5,7 @@ LDFLAGS = -sPROXY_TO_PTHREAD -sEXPORTED_FUNCTIONS=_malloc,_main
 VPATH = ../forth
 # matcher.mjs fetches ../regexp.f and ../../forth/4th.32.fs, so keep the repo layout
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
-FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.mjs)
+FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 
 all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic jonesforth.wasm regexp fourt2py
 	rm -rf *.a *.o node_modules/@xterm/xterm/src
@@ -40,15 +40,11 @@ regexp/web/forth.wasm : ../forth/wasm/tabulate.wast
 	@mkdir -p $(@D)
 	npx -y --package wabt wat2wasm --enable-multi-memory -o $@ $<
 
-fourt2py : $(FOURT2PY) fourt2py/wasm/fourt.mjs
+fourt2py : $(FOURT2PY)
 
 $(FOURT2PY) : fourt2py/% : ../fourt2py/%
 	@mkdir -p $(@D)
 	cp $< $@
-
-fourt2py/wasm/fourt.mjs : ../fourt2py/wasm/fourt.c
-	@mkdir -p $(@D)
-	$(CC) -O2 -sMODULARIZE=1 -sEXPORT_ES6=1 -sSINGLE_FILE=0 -sEXPORTED_FUNCTIONS=_fourt_,_malloc,_free -sEXPORTED_RUNTIME_METHODS=cwrap,ccall,getValue,setValue -o $@ $<
 
 forth/4th.32.fs : ../forth/4th.32.fs
 	@mkdir -p $(@D)
