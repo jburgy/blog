@@ -1,3 +1,4 @@
+# pragma: exclude file
 """Time smplx_py against the Fortran smplx, and crout1 against np.linalg.inv."""
 
 import argparse

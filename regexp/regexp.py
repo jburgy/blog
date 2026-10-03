@@ -77,6 +77,16 @@ parens = {
 
 
 def tokenize(regexp: str) -> Iterable[TokenOrChar]:
+    r"""
+    >>> list(tokenize(r"a\*b"))
+    ['a', '*', <Token.CONCAT: 4>, 'b']
+    >>> list(tokenize(r"a\nb"))
+    ['a', '\\', 'n', <Token.CONCAT: 4>, 'b']
+    >>> list(tokenize("(a"))
+    Traceback (most recent call last):
+        ...
+    ValueError: unabalanced parentheses
+    """
     concat, escape, nparen = False, False, 0
     for char in regexp:
         token = recognize(char)
@@ -176,6 +186,14 @@ class Instructions(list):
                 self.append(token)
 
     def __call__(self, string: str) -> bool:
+        """
+        >>> Instructions("a*")("a")
+        True
+        >>> Instructions("ab")("ab")
+        True
+        >>> Instructions("ab")("ac")
+        False
+        """
         c = [0]  # Let's start at the very beginning
         m = len(self)
         for char in string:
@@ -260,6 +278,14 @@ class Graph(dict):
         super().__init__(self)
 
     def __call__(self, string: str) -> bool:
+        """
+        >>> Graph("a(b|c)*d")("abd")
+        True
+        >>> Graph("a*")("a")
+        True
+        >>> Graph("ab")("ac")
+        False
+        """
         c = [self]
         for ch in string:
             n = []
@@ -282,4 +308,4 @@ class Graph(dict):
 
 if __name__ == "__main__":
     # print(Graph("a*b")("aaaaaaaaaaaaaaaaaaaaaaaaaab"))
-    print(Graph("a(b|c)*d"))
+    print(Graph("a(b|c)*d"))  # pragma: no cover

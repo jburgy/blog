@@ -1,3 +1,4 @@
+# pragma: exclude file
 """Regenerate fourt2py/wasm/fixtures.json and fourt2py/wasm/pow2_fixtures.json
 from fourt2py.fourt -- the f2py binding of the actual FOURT.F -- so the JS
 tests have fixed expected outputs to check against, without needing Python

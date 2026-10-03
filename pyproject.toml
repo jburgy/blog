@@ -42,12 +42,17 @@ compile = ["-j4"]
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules", "--ignore=aoc2024", "--ignore=progress"]
 
+[tool.coverage.report]
+exclude_also = [
+    # A "# pragma: exclude file" comment opts a whole module out of
+    # coverage, instead of listing it in [tool.coverage.run] omit below.
+    '\A(?s:.*# pragma: exclude file.*)\Z',
+]
+
 [tool.coverage.run]
 omit = [
     "aoc2024/*",
     "progress/*",
-    "forth/benchmark.py",
-    "forth/jansforth.py",
 ]
 
 [tool.uv]
