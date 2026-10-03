@@ -83,6 +83,7 @@ vitestTest('jonesforth.wasm: KEY blocks for real and never treats EOF as a stop,
     ]);
 
     let out = '';
+    let errOut = '';
     // Resolves as soon as the expected output shows up, rather than racing a
     // fixed timeout: an early `exit` (crash, missing WASI import, ...) is a
     // real failure and rejects instead of silently reading an empty `out`.
@@ -91,8 +92,15 @@ vitestTest('jonesforth.wasm: KEY blocks for real and never treats EOF as a stop,
             out += chunk;
             if (out.includes('JONESFORTH VERSION 47') && out.includes('49')) resolve();
         });
+        // Belt and suspenders alongside the fixture's own try/catch: a
+        // module-load error (a bad loader registration, say) would crash
+        // before that catch ever runs, so stderr is worth capturing too —
+        // exactly the gap that made an earlier ENOENT (the jonesforth
+        // submodule not checked out in CI) show up as a bare, unexplained
+        // "exited unexpectedly (code 1): " with no indication why.
+        child.stderr.on('data', (chunk) => { errOut += chunk; });
         child.once('error', reject);
-        child.once('exit', (code) => reject(new Error(`fixture exited unexpectedly (code ${code}): ${out}`)));
+        child.once('exit', (code) => reject(new Error(`fixture exited unexpectedly (code ${code}): ${out}${errOut}`)));
     }).finally(() => {
         // Expected teardown, not a failure: KEY never treats EOF as a stop,
         // so the fixture never exits on its own once it has run out of input.

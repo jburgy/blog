@@ -9,15 +9,23 @@ import { readFile } from 'node:fs/promises';
 import { SharedInputChannel } from 'uwasi';
 import { runWasiCommand } from './wasi-worker.js';
 
-const [, , wasmPath, preamblePath, ...lines] = process.argv;
-const channel = new SharedInputChannel();
-channel.push(await readFile(preamblePath));
-for (const line of lines) channel.push(new TextEncoder().encode(line + '\n'));
-channel.close();
+// Everything, including the `readFile`s, is wrapped: an ENOENT here (the
+// jonesforth submodule not checked out, say) is otherwise an uncaught
+// top-level-await rejection — Node prints it to stderr and exits 1, which
+// the caller (only reading stdout) sees as a bare, unexplained "exited
+// unexpectedly". Caught here, it reaches the caller on the stream it does
+// read.
+try {
+    const [, , wasmPath, preamblePath, ...lines] = process.argv;
+    const channel = new SharedInputChannel();
+    channel.push(await readFile(preamblePath));
+    for (const line of lines) channel.push(new TextEncoder().encode(line + '\n'));
+    channel.close();
 
-const bytes = await readFile(wasmPath);
-runWasiCommand(bytes, channel.sharedBuffer, (_fd, chunk) => writeSync(1, chunk))
-    // A real failure (bad import, a trap) should be loud: the caller only
-    // reads stdout, so surface it there too rather than as an invisible
-    // unhandled rejection that just looks like "exited unexpectedly".
-    .catch((error) => { writeSync(1, `FIXTURE ERROR: ${error.stack ?? error}\n`); process.exitCode = 1; });
+    const bytes = await readFile(wasmPath);
+    await runWasiCommand(bytes, channel.sharedBuffer, (_fd, chunk) => writeSync(1, chunk));
+} catch (error) {
+    writeSync(1, `FIXTURE ERROR: ${error.stack ?? error}\n`);
+    process.exitCode = 1;
+}
+
