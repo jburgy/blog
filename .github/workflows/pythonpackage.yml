@@ -37,3 +37,7 @@ jobs:
       - uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          # pin the upload target explicitly: CODECOV_TOKEN has previously been
+          # scoped to the wrong repo (jburgy/jburgy) on codecov.io, silently
+          # uploading coverage there instead of here
+          slug: jburgy/blog
