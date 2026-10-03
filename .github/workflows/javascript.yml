@@ -35,6 +35,7 @@ jobs:
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
+      - run: zig build test
       - uses: bytecodealliance/setup-wasi-sdk-action@main
       - uses: pyodide/setup-emsdk@v15
         with:
@@ -46,7 +47,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: forth
-      - run: zig build test
       - run: make web
 
       - run: npm run test

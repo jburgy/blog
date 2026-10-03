@@ -717,7 +717,7 @@ inline fn _syscall3(sp: [*]i32) [*]i32 {
         .open => {
             const p: usize = @abs(sp[1]);
             const file_path: [*:0]u8 = @ptrFromInt(p);
-            const mode: std.c.mode_t = @truncate(@abs(sp[3]));
+            const mode: std.c.mode_t = @intCast(@abs(sp[3]));
             sp[3] = std.c.openat(std.c.AT.FDCWD, file_path, openFlags(@abs(sp[2])), mode);
         },
         .read => {
