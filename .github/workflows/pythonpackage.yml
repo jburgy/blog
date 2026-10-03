@@ -31,6 +31,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-multilib
       # a re-sync would drop -Dprogress=false
-      - run: uv run --no-sync pytest
+      - run: uv run --no-sync pytest --cov --cov-report=xml
         env:
           pytest_github_report: true
+      - uses: codecov/codecov-action@v5
+        with:
+          fail_ci_if_error: false
