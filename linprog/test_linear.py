@@ -23,7 +23,7 @@ SOLVERS = [smplx_py] + ([smplx] if smplx is not smplx_py else [])
 
 @pytest.mark.parametrize("solve", SOLVERS)
 def test_canonical_maximization(solve):
-    """linear.py's farmer LP: scipy and smplx (maximizing -c, since smplx maximizes) agree."""
+    """linear.py's farmer LP: scipy and smplx (which maximizes -c) must agree."""
     a = linear.A.toarray()
     ref = optimize.linprog(c=linear.c, A_eq=a, b_eq=linear.b)
     assert ref.status == 0
