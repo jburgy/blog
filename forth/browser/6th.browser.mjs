@@ -35,7 +35,7 @@ function assetPath(pathname) {
         return join(root, "forth", "zig-out", "web", pathname.slice(assetRoot.length));
     }
     if (pathname === `${assetRoot}jonesforth.f`) {
-        return join(root, "jonesforth", "jonesforth.f");
+        return join(root, "forth", "4th.32.fs");
     }
     return null;
 }
