@@ -13,5 +13,11 @@
     "mocha": "^12.0.2",
     "mocha-headless-chrome": "^5.1.0",
     "wabt": "^1.0.37"
+  },
+  "overrides": {
+    "@puppeteer/browsers": "^3.0.0"
+  },
+  "allowScripts": {
+    "puppeteer@24.43.1": true
   }
 }
