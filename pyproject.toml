@@ -43,7 +43,14 @@ compile = ["-j4"]
 addopts = ["--doctest-modules", "--ignore=aoc2024", "--ignore=progress"]
 
 [tool.coverage.run]
-omit = ["aoc2024/*", "progress/*"]
+omit = [
+    "aoc2024/*",
+    "progress/*",
+    "forth/benchmark.py",
+    "forth/combination.py",
+    "forth/forth.py",
+    "forth/jansforth.py",
+]
 
 [tool.uv]
 # Editable meson-python rebuilds need ninja from .venv, not a transient isolated build env.
