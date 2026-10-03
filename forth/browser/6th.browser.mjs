@@ -79,10 +79,56 @@ async function startServer() {
 }
 
 function terminalText(page) {
-    return page.$eval("#terminal", (node) =>
-        (node.innerText || node.textContent || "")
-            .replaceAll("\u00a0", " ")
-            .replaceAll("\r", ""),
+    return page.evaluate(() => {
+        const term = window.__xterm;
+        if (!term) return "";
+        const lines = [];
+        const active = term.buffer.active;
+        for (let i = 0; i < active.length; i += 1) {
+            const line = active.getLine(i);
+            if (line) lines.push(line.translateToString(true));
+        }
+        return lines.join("\n").replaceAll("\u00a0", " ").replaceAll("\r", "");
+    });
+}
+
+function installTerminalHook(page) {
+    return page.evaluateOnNewDocument(() => {
+        Object.defineProperty(window, "Terminal", {
+            configurable: true,
+            set(value) {
+                const Wrapped = function (...args) {
+                    const term = new value(...args);
+                    window.__xterm = term;
+                    return term;
+                };
+                Object.setPrototypeOf(Wrapped, value);
+                Wrapped.prototype = value.prototype;
+                Object.defineProperty(window, "Terminal", {
+                    value: Wrapped,
+                    writable: true,
+                    configurable: true,
+                });
+            },
+        });
+    });
+}
+
+function waitForTerminalText(page, needle) {
+    return page.waitForFunction(
+        (text) => {
+            const term = window.__xterm;
+            if (!term) return false;
+            const active = term.buffer.active;
+            const lines = [];
+            for (let i = 0; i < active.length; i += 1) {
+                const line = active.getLine(i);
+                if (line) lines.push(line.translateToString(true));
+            }
+            return lines.join("\n").includes(text);
+        },
+        { timeout: 90_000 },
+        needle,
     );
 }
 
@@ -104,31 +150,18 @@ after(async () => {
 
 test("SEE QUIT decompiles QUIT in the browser demo", { timeout: 120_000 }, async () => {
     const page = await browser.newPage();
+    await installTerminalHook(page);
     await page.goto(`${server.origin}${htmlPath}`, { waitUntil: "networkidle0" });
     await page.waitForFunction(
         () => document.querySelector("#terminal .xterm-screen, #terminal canvas") !== null,
     );
-    await page.waitForFunction(async () => {
-        const terminal = document.querySelector("#terminal");
-        const text = (terminal?.textContent ?? "").replaceAll("\u00a0", " ");
-        return text.includes("JONESFORTH VERSION");
-    });
+    await waitForTerminalText(page, "JONESFORTH VERSION");
 
     await page.click("#terminal");
     await page.keyboard.type("SEE QUIT");
     await page.keyboard.press("Enter");
 
-    await page.waitForFunction(
-        (needle) => {
-            const terminal = document.querySelector("#terminal");
-            const text = (terminal?.innerText ?? terminal?.textContent ?? "")
-                .replaceAll("\u00a0", " ")
-                .replaceAll("\r", "");
-            return text.includes(needle);
-        },
-        {},
-        expected,
-    );
+    await waitForTerminalText(page, expected);
 
     const text = await terminalText(page);
     assert.match(text, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
