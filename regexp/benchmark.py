@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pragma: exclude file
 """Benchmark every runnable implementation in this directory on one shared
 workload: find the leftmost match of ``a(b|c)*d`` in ``abccbcccd`` -- a
 9-byte string the match consumes in full, so unanchored search-anywhere
