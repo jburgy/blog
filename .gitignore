@@ -47,6 +47,11 @@ MANIFEST
 # mypy
 .mypy_cache/
 
+# coverage
+.coverage
+coverage.xml
+htmlcov/
+
 # binaries
 *.o
 *.a

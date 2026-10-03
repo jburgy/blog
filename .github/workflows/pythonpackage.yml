@@ -12,7 +12,7 @@ jobs:
         python-version: [3.13, 3.14]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # regexp/test_regexp.py builds jonesforth.S from the submodule
           submodules: true
@@ -22,7 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       # progress/ (zig build, ~1 min) is not needed by any test
       - run: uv sync -C setup-args=-Dprogress=false
-      - uses: astral-sh/ruff-action@v3
+      - uses: astral-sh/ruff-action@v4.1.0
         with:
           version: "latest"
       - run: uvx ruff check
@@ -31,6 +31,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-multilib
       # a re-sync would drop -Dprogress=false
-      - run: uv run --no-sync pytest
+      - run: uv run --no-sync pytest --cov --cov-report=xml
         env:
           pytest_github_report: true
+      - uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
