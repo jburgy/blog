@@ -33,6 +33,8 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
     emcc.addArg("-pthread");
     emcc.addArg("-sPROXY_TO_PTHREAD");
     emcc.addArg("-sEXPORTED_FUNCTIONS=_malloc,_main");
+    // Emscripten 4.0.14 removed USE_OFFSET_CONVERTER, and 4.0.15 (our CI
+    // toolchain) errors out if we still pass it.
     emcc.addArg("-sASSERTIONS=2");
     emcc.addArg("--js-library=node_modules/xterm-pty/emscripten-pty.js");
     emcc.addArg("-o");
