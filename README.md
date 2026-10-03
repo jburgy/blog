@@ -4,6 +4,7 @@
 [![GitHub Pages](https://img.shields.io/github/deployments/jburgy/blog/github-pages?label=demos&logo=githubpages)](https://bur.gy/blog/)
 
 [![Tested with pytest](https://img.shields.io/badge/py-test-blue?logo=pytest)](https://github.com/jburgy/blog/actions/workflows/pythonpackage.yml)
+[![codecov](https://codecov.io/gh/jburgy/blog/graph/badge.svg)](https://codecov.io/gh/jburgy/blog)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Checked with ty](https://img.shields.io/badge/types-ty-261230)](https://github.com/astral-sh/ty)
@@ -109,3 +110,10 @@ Folders that feed a demo are marked ▶.
 | [`pythonpackage.yml`](.github/workflows/pythonpackage.yml) | `uv` + `ruff` + `ty` + `pytest` on 3.13 and 3.14. Needs `gfortran` and 32-bit gcc for the Fortran and jonesforth fixtures |
 | [`javascript.yml`](.github/workflows/javascript.yml) | node 24, wasi-sdk and nightly Rust; builds `forth/5th.wasm` and `forth/web/4th.wasm`, then runs the vitest and mocha suites |
 | [`deploy.yml`](.github/workflows/deploy.yml) | the Pages build described above |
+
+`pythonpackage.yml` uploads coverage to [Codecov](https://codecov.io/gh/jburgy/blog)
+(the badge above links there). On a pull request, open the **Files changed**
+tab to see uncovered lines flagged inline, right next to the diff — install
+the [Codecov browser extension](https://github.com/codecov/browser-extension)
+to get the same green/red coverage gutters on any file on github.com, not
+just the ones in a diff.
