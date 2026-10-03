@@ -1,4 +1,5 @@
 # ruff: noqa: E501
+# pragma: exclude file
 
 from itertools import batched
 

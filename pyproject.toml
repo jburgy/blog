@@ -53,7 +53,6 @@ exclude_also = [
 omit = [
     "aoc2024/*",
     "progress/*",
-    "forth/jansforth.py",
 ]
 
 [tool.uv]
