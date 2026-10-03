@@ -72,7 +72,9 @@ inline fn codeFieldAddress(w: Address) usize {
 inline fn openFlags(flags: usize) std.c.O {
     return switch (builtin.os.tag) {
         .linux, .macos, .emscripten => .{
-            .ACCMODE = @enumFromInt(flags & O_RDWR),
+            // O_RDWR (2) alone only covers bit 1; RDONLY/WRONLY/RDWR need
+            // both access-mode bits, i.e. O_WRONLY | O_RDWR (3).
+            .ACCMODE = @enumFromInt(flags & (O_WRONLY | O_RDWR)),
             .CREAT = (flags & O_CREAT) != 0,
             .EXCL = (flags & O_EXCL) != 0,
             .TRUNC = (flags & O_TRUNC) != 0,
@@ -715,7 +717,7 @@ inline fn _syscall3(sp: [*]i32) [*]i32 {
         .open => {
             const p: usize = @abs(sp[1]);
             const file_path: [*:0]u8 = @ptrFromInt(p);
-            const mode: std.c.mode_t = @truncate(@abs(sp[3]));
+            const mode: std.c.mode_t = @intCast(@abs(sp[3]));
             sp[3] = std.c.openat(std.c.AT.FDCWD, file_path, openFlags(@abs(sp[2])), mode);
         },
         .read => {
@@ -997,6 +999,20 @@ test defwords {
     try testing.expectEqual(0, mem.readInt(u32, buffer[node..][0..4], native)); // CFA of "QUIT" is DOCOL ✓
     node = mem.readInt(u32, buffer[node + 4 ..][0..4], native); // follow link to CFA of "R0"
     try testing.expectEqual(52, mem.readInt(u32, buffer[node..][0..4], native)); // CFA of "R0" is R0 ✓
+}
+
+test "openFlags preserves access mode bits" {
+    const wronly = openFlags(O_WRONLY | O_CREAT | O_TRUNC);
+    try testing.expectEqual(@as(@TypeOf(wronly.ACCMODE), .WRONLY), wronly.ACCMODE);
+    try testing.expect(wronly.CREAT);
+    try testing.expect(wronly.TRUNC);
+
+    const rdonly = openFlags(O_RDONLY);
+    try testing.expectEqual(@as(@TypeOf(rdonly.ACCMODE), .RDONLY), rdonly.ACCMODE);
+
+    const rdwr = openFlags(O_RDWR | O_APPEND);
+    try testing.expectEqual(@as(@TypeOf(rdwr.ACCMODE), .RDWR), rdwr.ACCMODE);
+    try testing.expect(rdwr.APPEND);
 }
 
 test Interp {

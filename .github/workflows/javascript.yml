@@ -24,11 +24,23 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ hashFiles('forth/package-lock.json') }}
       - run: npm ci
 
       # Both wasm binaries have to exist before vitest starts: 5th.wasm from
       # clang, and 4th.wasm from nightly rust, which `become` requires.
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      - run: zig build test
       - uses: bytecodealliance/setup-wasi-sdk-action@main
+      - uses: pyodide/setup-emsdk@v15
+        with:
+          version: 4.0.15
+          actions-cache-folder: 'emsdk-cache'
       - uses: dtolnay/rust-toolchain@nightly
         with:
           targets: wasm32-wasip1
