@@ -22,7 +22,7 @@ all : 4th.mjs 5th.mjs 6th.mjs lisp TinyBasic jonesforth.wasm regexp fourt2py
 
 6th.mjs : lib6th.a
 
-jonesforth.wasm : ../forth/wasm/jonesforth.wast jonesforth.f main.js worker.js
+jonesforth.wasm : ../forth/wasm/jonesforth.wast jonesforth.f main.js worker.js wasi-worker.js
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
 
 lib%.a : %.zig
@@ -71,4 +71,4 @@ jonesforth.f: ../jonesforth/jonesforth.f
 .PHONY : regexp fourt2py
 
 clean :
-	rm -rf *.o *.a *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js regexp forth fourt2py
+	rm -rf *.o *.a *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py

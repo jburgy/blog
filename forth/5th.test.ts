@@ -32,7 +32,7 @@ FOO EMIT
     const outputs: (string | Uint8Array<ArrayBufferLike>)[] = [];
     const wasi = new WASI({
         features: [
-            useProc,
+            useProc(),
             useStdio({
                 stdin: () => inputs.shift() as string,
                 stdout: (chunk: string | Uint8Array<ArrayBufferLike>) => outputs.push(chunk),
