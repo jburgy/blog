@@ -112,10 +112,10 @@ Folders that feed a demo are marked ▶.
 | [`deploy.yml`](.github/workflows/deploy.yml) | the Pages build described above |
 
 `pythonpackage.yml` uploads coverage to [Codecov](https://codecov.io/gh/jburgy/blog)
-(the badge above links there). This requires the
-[Codecov GitHub App](https://github.com/apps/codecov) to be installed on the
-repo once; after that, opening a pull request's **Files changed** tab shows
-uncovered lines flagged inline, right next to the diff — install the
-[Codecov browser extension](https://github.com/codecov/browser-extension) to
+(the badge above links there). This requires activating the repo at
+[codecov.io](https://codecov.io) once and adding its upload token as the
+`CODECOV_TOKEN` repo secret; after that, opening a pull request's **Files
+changed** tab shows uncovered lines flagged inline, right next to the diff —
+install the [Codecov browser extension](https://github.com/codecov/browser-extension) to
 get the same green/red coverage gutters on any file on github.com, not just
 the ones in a diff.
