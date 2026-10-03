@@ -166,9 +166,11 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
   get a real terminal. Emits a `.mjs` loader beside the `.wasm`.
 - **wasi-sdk clang** — plain `wasm32-wasip1`, no JS glue; the artifact is a
   bare `5th.wasm`. Driven by [uwasi](https://github.com/kateinoigakukun/uwasi)
-  both in [5th.test.ts](5th.test.ts) (a finite, scripted stdin) and in the
-  browser, where [wasm/wasi-worker.js](wasm/wasi-worker.js) backs stdin with a
-  `SharedInputChannel` so `read()` genuinely blocks instead of seeing EOF.
+  both in [web/4th.test.ts](web/4th.test.ts) (a finite, scripted stdin,
+  alongside the same primitive-wordset matrix run against `4th.wasm`) and in
+  the browser, where [wasm/wasi-worker.js](wasm/wasi-worker.js) backs stdin
+  with a `SharedInputChannel` so `read()` genuinely blocks instead of seeing
+  EOF.
 - **Zig `wasm32-wasi`** — `6th.zig`'s other wasm target (`build.zig`'s
   `buildWasi`), no `emcc` step: zig's own linker produces the standalone
   command directly. Shares `wasi-worker.js` with `5th.wasm` above.
@@ -209,10 +211,10 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 | command | covers |
 | --- | --- |
 | `make` | 4th, 5th, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and both Rust binaries |
-| `pytest forth/` | [test_4th.py](test_4th.py) (native) and [test_4th_wasm.py](test_4th_wasm.py) (Emscripten) |
+| `pytest forth/` | [test_4th.py](test_4th.py) (native) only — [test_4th_wasm.py](test_4th_wasm.py) is excluded, supplanted by `web/4th.test.ts` |
 | `npm test` | builds `5th.wasm` with wasi-sdk, runs every vitest suite, then builds `6th.mjs` with Zig + Emscripten and drives [html/6th.html](html/6th.html) in Chromium |
 | `npm run test:browser` | [browser/6th.browser.mjs](browser/6th.browser.mjs): serves the real `6th.html` demo, types `SEE QUIT`, and checks the rendered decompiled `QUIT` definition |
-| `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) only — the browser demo, driven in node |
+| `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) — the browser demo, driven in node; also covers `5th.wasm` if it's already been built, skipped otherwise |
 | `make test-wasm` | [4th.rs](4th.rs) under wasmtime with `-W exceptions=y` |
 
 ## Keeping the grid obvious
