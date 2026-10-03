@@ -47,8 +47,6 @@ omit = [
     "aoc2024/*",
     "progress/*",
     "forth/benchmark.py",
-    "forth/combination.py",
-    "forth/forth.py",
     "forth/jansforth.py",
 ]
 
