@@ -8,7 +8,6 @@ import pytest  # pyright: ignore[reportMissingImports]
 
 collect_ignore = [
     ".venv",
-    "aoc2024",
     "aoc2025",
     "assets",
     "build",
@@ -32,7 +31,6 @@ collect_ignore = [
     "lisp",
     "node_modules",
     "notebooks",
-    "progress",
     "TinyBasic",
     "xterm-pty",
 ]
