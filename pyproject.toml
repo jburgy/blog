@@ -27,6 +27,7 @@ dev = [
     "pandas",
     "pandas-stubs>=3.0.0.260204",
     "pytest",
+    "pytest-cov>=7.1.0",
     "pytest-github-report",
     "scipy",
     "scipy-stubs>=1.17.1.4",
