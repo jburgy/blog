@@ -93,7 +93,7 @@ before(async () => {
     server = await startServer();
     browser = await puppeteer.launch({
         headless: true,
-        args: process.env.CI ? ["--no-sandbox"] : [],
+        args: process.platform === "linux" ? ["--no-sandbox"] : [],
     });
 });
 
