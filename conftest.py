@@ -14,8 +14,6 @@ collect_ignore = [
     "emsdk-cache",
     "foo",
     "forth/benchmark.py",
-    "forth/combination.py",
-    "forth/forth.py",
     "forth/jansforth.py",
     "forth/node_modules",
     "forth/test_4th_wasm.py",
