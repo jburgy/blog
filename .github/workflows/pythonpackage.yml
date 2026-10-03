@@ -34,6 +34,6 @@ jobs:
       - run: uv run --no-sync pytest --cov --cov-report=xml
         env:
           pytest_github_report: true
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
