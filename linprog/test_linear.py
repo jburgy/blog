@@ -16,7 +16,7 @@ from scipy import optimize
 from linprog import affine, linear
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "simplex"))
-from simplex import smplx, smplx_py  # noqa: E402  ty: ignore[unresolved-import]
+from simplex import smplx, smplx_py  # noqa: E402  # ty: ignore[unresolved-import]
 
 SOLVERS = [smplx_py] + ([smplx] if smplx is not smplx_py else [])
 
@@ -27,6 +27,7 @@ def test_canonical_maximization(solve):
     a = linear.A.toarray()
     ref = optimize.linprog(c=linear.c, A_eq=a, b_eq=linear.b)
     assert ref.status == 0
+    assert ref.fun is not None and ref.x is not None
 
     ind, x, z, _ = solve(a, linear.b, -linear.c, numle=0)
     assert ind == 0
@@ -39,6 +40,7 @@ def test_affine_scaling(solve):
     """affine.py's example: scipy, smplx and affine_scaling all agree on the optimum."""
     ref = optimize.linprog(c=affine.c, A_eq=affine.A, b_eq=affine.b)
     assert ref.status == 0
+    assert ref.fun is not None
 
     ind, _, z, _ = solve(affine.A, affine.b, -affine.c, numle=0)
     assert ind == 0
