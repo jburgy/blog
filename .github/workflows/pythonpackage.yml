@@ -34,6 +34,8 @@ jobs:
       - run: uv run --no-sync pytest --cov --cov-report=xml
         env:
           pytest_github_report: true
+      # fail loudly until the Codecov GitHub App is confirmed installed and
+      # uploading; a silently-broken upload defeats the point of this step
       - uses: codecov/codecov-action@v5
         with:
-          fail_ci_if_error: false
+          fail_ci_if_error: true
