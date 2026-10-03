@@ -48,4 +48,5 @@ b = np.asarray([15, 15], dtype=float)
 c = np.asarray([-2, 1, 0, 0], dtype=float)
 x = np.asarray([10, 2, 7, 13], dtype=float)
 
-print(affine_scaling(A, b, c, x))
+if __name__ == "__main__":
+    print(affine_scaling(A, b, c, x))
