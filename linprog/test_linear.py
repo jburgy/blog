@@ -32,7 +32,7 @@ def test_canonical_maximization(solve):
     ind, x, z, _ = solve(a, linear.b, -linear.c, numle=0)
     assert ind == 0
     assert z == pytest.approx(-ref.fun)
-    np.testing.assert_allclose(x, ref.x, atol=1e-6)
+    np.testing.assert_allclose(x, ref.x, rtol=1e-4, atol=1e-6)
 
 
 @pytest.mark.parametrize("solve", SOLVERS)

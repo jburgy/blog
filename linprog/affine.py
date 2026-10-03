@@ -14,6 +14,12 @@ from scipy.linalg.blas import dcopy, dgemm, dgemv  # pyright: ignore[reportAttri
 
 
 def affine_scaling(A, b, c, x, eps=1e-8, beta=0.99):
+    """Minimize c^T x subject to A x = b, x >= 0, starting from interior point x.
+
+    x must be strictly positive and feasible (A @ x == b). It is overwritten in
+    place with the solution and also returned; pass x.copy() to keep the caller's
+    original array intact.
+    """
     w = np.empty_like(b)
     r = np.empty_like(c)
     pos = np.empty(len(c), dtype=bool)
