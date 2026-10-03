@@ -16,7 +16,7 @@ collect_ignore = [
     "forth/benchmark.py",
     "forth/jansforth.py",
     "forth/node_modules",
-    "forth/test_4th_wasm.py",
+    "forth/test_4th_wasm.py",  # supplanted by forth/web/4th.test.ts
     "fun/api_from.py",
     "fun/assemble.py",
     "fun/awslayer.py",
