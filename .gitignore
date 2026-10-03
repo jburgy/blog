@@ -51,6 +51,11 @@ MANIFEST
 .coverage
 coverage.xml
 htmlcov/
+coverage/
+.nyc_output/
+# regexp/web/coverage.mjs's disposable instrumented copy, in case it's ever
+# killed mid-run before its own cleanup runs
+.coverage-*/
 
 # binaries
 *.o

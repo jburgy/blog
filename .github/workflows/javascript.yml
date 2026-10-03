@@ -51,6 +51,14 @@ jobs:
 
       - run: npm run test
 
+      - uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # see pythonpackage.yml for why the slug is pinned explicitly
+          slug: jburgy/blog
+          directory: forth/coverage
+          flags: forth
+
   regexp:
     runs-on: ubuntu-latest
     defaults:
@@ -74,6 +82,13 @@ jobs:
       # is a local file.
       - run: npm test -- -a no-sandbox
 
+      - uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: jburgy/blog
+          directory: regexp/web/coverage
+          flags: regexp-web
+
   fourt2py:
     runs-on: ubuntu-latest
     defaults:
@@ -94,3 +109,10 @@ jobs:
       # npm test builds wasm/fourt.mjs from wasm/fourt.c (a transliteration of
       # FOURT.F) before running vitest.
       - run: npm test
+
+      - uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: jburgy/blog
+          directory: fourt2py/coverage
+          flags: fourt2py
