@@ -65,11 +65,11 @@ async function startServer() {
             res.writeHead(404, sharedHeaders).end("not found");
         }
     });
-    server.listen(0, "127.0.0.1");
+    server.listen(0, "localhost");
     await once(server, "listening");
     const { port } = server.address();
     return {
-        origin: `http://127.0.0.1:${port}`,
+        origin: `http://localhost:${port}`,
         async close() {
             server.closeAllConnections();
             server.close();
@@ -132,6 +132,15 @@ function waitForTerminalText(page, needle) {
     );
 }
 
+function diagnostics(page) {
+    return page.evaluate(() => ({
+        crossOriginIsolated,
+        hasSharedArrayBuffer: typeof SharedArrayBuffer === "function",
+        hasTerminal: !!window.__xterm,
+        text: document.body.innerText,
+    }));
+}
+
 let browser;
 let server;
 
@@ -139,7 +148,9 @@ before(async () => {
     server = await startServer();
     browser = await puppeteer.launch({
         headless: true,
-        args: process.platform === "linux" ? ["--no-sandbox"] : [],
+        args: process.platform === "linux"
+            ? ["--no-sandbox", "--enable-features=SharedArrayBuffer"]
+            : [],
     });
 });
 
@@ -151,17 +162,33 @@ after(async () => {
 test("SEE QUIT decompiles QUIT in the browser demo", { timeout: 120_000 }, async () => {
     const page = await browser.newPage();
     await installTerminalHook(page);
+    page.on("console", (message) => {
+        if (message.type() === "warning" || message.type() === "error") {
+            console.error(`[browser:${message.type()}] ${message.text()}`);
+        }
+    });
+    page.on("pageerror", (error) => {
+        console.error(`[browser:pageerror] ${error.stack ?? error.message}`);
+    });
     await page.goto(`${server.origin}${htmlPath}`, { waitUntil: "networkidle0" });
     await page.waitForFunction(
         () => document.querySelector("#terminal .xterm-screen, #terminal canvas") !== null,
     );
-    await waitForTerminalText(page, "JONESFORTH VERSION");
+    try {
+        await waitForTerminalText(page, "JONESFORTH VERSION");
+    } catch (error) {
+        assert.fail(`terminal never printed banner: ${JSON.stringify(await diagnostics(page))}\n${error}`);
+    }
 
     await page.click("#terminal");
     await page.keyboard.type("SEE QUIT");
     await page.keyboard.press("Enter");
 
-    await waitForTerminalText(page, expected);
+    try {
+        await waitForTerminalText(page, expected);
+    } catch (error) {
+        assert.fail(`terminal never printed SEE QUIT output: ${JSON.stringify(await diagnostics(page))}\n${error}`);
+    }
 
     const text = await terminalText(page);
     assert.match(text, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
