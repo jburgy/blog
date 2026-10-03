@@ -33,7 +33,6 @@ fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
     emcc.addArg("-pthread");
     emcc.addArg("-sPROXY_TO_PTHREAD");
     emcc.addArg("-sEXPORTED_FUNCTIONS=_malloc,_main");
-    emcc.addArg("-sUSE_OFFSET_CONVERTER");
     emcc.addArg("-sASSERTIONS=2");
     emcc.addArg("--js-library=node_modules/xterm-pty/emscripten-pty.js");
     emcc.addArg("-o");

@@ -195,7 +195,8 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 | --- | --- |
 | `make` | 4th, 5th, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and both Rust binaries |
 | `pytest forth/` | [test_4th.py](test_4th.py) (native) and [test_4th_wasm.py](test_4th_wasm.py) (Emscripten) |
-| `npm test` | builds `5th.wasm` with wasi-sdk, then runs every vitest suite |
+| `npm test` | builds `5th.wasm` with wasi-sdk, runs every vitest suite, then builds `6th.mjs` with Zig + Emscripten and drives [html/6th.html](html/6th.html) in Chromium |
+| `npm run test:browser` | [browser/6th.test.mjs](browser/6th.test.mjs): serves the real `6th.html` demo, types `SEE QUIT`, and checks the rendered decompiled `QUIT` definition |
 | `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) only — the browser demo, driven in node |
 | `make test-wasm` | [4th.rs](4th.rs) under wasmtime with `-W exceptions=y` |
 

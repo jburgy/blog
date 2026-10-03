@@ -4,12 +4,19 @@
     "xterm-pty": "^0.11.1"
   },
   "devDependencies": {
-    "uwasi": "^1.4.1",
+    "puppeteer": "^24.43.1",
+    "uwasi": "^1.6.0",
     "vitest": "^4.1.11"
   },
   "scripts": {
     "build": "${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DEMSCRIPTEN -mtail-call -o 5th.wasm 5th.c",
-    "test": "npm run build && vitest run && rm -f 5th.wasm",
+    "build:6th:web": "zig build -Dtarget=wasm32-emscripten -Dcpu=baseline+atomics+bulk_memory+tail_call",
+    "test": "npm run build && npm run test:node && npm run test:browser && rm -f 5th.wasm",
+    "test:browser": "npm run build:6th:web && node --test browser/6th.test.mjs",
+    "test:node": "vitest run",
     "test:web": "vitest run web/"
+  },
+  "allowScripts": {
+    "puppeteer@24.43.1": true
   }
 }
