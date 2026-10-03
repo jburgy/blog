@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pragma: exclude file
 """Build and benchmark the Forth interpreters on the fast-doubling workload."""
 
 from __future__ import annotations
