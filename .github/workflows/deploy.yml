@@ -20,6 +20,13 @@ jobs:
           node-version: 24
       - uses: bytecodealliance/setup-wasi-sdk-action@main
       - uses: astral-sh/setup-uv@v6
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-wasip1
+          components: rust-src
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: forth
       - run: |
           cd assets
           make --jobs=4
