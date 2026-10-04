@@ -1,6 +1,12 @@
 <html>
 
-<!-- see https://github.com/mame/xterm-pty#emscripten-integration -->
+<!-- No Emscripten/xterm-pty here, unlike the published https://bur.gy/2024/08/31/why-not-zig.html
+     post, which still hardcodes /blog/6th.mjs + xterm-pty: 6th.zig's
+     wasm32-wasi build (build.zig's buildWasi) is a plain WASI command, driven
+     the same way as jonesforth.wasm (see wasm/worker.js, wasm/main.js, and
+     the "How Many Roads Must a Man Walk Down?" post) -- a Worker blocks
+     stdin on a uwasi SharedInputChannel instead of a real pty, and this page
+     does its own minimal line editing against xterm.js. -->
 
 <head>
     <title>demo</title>
@@ -11,21 +17,55 @@
     <div id="terminal"></div>
     <script type="module">
         import "/assets/node_modules/@xterm/xterm/lib/xterm.js";
-        import { openpty } from "/assets/node_modules/xterm-pty/index.mjs";
-        import initEmscripten from "/assets/6th.mjs";
+        import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
 
         const xterm = new Terminal();
         xterm.open(document.getElementById("terminal"));
 
-        const { master, slave } = openpty();
-        xterm.loadAddon(master);
+        // Sized well past 4th.32.fs (~58 KiB), same margin as main.js's
+        // jonesforth.f channel.
+        const channel = new SharedInputChannel(128 * 1024);
+        const worker = new Worker("/assets/worker.js", { type: "module" });
 
-        const response = await fetch("/assets/jonesforth.f");
-        const preamble = new Uint8Array(await response.arrayBuffer());
-        slave.ldisc.toUpperBuf.push(...preamble);
+        let line = "";
 
-        await initEmscripten({ pty: slave });
-        slave.ldisc.flushToUpper();
+        worker.addEventListener("message", async ({ data: { type, fd, data, code, message } }) => {
+            switch (type) {
+                case "ready": {
+                    const response = await fetch("/assets/forth/4th.32.fs");
+                    channel.push(new Uint8Array(await response.arrayBuffer()));
+                    break;
+                }
+                case "output":
+                    // 6th.zig emits bare newlines; a terminal wants CR LF.
+                    if (fd === 1 || fd === 2) xterm.write(data.replace(/\n/g, "\r\n"));
+                    break;
+                case "exit":
+                    xterm.write(`\r\n[Process exited with code ${code}]\r\n`);
+                    break;
+                case "error":
+                    xterm.write(`\r\n[Error: ${message}]\r\n`);
+                    break;
+            }
+        });
+
+        xterm.onData((key) => {
+            if (key === "\r") {
+                xterm.write("\r\n");
+                channel.push(new TextEncoder().encode(line + "\n"));
+                line = "";
+            } else if (key === "\x7f") {
+                if (line) {
+                    line = line.slice(0, -1);
+                    xterm.write("\b \b");
+                }
+            } else if (key >= " ") {
+                line += key;
+                xterm.write(key);
+            }
+        });
+
+        worker.postMessage({ sharedBuffer: channel.sharedBuffer, wasmUrl: "/assets/6th.wasm" });
     </script>
 </body>
 

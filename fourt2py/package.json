@@ -3,11 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Browser demo for FOURT.F (shape a waveform in the frequency domain) compiled to WebAssembly",
+  "description": "Browser demo for FOURT.F (shape a waveform in the frequency domain), a plain-JS specialization (see web/fourt.pow2.mjs); wasm/fourt.c is an optional manual comparison build",
   "scripts": {
-    "build": "emcc -O2 -s MODULARIZE=1 -s EXPORT_ES6=1 -s SINGLE_FILE=0 -s EXPORTED_FUNCTIONS=_fourt_,_malloc,_free -s EXPORTED_RUNTIME_METHODS=cwrap,ccall,getValue,setValue -o wasm/fourt.mjs wasm/fourt.c",
-    "test": "npm run build && vitest run --coverage web/",
-    "benchmark": "npm run build && node web/benchmark.mjs"
+    "build:wasm": "emcc -O2 -s MODULARIZE=1 -s EXPORT_ES6=1 -s SINGLE_FILE=0 -s EXPORTED_FUNCTIONS=_fourt_,_malloc,_free -s EXPORTED_RUNTIME_METHODS=cwrap,ccall,getValue,setValue -o wasm/fourt.mjs wasm/fourt.c",
+    "test": "vitest run --coverage web/",
+    "benchmark": "npm run build:wasm && node web/benchmark.mjs"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
