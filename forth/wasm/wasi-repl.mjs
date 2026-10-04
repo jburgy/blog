@@ -38,10 +38,26 @@ export function startRepl(wasmUrl) {
     // Mirrors main.js's resume heuristic: re-arm the next read() once a
     // chunk ends in '\n' (the REPL's own prompt line), or after a short
     // timeout if a chunk never does (e.g. an "OK " prompt with no newline).
+    // `armed` guards both paths from ever firing twice for the same turn:
+    // read() isn't idempotent -- calling it again while one is still
+    // pending silently abandons the old promise and reprints the prompt,
+    // which is exactly what produced an extra blank prompt line, since
+    // libc's own stdout buffering decides -- unpredictably from here --
+    // whether a reply arrives as one chunk or several.
+    let armed = false;
     let timeout = -1;
 
     function readLine() {
-        rl.read("").then(processLine);
+        if (armed) return;
+        armed = true;
+        if (timeout >= 0) {
+            clearTimeout(timeout);
+            timeout = -1;
+        }
+        rl.read("").then((text) => {
+            armed = false;
+            processLine(text);
+        });
     }
 
     function resume() {
