@@ -5,9 +5,50 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 
+static char *bytes; /* defined below the rodata dictionary; declared early so do_syscallN can use it */
+
 #ifdef __APPLE__
 #define SYS_creat 24
 #define SYS_brk 214
+
+/* syscall(2) is deprecated on macOS ("please switch to a supported
+   interface"). jonesforth.f only ever drives the handful of syscall numbers
+   below through it (same idea as 4th.c's EMSCRIPTEN/wasi shim), so dispatch
+   those to the equivalent, supported libc calls directly instead. Buffer and
+   path arguments are memory[]-relative offsets exactly like every other
+   pointer in this file (see TELL's write(STDOUT_FILENO, bytes + memory[sp +
+   1], ...)), so they go through bytes + n here too rather than being
+   reinterpreted as absolute addresses. SYS_creat takes its arity (path, mode,
+   via SYSCALL3) from jansforth.zig's doSyscall3/SysNum.CREAT, the only other
+   place in this project that dispatches it. */
+static int do_syscall3(int sysno, int a, int b, int c) {
+    switch (sysno) {
+    case SYS_read:  return (int)read(a, bytes + b, (size_t)c);
+    case SYS_write: return (int)write(a, bytes + b, (size_t)c);
+    case SYS_open:  return open(bytes + a, b, (mode_t)c);
+    case SYS_creat: return creat(bytes + a, (mode_t)c); /* b (flags) unused, matching jansforth.zig */
+    default:        return -1;
+    }
+}
+
+static int do_syscall2(int sysno, int a, int b) {
+    switch (sysno) {
+    case SYS_open: return open(bytes + a, b, 0644);
+    default:       return -1;
+    }
+}
+
+static int do_syscall1(int sysno, int a) {
+    switch (sysno) {
+    case SYS_close: return close(a);
+    case SYS_exit:  exit(a);
+    default:        return -1;
+    }
+}
+#else
+#define do_syscall3(sysno, a, b, c) syscall(sysno, a, b, c)
+#define do_syscall2(sysno, a, b) syscall(sysno, a, b)
+#define do_syscall1(sysno, a) syscall(sysno, a)
 #endif
 
 enum Builtin {
@@ -231,7 +272,6 @@ static int rodata[] = {
     /* SYSCALL1   */ [5554] = 5549 << 2, [5555] = 0x53595308, [5556] = 0x4c4c4143, [5557] = 0x00000031, [5558] = SYSCALL1,
 };
 static int *memory;
-static char *bytes;
 
 char key(void) {
     static int currkey = 0x4000, buftop = 0x4000;
@@ -251,7 +291,7 @@ char key(void) {
                this check buftop == currkey forever, spinning on read() */
             exit(0);
         }
-        buftop = 0x4000 + c;
+        buftop = (int)(0x4000 + c); /* c <= the 0x1000 just requested, well within int range */
     }
     return bytes[currkey++];
 }
@@ -274,7 +314,7 @@ int word(void) {
         ch = key();
     } while (ch > ' ');
 
-    return s - (bytes + 0x5014);
+    return (int)(s - (bytes + 0x5014)); /* word length, always far under INT_MAX */
 }
 
 int find(int count, int name) {
@@ -329,6 +369,15 @@ int code_field_address(int word) {
     return word;
 }
 
+/* sbrk(2) is deprecated on both Linux and macOS, but there is no portable,
+   non-deprecated replacement for "query/grow the data segment break by a
+   given amount", which is exactly what jonesforth.f's BRK/MORECORE need; see
+   the comment in do_brk below for why the raw brk(2) syscall itself isn't an
+   option either. Silence the warning at its call sites rather than working
+   around a non-issue. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 int do_brk(int requested) {
     /* jonesforth's raw brk(2): 0 queries the current break, else grows to
        it, returning the (possibly unchanged, on failure) new break as an
@@ -345,7 +394,9 @@ int do_brk(int requested) {
     if (requested <= current)
         return current;
     long delta = (bytes + requested) - cur;
-    return (int)((sbrk(delta) == (void *)-1 ? cur : cur + delta) - bytes);
+    /* macOS's sbrk() takes a plain int (unlike glibc's intptr_t); delta is
+       derived from requested, itself an int forth cell, so it already fits. */
+    return (int)((sbrk((int)delta) == (void *)-1 ? cur : cur + delta) - bytes);
 }
 
 void *set_up_data_segment(const void *src, size_t n) {
@@ -355,6 +406,8 @@ void *set_up_data_segment(const void *src, size_t n) {
 
     return memcpy((void *)here, src, n);
 }
+
+#pragma GCC diagnostic pop
 
 int main(void) {
     register int sp = 0x0800;
@@ -754,17 +807,17 @@ int main(void) {
                 cfa = memory[sp++] >> 2;
                 continue;
             case SYSCALL3:
-                memory[sp + 3] = syscall(memory[sp], memory[sp + 1], memory[sp + 2], memory[sp + 3]);
+                memory[sp + 3] = do_syscall3(memory[sp], memory[sp + 1], memory[sp + 2], memory[sp + 3]);
                 sp += 3;
                 break;
             case SYSCALL2:
-                memory[sp + 2] = syscall(memory[sp], memory[sp + 1], memory[sp + 2]);
+                memory[sp + 2] = do_syscall2(memory[sp], memory[sp + 1], memory[sp + 2]);
                 sp += 2;
                 break;
             case SYSCALL1:
                 memory[sp + 1] = (memory[sp] == SYS_brk)
                     ? do_brk(memory[sp + 1])
-                    : syscall(memory[sp], memory[sp + 1]);
+                    : do_syscall1(memory[sp], memory[sp + 1]);
                 sp += 1;
                 break;
         }
