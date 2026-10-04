@@ -6,8 +6,16 @@
 # dependencies = []
 # ///
 
+"""Combinatorial index of a bitmask among same-popcount masks, forth-compiled.
+
+>>> index(0b111000)
+20
+>>> ForthCompiler().compile(index)(0b111000)
+20
+"""
+
 from dis import dis
-from forth import ForthCompiler  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-import]
+from forth import ForthCompiler  # ty: ignore[unresolved-import]
 
 
 def index(mask: int) -> int:

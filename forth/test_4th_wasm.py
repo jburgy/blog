@@ -1,3 +1,6 @@
+# Supplanted by forth/web/4th.test.ts, which exercises the same WASM build
+# via Node's test runner instead of pytest; kept around for reference but
+# excluded from collection (see conftest.py).
 import functools
 import os
 import subprocess

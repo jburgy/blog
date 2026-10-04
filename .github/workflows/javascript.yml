@@ -1,16 +1,11 @@
 name: JavaScript
 
 # `push` only, matching the Python workflow: adding `pull_request` as well runs
-# the whole thing twice on every PR branch.  The path filter is what the old
-# `forth-web` workflow contributed; everything else it did is the `forth` job.
-on:
-  push:
-    paths:
-      - "forth/**"
-      - "regexp/regexp.f"
-      - "regexp/web/**"
-      - "fourt2py/**"
-      - ".github/workflows/javascript.yml"
+# the whole thing twice on every PR branch. No path filter (unlike before):
+# Codecov's `after_n_builds: 5` in codecov.yml expects all 5 uploads (this
+# workflow's 3 jobs plus pythonpackage.yml's 2) on every commit, so forth/
+# regexp/fourt2py now build and upload coverage even when untouched.
+on: [push]
 
 jobs:
   forth:
@@ -53,6 +48,14 @@ jobs:
 
       - run: npm run test
 
+      - uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # see pythonpackage.yml for why the slug is pinned explicitly
+          slug: jburgy/blog
+          directory: forth/coverage
+          flags: forth
+
   regexp:
     runs-on: ubuntu-latest
     defaults:
@@ -76,6 +79,13 @@ jobs:
       # is a local file.
       - run: npm test -- -a no-sandbox
 
+      - uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: jburgy/blog
+          directory: regexp/web/coverage
+          flags: regexp-web
+
   fourt2py:
     runs-on: ubuntu-latest
     defaults:
@@ -96,3 +106,10 @@ jobs:
       # npm test builds wasm/fourt.mjs from wasm/fourt.c (a transliteration of
       # FOURT.F) before running vitest.
       - run: npm test
+
+      - uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: jburgy/blog
+          directory: fourt2py/coverage
+          flags: fourt2py

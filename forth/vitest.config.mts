@@ -9,4 +9,9 @@ export default defineConfig({
             'https://esm.sh/uwasi@1.6.0': 'uwasi',
         },
     },
+    test: {
+        coverage: {
+            reporter: ['text', 'lcov'],
+        },
+    },
 });

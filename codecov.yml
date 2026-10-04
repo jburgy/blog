@@ -1,0 +1,9 @@
+codecov:
+  notify:
+    # pythonpackage.yml (2 matrix uploads) + javascript.yml (forth, fourt2py,
+    # regexp-web) = 5 uploads per commit. Without this, Codecov finalizes the
+    # report as soon as the first couple of uploads land, orphaning whichever
+    # jobs are still running (observed: the slower Python/forth jobs losing
+    # out to the faster fourt2py/regexp-web ones). This requires both
+    # workflows to upload unconditionally on every push.
+    after_n_builds: 5

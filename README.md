@@ -108,11 +108,18 @@ Folders that feed a demo are marked ▶.
 | workflow | what it does |
 | --- | --- |
 | [`pythonpackage.yml`](.github/workflows/pythonpackage.yml) | `uv` + `ruff` + `ty` + `pytest` on 3.13 and 3.14. Needs `gfortran` and 32-bit gcc for the Fortran and jonesforth fixtures |
-| [`javascript.yml`](.github/workflows/javascript.yml) | node 24, wasi-sdk and nightly Rust; builds `forth/5th.wasm` and `forth/web/4th.wasm`, then runs the vitest and mocha suites |
+| [`javascript.yml`](.github/workflows/javascript.yml) | node 24, wasi-sdk and nightly Rust; builds `forth/5th.wasm` and `forth/web/4th.wasm`, then runs the vitest and mocha suites with coverage |
 | [`deploy.yml`](.github/workflows/deploy.yml) | the Pages build described above |
 
-`pythonpackage.yml` uploads coverage to [Codecov](https://codecov.io/gh/jburgy/blog)
-(the badge above links there). This requires activating the repo at
+`pythonpackage.yml` and `javascript.yml` both upload coverage to [Codecov](https://codecov.io/gh/jburgy/blog)
+(the badge above links there), the latter tagged with `forth`/`regexp-web`/`fourt2py`
+flags so each job's numbers stay distinguishable. Both workflows run
+unconditionally on every push (`javascript.yml` has no path filter) so every
+commit produces the same 5 uploads (2 Python matrix jobs + 3 JS jobs);
+[`codecov.yml`](codecov.yml)'s `after_n_builds: 5` tells Codecov to wait for
+all of them before finalizing the report — without it, Codecov finalizes as
+soon as the first couple of uploads land, silently dropping whichever jobs
+are still running. This requires activating the repo at
 [codecov.io](https://codecov.io) once and adding its upload token as the
 `CODECOV_TOKEN` repo secret; after that, opening a pull request's **Files
 changed** tab shows uncovered lines flagged inline, right next to the diff —

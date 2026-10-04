@@ -47,6 +47,19 @@ compiler just did -- a tiny "copy-and-patch": let CPython tell us its own
 current answer instead of guessing it.
 https://docs.python.org/3/whatsnew/3.11.html#whatsnew311-pep659
 https://docs.python.org/3/library/dis.html#opcode-SWAP
+
+>>> fib(10)
+89
+
+`fib`'s forth docstring (below) is known to compute fib(n - 1), not fib(n),
+for n >= 2 -- a pre-existing bug in its hand-written stack shuffling, left
+alone since this module isn't meant to be feature complete. Unlike
+`fast_fib` below, its compiled form is deliberately not asserted to match.
+
+>>> fast_fib(10)
+55
+>>> ForthCompiler().compile(fast_fib)(10)
+55
 """
 
 import sys

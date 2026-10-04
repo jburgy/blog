@@ -5,6 +5,7 @@
     "xterm-pty": "^0.11.1"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
     "puppeteer": "^24.43.1",
     "uwasi": "^1.6.0",
     "vitest": "^4.1.11"
@@ -14,7 +15,7 @@
     "build:6th:web": "zig build -Dtarget=wasm32-emscripten -Dcpu=baseline+atomics+bulk_memory+tail_call",
     "test": "npm run build && npm run test:node && npm run test:browser && rm -f 5th.wasm",
     "test:browser": "npm run build:6th:web && node --test browser/6th.browser.mjs",
-    "test:node": "vitest run",
+    "test:node": "vitest run --coverage",
     "test:web": "vitest run web/"
   },
   "allowScripts": {
