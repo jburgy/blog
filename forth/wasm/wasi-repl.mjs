@@ -8,7 +8,7 @@
 // xterm-pty demos (see those posts' own hardcoded scripts and
 // forth/README.md's "Toolkits, briefly" section). Named to pair with
 // wasi-worker.js: that's the Worker side, this is the main-thread side.
-import "/assets/node_modules/@xterm/xterm/lib/xterm.js";
+import "./node_modules/@xterm/xterm/lib/xterm.js";
 import { Readline } from "https://esm.sh/xterm-readline@1.1.2";
 import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
 
@@ -32,7 +32,7 @@ export function startRepl(wasmUrl) {
     // Sized well past 4th.32.fs (~58 KiB), same margin as main.js's
     // jonesforth.f channel.
     const channel = new SharedInputChannel(128 * 1024);
-    const worker = new Worker("/assets/worker.js", { type: "module" });
+    const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
 
     let output = "";
     // Mirrors main.js's resume heuristic: re-arm the next read() once a
@@ -72,7 +72,7 @@ export function startRepl(wasmUrl) {
     worker.addEventListener("message", async ({ data: { type, fd, data, code, message } }) => {
         switch (type) {
             case "ready": {
-                const response = await fetch("/assets/forth/4th.32.fs");
+                const response = await fetch(new URL("./forth/4th.32.fs", import.meta.url));
                 channel.push(new Uint8Array(await response.arrayBuffer()));
                 readLine();
                 break;

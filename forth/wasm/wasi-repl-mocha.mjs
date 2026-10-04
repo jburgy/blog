@@ -7,9 +7,9 @@
 // describe/it. Named *-mocha.mjs, not *.spec.mjs/*.test.mjs: this only runs
 // inside a browser (mocha, loaded from a CDN by the page) -- vitest's
 // default test-file glob would otherwise pick this up and try to execute it
-// directly in Node, where the absolute "/assets/..." import below can't
-// resolve.
-import { startRepl } from "/assets/wasi-repl.mjs";
+// directly in Node, where wasi-repl.mjs's own browser-only imports (xterm.js,
+// a Worker, ...) can't resolve/run.
+import { startRepl } from "./wasi-repl.mjs";
 
 function waitFor(predicate, timeout = 60000, interval = 100) {
     return new Promise((resolve, reject) => {
