@@ -68,7 +68,17 @@ client-server:
 jonesforth.f: ../jonesforth/jonesforth.f
 	cp $< $@
 
-.PHONY : regexp fourt2py
+# Local stand-in for GitHub Pages' split-origin, cross-origin-isolated setup
+# (see serve-e2e.py's own docstring): needed to actually see a wasi-worker.js
+# demo run in a browser, since that needs real SharedArrayBuffer/Atomics.wait.
+# Doesn't build anything -- `make <target>` first (e.g. `make jonesforth.wasm`).
+# Skips (re)building the jburgy.github.io Jekyll site, since this target is
+# meant for the inner "rebuild assets, reload" loop; run
+# `python3 serve-e2e.py` directly the first time, to build that site too.
+serve-e2e :
+	python3 serve-e2e.py --skip-jekyll-build
+
+.PHONY : regexp fourt2py serve-e2e
 
 clean :
 	rm -rf *.o *.a *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py

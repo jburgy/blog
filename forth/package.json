@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "dependencies": {
     "wabt": "^1.0.39",
     "xterm-pty": "^0.11.1"

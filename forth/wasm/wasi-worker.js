@@ -77,6 +77,13 @@ function blockingRead(channel) {
             for (let i = 0; i < iovsLen; i++) {
                 capacity += view.getUint32(iovs + i * 8 + 4, true);
             }
+            // A zero-length request is a valid read() that's always
+            // satisfiable with zero bytes: don't block waiting for input
+            // nobody asked for.
+            if (capacity === 0) {
+                view.setUint32(nreadPtr, 0, true);
+                return 0; // WASI_ESUCCESS
+            }
             channel.waitForInput(null);
             Atomics.wait(yieldBuffer, 0, 0, 0);
             const bytes = channel.consume(capacity);
