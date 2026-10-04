@@ -192,9 +192,14 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   does the line editing against `xterm.js`, shared by `html/4th.html`,
   `html/5th.html`, and `html/6th.html`, and published standalone via
   `assets/Makefile`'s own `wasi-repl.mjs` target -- not just a side effect of
-  building `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm` -- so a future post revision can
-  hardcode `/blog/wasi-repl.mjs` directly, the same way the jonesforth post
-  already hardcodes `/blog/main.js`. Each page also loads mocha from a CDN
+  building `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm` -- so a post can
+  hardcode `/blog/wasi-repl.mjs` directly. `startRepl`'s optional second
+  argument (`preambleUrl`) is what makes that work for `jonesforth.wasm` too,
+  not just the three `4th.32.fs`-dictionary interpreters: the how-many-roads
+  post's tab strip calls `startRepl(wasmUrl, preambleUrl)` with whichever
+  interpreter's own pair the visitor picked, `dispose()`-ing the previous
+  REPL (terminates its Worker, tears down its Terminal) first. Each
+  html/*.html page also loads mocha from a CDN
   and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
   live REPL (`startRepl`'s return value, not simulated keystrokes) -- a human
   visiting the page gets the same pass/fail report CI reads headless (see
@@ -205,12 +210,22 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   [web/](web/) needs no exception-handling proposal. Its stdin problem is
   sidestepped rather than solved: [web/4th.js](web/4th.js) re-enters `eval()`
   one host-supplied line at a time instead of blocking inside the guest, so it
-  needs no Worker, no `SharedArrayBuffer`, and none of `wasi-worker.js`.
+  needs no Worker, no `SharedArrayBuffer`, and none of `wasi-worker.js`. A
+  *third* profile, built the same `-Zbuild-std=std,panic_unwind` way but
+  without `--features web` (`assets/Makefile`'s `4th-rs-wasi.wasm`), keeps
+  4th.rs's ordinary blocking `main()` instead and needs none of that
+  sidestepping -- it's just another `wasi-worker.js` console, published
+  alongside jonesforth.wasm/4th-wasi.wasm/5th-wasi.wasm/6th-wasi.wasm for
+  how-many-roads.html's tab strip.
 - **wat2wasm** — the `.wast` files *are* the source, so the "toolkit" is only
   an assembler. `jonesforth.wast`'s `KEY` is a classic blocking `read()`, like
-  the wasi-sdk and Zig builds above, so its browser demo
-  ([wasm/worker.js](wasm/worker.js)/[wasm/main.js](wasm/main.js), the subject
-  of [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html))
+  the wasi-sdk and Zig builds above, so its browser demo (originally
+  [wasm/worker.js](wasm/worker.js)/`wasm/main.js`, the subject of
+  [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html),
+  now that post's tab strip driving [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs)
+  like the other three interpreters -- `wasm/main.js` itself is unused and
+  kept only as a reference for the hand-rolled protocol `wasi-repl.mjs`
+  generalized)
   also runs on `wasi-worker.js` rather than hand-written WASI imports.
   [wasi-worker.test.ts](wasm/wasi-worker.test.ts) covers all three consumers,
   including why the never-exits-on-EOF jonesforth session is driven as a
