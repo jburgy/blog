@@ -85,7 +85,7 @@ guarantee from the compiler: `__attribute__((musttail))`, `@call(.always_tail)`,
 | [5th.c](5th.c) | C | tail calls | ✅ | Emscripten *and* wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 66.9 (58.4-128.0) / 1 | 284.7 (277.5-355.3) / 5 |
 | [jansforth.c](jansforth.c) | C | switch | — | — | Opcode enum, everything in one `memory[]` array | 93.0 (87.8-111.0) / 6 | — |
 | [recurse.c](recurse.c) | C | switch | — | — | `docol()` is the loop and recurses; return stack becomes a shadow stack | 96.2 (88.2-189.6) / 6 | — |
-| [6th.zig](6th.zig) | Zig | tail calls | ✅ | Emscripten via `zig build -Dtarget=wasm32-emscripten` | `@call(.always_tail, primitives[code], ...)`; native result only | 89.1 (83.9-221.4) / 5 | — |
+| [6th.zig](6th.zig) | Zig | tail calls | ✅ | Emscripten *or* wasm32-wasi (`zig build -Dtarget=wasm32-wasi`, see build.zig's `buildWasi`) | `@call(.always_tail, primitives[code], ...)`; native result only | 89.1 (83.9-221.4) / 5 | — |
 | [jansforth.zig](jansforth.zig) | Zig | switch | — | — | `while (true) switch (op) { ... }`; dictionary generated like jansforth.rs's | 71.8 (65.1-104.3) / 2 | — |
 | [labeled.zig](labeled.zig) | Zig | labeled switch | — | — | jansforth.zig cell for cell; every prong `continue`s a labeled `switch` instead | 76.7 (65.7-88.2) / 4 | — |
 | [hybrid.zig](hybrid.zig) | Zig | labeled switch, hot prongs only | — | — | labeled.zig with the dispatch replicated for 37 hot opcodes; the rest share one site | — | — |
@@ -165,15 +165,30 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
   [xterm-pty](https://github.com/mame/xterm-pty) so the pages in [html/](html/)
   get a real terminal. Emits a `.mjs` loader beside the `.wasm`.
 - **wasi-sdk clang** — plain `wasm32-wasip1`, no JS glue; the artifact is a
-  bare `5th.wasm` driven by [uwasi](https://github.com/kateinoigakukun/uwasi)
-  in [5th.test.ts](5th.test.ts).
+  bare `5th.wasm`. Driven by [uwasi](https://github.com/kateinoigakukun/uwasi)
+  both in [5th.test.ts](5th.test.ts) (a finite, scripted stdin) and in the
+  browser, where [wasm/wasi-worker.js](wasm/wasi-worker.js) backs stdin with a
+  `SharedInputChannel` so `read()` genuinely blocks instead of seeing EOF.
+- **Zig `wasm32-wasi`** — `6th.zig`'s other wasm target (`build.zig`'s
+  `buildWasi`), no `emcc` step: zig's own linker produces the standalone
+  command directly. Shares `wasi-worker.js` with `5th.wasm` above.
 - **Rust `wasm32-wasip1`** — two profiles, because [4th.rs](4th.rs) halts by
   panicking: `make test-wasm` rebuilds `std` with `panic_unwind` for wasmtime,
   while `make web` swaps the panic for a host throw so the browser build in
-  [web/](web/) needs no exception-handling proposal.
+  [web/](web/) needs no exception-handling proposal. Its stdin problem is
+  sidestepped rather than solved: [web/4th.js](web/4th.js) re-enters `eval()`
+  one host-supplied line at a time instead of blocking inside the guest, so it
+  needs no Worker, no `SharedArrayBuffer`, and none of `wasi-worker.js`.
 - **wat2wasm** — the `.wast` files *are* the source, so the "toolkit" is only
-  an assembler; the WASI imports are satisfied by hand in
-  [wasm/worker.js](wasm/worker.js).
+  an assembler. `jonesforth.wast`'s `KEY` is a classic blocking `read()`, like
+  the wasi-sdk and Zig builds above, so its browser demo
+  ([wasm/worker.js](wasm/worker.js)/[wasm/main.js](wasm/main.js), the subject
+  of [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html))
+  also runs on `wasi-worker.js` rather than hand-written WASI imports.
+  [wasi-worker.test.ts](wasm/wasi-worker.test.ts) covers all three consumers,
+  including why the never-exits-on-EOF jonesforth session is driven as a
+  child process that's killed as soon as it has produced the expected
+  output, rather than awaited to completion in-process.
 
 ## Not interpreters
 
