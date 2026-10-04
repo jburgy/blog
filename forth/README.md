@@ -239,7 +239,7 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 | `make` | 4th, 5th, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and both Rust binaries |
 | `pytest forth/` | [test_4th.py](test_4th.py) (native) only — [test_4th_wasm.py](test_4th_wasm.py) is excluded, supplanted by `web/4th.test.ts` |
 | `npm test` | builds `4th.wasm`/`5th.wasm` with wasi-sdk and `6th.wasm` with Zig's `wasm32-wasi` target, runs every vitest suite, then drives [html/4th.html](html/4th.html)/[html/5th.html](html/5th.html)/[html/6th.html](html/6th.html) headless (`mocha-headless-chrome`, same tool `regexp/web` already uses) |
-| `npm run test:browser` | [browser/4th.browser.mjs](browser/4th.browser.mjs)/[browser/5th.browser.mjs](browser/5th.browser.mjs)/[browser/6th.browser.mjs](browser/6th.browser.mjs) (shared harness: [browser/wasi-demo.mjs](browser/wasi-demo.mjs)): serves each real `<n>th.html` demo and checks that its own in-page mocha spec ([wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs), loaded from the page itself, same as a human visiting it would see) passed |
+| `npm run test:browser` | [browser/wasi-repl.browser.mjs](browser/wasi-repl.browser.mjs) (shared harness: [browser/wasi-demo.mjs](browser/wasi-demo.mjs)): serves each real `<n>th.html` demo and checks that its own in-page mocha spec ([wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs), loaded from the page itself, same as a human visiting it would see) passed |
 | `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) — the browser demo, driven in node; also covers `5th.wasm` if it's already been built, skipped otherwise |
 | `make test-wasm` | [4th.rs](4th.rs) under wasmtime with `-W exceptions=y` |
 

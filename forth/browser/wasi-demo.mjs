@@ -9,8 +9,8 @@
 // browser-automation library to keep in sync with regexp/web's existing
 // mocha-headless-chrome setup (see regexp/web/coverage.mjs). No `node:test`
 // imports here on purpose -- same convention as ../wasm-test.ts: this module
-// only exports the reusable check; each <name>.browser.mjs owns its own
-// `test(...)` call (see 4th.browser.mjs/5th.browser.mjs/6th.browser.mjs).
+// only exports the reusable check; wasi-repl.browser.mjs owns the
+// `test(...)` calls, one per interpreter.
 import { execFile } from "node:child_process";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
