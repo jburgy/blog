@@ -210,7 +210,13 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   [web/](web/) needs no exception-handling proposal. Its stdin problem is
   sidestepped rather than solved: [web/4th.js](web/4th.js) re-enters `eval()`
   one host-supplied line at a time instead of blocking inside the guest, so it
-  needs no Worker, no `SharedArrayBuffer`, and none of `wasi-worker.js`.
+  needs no Worker, no `SharedArrayBuffer`, and none of `wasi-worker.js`. A
+  *third* profile, built the same `-Zbuild-std=std,panic_unwind` way but
+  without `--features web` (`assets/Makefile`'s `4th-rs-wasi.wasm`), keeps
+  4th.rs's ordinary blocking `main()` instead and needs none of that
+  sidestepping -- it's just another `wasi-worker.js` console, published
+  alongside jonesforth.wasm/4th-wasi.wasm/5th-wasi.wasm/6th-wasi.wasm for
+  how-many-roads.html's tab strip.
 - **wat2wasm** — the `.wast` files *are* the source, so the "toolkit" is only
   an assembler. `jonesforth.wast`'s `KEY` is a classic blocking `read()`, like
   the wasi-sdk and Zig builds above, so its browser demo (originally
