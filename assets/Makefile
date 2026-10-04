@@ -3,11 +3,24 @@ VPATH = ../forth
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 
-all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm regexp fourt2py node_modules/xterm-pty/package.json
+all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py node_modules/xterm-pty/package.json
 	rm -rf node_modules/@xterm/xterm/src
 
 jonesforth.wasm : ../forth/wasm/jonesforth.wast jonesforth.f main.js worker.js wasi-worker.js
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
+
+# Same jonesforth.f-driven interactive console as jonesforth.wasm above --
+# localize.wast only swaps 4 frequently-mutated globals for locals (still
+# return_call_indirect-based), and tabulate.wast swaps return_call_indirect
+# for br_table (no tail-call proposal needed at all) -- see the "How Many
+# Roads..." post's Epilogue. Both published so the post's tab strip can
+# drive them through the exact same startRepl(wasmUrl, preambleUrl)/
+# worker.js/wasi-worker.js plumbing as jonesforth.wasm, not a one-off.
+localize.wasm : ../forth/wasm/localize.wast jonesforth.f worker.js wasi-worker.js
+	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
+
+tabulate.wasm : ../forth/wasm/tabulate.wast jonesforth.f worker.js wasi-worker.js
+	npx -y --package wabt wat2wasm --debug-names -o $@ $<
 
 # uvx/python-zig, not a bare `zig build`: deploy.yml has no system zig. See
 # build.zig's buildWasi. Named <name>-wasi.wasm, not <name>.wasm, to match
@@ -22,6 +35,21 @@ jonesforth.wasm : ../forth/wasm/jonesforth.wast jonesforth.f main.js worker.js w
 
 5th-wasi.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DEMSCRIPTEN -mtail-call -o $@ $<
+
+# 4th.rs's own web/4th.wasm (built with --features web, see 4th.test.ts/web/)
+# is a re-entrant eval() API with no blocking stdin at all -- not this
+# protocol. Built here *without* that feature instead, it keeps 4th.rs's
+# ordinary blocking main() (classic read()/write() over stdio), identical in
+# shape to 4th-wasi.wasm/5th-wasi.wasm above, so it needs no JS glue of its
+# own -- same worker.js/wasi-worker.js/wasi-repl.mjs, same forth/4th.32.fs
+# preamble (4th.rs's own CELL constant is 4, matching that dictionary, see
+# 4th.rs's test asserting as much). -Zbuild-std=std,panic_unwind: 4th.rs
+# halts by panicking (BYE unwinds out of `main`), and the prebuilt wasm32-
+# wasip1 std ships panic=abort only -- same reason test-wasm rebuilds std,
+# just for a real `_start` binary instead of a `cargo test` harness.
+4th-rs-wasi.wasm : ../forth/4th.rs ../forth/Cargo.toml worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
+	cd ../forth && CARGO_TARGET_DIR=target/wasi-repl rustup run nightly cargo build --release --target wasm32-wasip1 --bin 4th -Zbuild-std=std,panic_unwind
+	cp ../forth/target/wasi-repl/wasm32-wasip1/release/4th.wasm $@
 
 # AssemblyScript (asc), not wasi-sdk/zig: lisp.wasm/TinyBasic.wasm's I/O is
 # custom getchar/putchar-style host imports, not libc, so there's no
@@ -105,7 +133,7 @@ jonesforth.f: ../jonesforth/jonesforth.f
 # first if the demo you're testing needs one of those.
 # Skips (re)building the jburgy.github.io Jekyll site; run `node serve-e2e.mjs`
 # directly the first time, to build that site too.
-serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm
+serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm
 	node serve-e2e.mjs --skip-jekyll-build
 
 .PHONY : regexp fourt2py serve-e2e
