@@ -43,7 +43,7 @@
 import { execFileSync } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -83,31 +83,32 @@ export function safeJoin(base, pathname) {
  * neither header itself). `resolvePath(pathname)` maps a request path to an
  * absolute file path (or a falsy value for 404) -- the caller owns all
  * routing, this function only owns headers/content-type/error handling.
+ * Streams the file (no buffering the whole thing into memory first): a
+ * response only starts once the file is confirmed openable, so a missing
+ * file still gets a clean 404 rather than a 200 that aborts mid-stream.
  *
  * @param {(pathname: string) => string | null | undefined} resolvePath
- * @param {number} [port] defaults to 0 (OS-assigned, see the returned `port`)
+ * @param {number} [port] defaults to 0 (OS-assigned)
  */
 export async function startServer(resolvePath, port = 0) {
-    const server = createServer(async (req, res) => {
-        try {
-            const url = new URL(req.url ?? "/", "http://127.0.0.1");
-            const path = resolvePath(url.pathname);
-            if (!path) {
-                res.writeHead(404, sharedHeaders).end("not found");
-                return;
-            }
-            const body = await readFile(path);
-            res.writeHead(200, { ...sharedHeaders, "content-type": contentType(path) });
-            res.end(body);
-        } catch {
+    const server = createServer((req, res) => {
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        const path = resolvePath(url.pathname);
+        if (!path) {
             res.writeHead(404, sharedHeaders).end("not found");
+            return;
         }
+        const stream = createReadStream(path);
+        stream.on("error", () => res.writeHead(404, sharedHeaders).end("not found"));
+        stream.once("open", () => {
+            res.writeHead(200, { ...sharedHeaders, "content-type": contentType(path) });
+            stream.pipe(res);
+        });
     });
     server.listen(port, "localhost");
     await once(server, "listening");
     const { port: boundPort } = server.address();
     return {
-        port: boundPort,
         origin: `http://localhost:${boundPort}`,
         async close() {
             server.closeAllConnections();
