@@ -71,11 +71,11 @@ What comes out, and where it comes from:
 | published as | built from | seen in |
 | --- | --- | --- |
 | `/blog/4th.mjs` | [`forth/4th.c`](forth/4th.c) (Emscripten target) | [What, Forth, Again?](https://bur.gy/2023/02/24/what-forth-again.html), as published |
-| `/blog/4th.wasm` | [`forth/4th.c`](forth/4th.c) (wasi-sdk target) | [forth/html/4th.html](forth/html/4th.html) — no pty, not referenced by the published post yet |
+| `/blog/4th-wasi.wasm` | [`forth/4th.c`](forth/4th.c) (wasi-sdk target) | [forth/html/4th.html](forth/html/4th.html) — no pty, not referenced by the published post yet |
 | `/blog/5th.mjs` | [`forth/5th.c`](forth/5th.c) (Emscripten target) | [What is Tail Call Elimination?](https://bur.gy/2024/03/29/tail-recursion.html), as published |
-| `/blog/5th.wasm` | [`forth/5th.c`](forth/5th.c) (wasi-sdk target) | [forth/html/5th.html](forth/html/5th.html) — no pty, not referenced by the published post yet |
+| `/blog/5th-wasi.wasm` | [`forth/5th.c`](forth/5th.c) (wasi-sdk target) | [forth/html/5th.html](forth/html/5th.html) — no pty, not referenced by the published post yet |
 | `/blog/6th.mjs` | [`forth/6th.zig`](forth/6th.zig) (Emscripten target) | [Why not try Zig next?](https://bur.gy/2024/08/31/why-not-zig.html), as published |
-| `/blog/6th.wasm` | [`forth/6th.zig`](forth/6th.zig) (`wasm32-wasi` target) | [forth/html/6th.html](forth/html/6th.html) — no pty, not referenced by the published post yet |
+| `/blog/6th-wasi.wasm` | [`forth/6th.zig`](forth/6th.zig) (`wasm32-wasi` target) | [forth/html/6th.html](forth/html/6th.html) — no pty, not referenced by the published post yet. Named `-wasi`, not bare `6th.wasm`: Emscripten's `6th.mjs` build above already claims that exact basename for its own paired wasm |
 | `/blog/jonesforth.wasm` | [`forth/wasm/jonesforth.wast`](forth/wasm/jonesforth.wast) | [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html) |
 | `/blog/regexp/web/` | [`regexp/web/`](regexp/web/) + [`forth/wasm/tabulate.wast`](forth/wasm/tabulate.wast) | [What Makes an Expression Regular?](https://bur.gy/2026/09/24/what-makes-an-expression-regular.html) |
 | `/blog/fourt2py/web/` | [`fourt2py/web/`](fourt2py/web/) | shape a waveform's spectrum and hear `FOURT.F` transform it back, post forthcoming |

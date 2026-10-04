@@ -193,7 +193,7 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
   does the line editing against `xterm.js`, shared by `html/4th.html`,
   `html/5th.html`, and `html/6th.html`, and published standalone via
   `assets/Makefile`'s own `wasi-repl.mjs` target -- not just a side effect of
-  building `4th.wasm`/`5th.wasm`/`6th.wasm` -- so a future post revision can
+  building `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm` -- so a future post revision can
   hardcode `/blog/wasi-repl.mjs` directly, the same way the jonesforth post
   already hardcodes `/blog/main.js`. Each page also loads mocha from a CDN
   and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the

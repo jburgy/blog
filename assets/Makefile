@@ -11,7 +11,7 @@ FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs we
 # vars and %.mjs/lib%.a rules below) once what-forth-again.html,
 # tail-recursion.html, and why-not-zig.html each use the wasi .wasm build
 # below instead.
-all : 4th.mjs 5th.mjs 6th.mjs 4th.wasm 5th.wasm 6th.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm regexp fourt2py
+all : 4th.mjs 5th.mjs 6th.mjs 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm regexp fourt2py
 	rm -rf *.a *.o node_modules/@xterm/xterm/src
 
 %.mjs : %.o jonesforth.f node_modules/xterm-pty/emscripten-pty.js
@@ -35,16 +35,20 @@ lib%.a : %.zig
 lib6th.a : 6th.zig
 
 # uvx/python-zig, not a bare `zig build`: deploy.yml has no system zig (same
-# reason lib%.a below uses it). See build.zig's buildWasi.
-6th.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
+# reason lib%.a below uses it). See build.zig's buildWasi. Named
+# <name>-wasi.wasm, not <name>.wasm: Emscripten's %.mjs rules above already
+# claim that exact basename for their own paired wasm (MODULARIZE emits
+# <name>.wasm next to <name>.mjs) -- colliding with it silently overwrote
+# whichever built last and broke the published post reading the other one.
+6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	cd ../forth && uvx --from ziglang==0.15.2 python-zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call
 	cp ../forth/zig-out/web/wasi/6th.wasm $@
 
 # wasi-sdk clang (deploy.yml: bytecodealliance/setup-wasi-sdk-action).
-4th.wasm : ../forth/4th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
+4th-wasi.wasm : ../forth/4th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -o $@ $<
 
-5th.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
+5th-wasi.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DEMSCRIPTEN -mtail-call -o $@ $<
 
 # Published standalone (not just a side effect of 4th.wasm/5th.wasm/6th.wasm
@@ -113,7 +117,7 @@ jonesforth.f: ../jonesforth/jonesforth.f
 # <that target>` first if the demo you're testing needs one of those.
 # Skips (re)building the jburgy.github.io Jekyll site; run `node serve-e2e.mjs`
 # directly the first time, to build that site too.
-serve-e2e : 4th.wasm 5th.wasm 6th.wasm 4th.mjs 5th.mjs 6th.mjs jonesforth.wasm
+serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th.mjs 5th.mjs 6th.mjs jonesforth.wasm
 	node serve-e2e.mjs --skip-jekyll-build
 
 .PHONY : regexp fourt2py serve-e2e

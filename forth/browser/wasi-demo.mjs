@@ -26,7 +26,7 @@ function resolvePath({ name, wasmFilePath, htmlPath }, pathname) {
     if (pathname.startsWith(`${assetRoot}node_modules/`)) {
         return join(root, "forth", "node_modules", pathname.slice(`${assetRoot}node_modules/`.length));
     }
-    if (pathname === `${assetRoot}${name}.wasm`) {
+    if (pathname === `${assetRoot}${name}-wasi.wasm`) {
         return wasmFilePath;
     }
     if (
@@ -49,7 +49,7 @@ function resolvePath({ name, wasmFilePath, htmlPath }, pathname) {
  * owns no test registration itself.
  *
  * @param {object} options
- * @param {string} options.name e.g. "6th" -- serves wasmFilePath at /assets/<name>.wasm and html/<name>.html
+ * @param {string} options.name e.g. "6th" -- serves wasmFilePath at /assets/<name>-wasi.wasm and html/<name>.html
  * @param {string} options.wasmFilePath absolute path to the built .wasm
  */
 export async function checkWasiDemo({ name, wasmFilePath }) {
