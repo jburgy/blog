@@ -14,6 +14,15 @@
       "shrinkLevel": 0,
       "converge": false,
       "noAssert": false
+    },
+    "wasi": {
+      "outFile": "build/TinyBasic-wasi.wasm",
+      "textFile": "build/wasi.wat",
+      "sourceMap": true,
+      "optimizeLevel": 3,
+      "shrinkLevel": 0,
+      "converge": false,
+      "noAssert": false
     }
   },
   "options": {

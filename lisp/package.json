@@ -4,10 +4,11 @@
   "description": "https://justine.lol/sectorlisp/ in https://www.assemblyscript.org/",
   "main": "index.js",
   "scripts": {
-    "test": "node tests",
-    "asbuild:debug": "asc assembly/index.ts --target debug",
-    "asbuild:release": "asc assembly/index.ts --target release",
-    "asbuild": "npm run asbuild:debug && npm run asbuild:release",
+    "test": "npm run asbuild:wasi && node tests/wasi.mjs",
+    "asbuild:debug": "asc assembly/index.ts --target debug --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
+    "asbuild:release": "asc assembly/index.ts --target release --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
+    "asbuild:wasi": "asc assembly/wasi.ts --target wasi --use getchar=assembly/wasiHost/getchar --use putchar=assembly/wasiHost/putchar",
+    "asbuild": "npm run asbuild:debug && npm run asbuild:release && npm run asbuild:wasi",
     "start": "npx serve ../assets"
   },
   "repository": {
@@ -26,7 +27,8 @@
   },
   "homepage": "https://github.com/jburgy/blog#readme",
   "devDependencies": {
-    "assemblyscript": "^0.27.37"
+    "assemblyscript": "^0.27.37",
+    "uwasi": "^1.6.0"
   },
   "type": "module",
   "exports": {

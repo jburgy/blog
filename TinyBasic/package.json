@@ -8,13 +8,15 @@
   "description": "Port of TBIL to AssemblyScript",
   "main": "worker.js",
   "devDependencies": {
-    "assemblyscript": "^0.27.1"
+    "assemblyscript": "^0.27.1",
+    "uwasi": "^1.6.0"
   },
   "scripts": {
-    "test": "node tests",
-    "asbuild:debug": "asc assembly/index.ts --target debug",
-    "asbuild:release": "asc assembly/index.ts --target release",
-    "asbuild": "npm run asbuild:debug && npm run asbuild:release",
+    "test": "npm run asbuild:wasi && node tests/wasi.mjs",
+    "asbuild:debug": "asc assembly/index.ts --target debug --use ScreenChar=assembly/host/ScreenChar --use KeyInChar=assembly/host/KeyInChar --use OutStr=assembly/host/OutStr",
+    "asbuild:release": "asc assembly/index.ts --target release --use ScreenChar=assembly/host/ScreenChar --use KeyInChar=assembly/host/KeyInChar --use OutStr=assembly/host/OutStr",
+    "asbuild:wasi": "asc assembly/wasi.ts --target wasi --use ScreenChar=assembly/wasiHost/ScreenChar --use KeyInChar=assembly/wasiHost/KeyInChar --use OutStr=assembly/wasiHost/OutStr",
+    "asbuild": "npm run asbuild:debug && npm run asbuild:release && npm run asbuild:wasi",
     "start": "npx serve ../assets"
   },
   "repository": {

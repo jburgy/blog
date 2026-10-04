@@ -78,6 +78,8 @@ What comes out, and where it comes from:
 | `/blog/fourt2py/web/` | [`fourt2py/web/`](fourt2py/web/) | shape a waveform's spectrum and hear `FOURT.F` transform it back, post forthcoming |
 | `/blog/lisp.worker.js` | [`lisp/assembly/`](lisp/assembly/) | [What do you mean, homoiconic?](https://bur.gy/2023/03/09/what-do-you-mean-homoiconic.html) |
 | `/blog/TinyBasic.worker.js` | [`TinyBasic/assembly/`](TinyBasic/assembly/) | [When did Basic become insulting?](https://bur.gy/2023/03/16/put-it-in-a-brandy-snifter.html) |
+| `/blog/lisp-wasi.wasm` | [`lisp/assembly/wasi.ts`](lisp/assembly/wasi.ts) (real WASI ABI, same `core.ts`) | not yet published -- see #128's pattern, applied here in a follow-up PR |
+| `/blog/TinyBasic-wasi.wasm` | [`TinyBasic/assembly/wasi.ts`](TinyBasic/assembly/wasi.ts) (real WASI ABI, same `core.ts`) | not yet published -- see #128's pattern, applied here in a follow-up PR |
 | `/blog/jonesforth.f` | the [`jonesforth`](jonesforth/) submodule | every Forth terminal |
 | `/blog/dist/`, `/blog/node_modules/` | the [`xterm-pty`](xterm-pty/) submodule and npm | every terminal |
 
@@ -89,8 +91,8 @@ Folders that feed a demo are marked ▶.
 | --- | :---: | --- |
 | [`forth/`](forth/) — [README](forth/README.md) | ▶ | Eleven jonesforth interpreters in C, Zig, Rust and hand-written wasm, catalogued by dispatch strategy. `4th.c`, `5th.c`, `6th.zig` and `wasm/jonesforth.wast` are the ones that ship |
 | [`regexp/`](regexp/) | ▶ | Thompson's 1968 construction, ported over and over: the original Algol 60, C (bytecode, threaded, switched, and a 32-bit JIT), Julia, Zig, Python and Forth. [`regexp/web/`](regexp/web/) is the browser demo, [`regexp/tracing/`](regexp/tracing/) — [README](regexp/tracing/README.md) — draws the animated snapshot |
-| [`lisp/`](lisp/) | ▶ | [sectorlisp](https://justine.lol/sectorlisp/) rewritten in AssemblyScript |
-| [`TinyBasic/`](TinyBasic/) | ▶ | Tiny BASIC's original IL virtual machine, plus a Python assembler for it and an AssemblyScript interpreter |
+| [`lisp/`](lisp/) | ▶ | [sectorlisp](https://justine.lol/sectorlisp/) rewritten in AssemblyScript. `assembly/core.ts` holds the interpreter; `host.ts`/`wasiHost.ts` give it either the original custom getchar/putchar host import or real WASI fd_read/fd_write (see `asc`'s `--use` flags in `package.json`), without duplicating `core.ts` |
+| [`TinyBasic/`](TinyBasic/) | ▶ | Tiny BASIC's original IL virtual machine, plus a Python assembler for it and an AssemblyScript interpreter, split into `core.ts`/`host.ts`/`wasiHost.ts` the same way as `lisp/` |
 | [`assets/`](assets/) | ▶ | The build and publish staging area described above |
 | [`simplex/`](simplex/) — [README](simplex/README.md) | | The NSWC `SMPLX` revised simplex solver: the Fortran, a NumPy transcription, an f2py wrapper and benchmarks |
 | [`linprog/`](linprog/) | | Linear-programming odds and ends around the same posts |
