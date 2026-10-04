@@ -81,26 +81,26 @@ guarantee from the compiler: `__attribute__((musttail))`, `@call(.always_tail)`,
 
 | source | language | strategy | wasm | toolkit | notes | native ms (range) / rank | Wasmtime ms (range) / rank |
 | --- | --- | --- | :---: | --- | --- | ---: | ---: |
-| [4th.c](4th.c) | C | labels as values | ✅ | Emscripten (`make 4th.js`) *and* wasi-sdk clang (`npm run build:4th`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | 70.8 (57.8-219.5) / 2 | 92.6 (79.3-181.3) / 3 |
-| [5th.c](5th.c) | C | tail calls | ✅ | Emscripten *and* wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 66.9 (58.4-128.0) / 1 | 284.7 (277.5-355.3) / 5 |
-| [jansforth.c](jansforth.c) | C | switch | — | — | Opcode enum, everything in one `memory[]` array | 93.0 (87.8-111.0) / 6 | — |
-| [recurse.c](recurse.c) | C | switch | — | — | `docol()` is the loop and recurses; return stack becomes a shadow stack | 96.2 (88.2-189.6) / 6 | — |
-| [6th.zig](6th.zig) | Zig | tail calls | ✅ | Emscripten *or* wasm32-wasi (`zig build -Dtarget=wasm32-wasi`, see build.zig's `buildWasi`) | `@call(.always_tail, primitives[code], ...)`; native result only | 89.1 (83.9-221.4) / 5 | — |
-| [jansforth.zig](jansforth.zig) | Zig | switch | — | — | `while (true) switch (op) { ... }`; dictionary generated like jansforth.rs's | 71.8 (65.1-104.3) / 2 | — |
-| [labeled.zig](labeled.zig) | Zig | labeled switch | — | — | jansforth.zig cell for cell; every prong `continue`s a labeled `switch` instead | 76.7 (65.7-88.2) / 4 | — |
+| [4th.c](4th.c) | C | labels as values | ✅ | wasi-sdk clang (`npm run build:4th`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | 58.1 (52.9-61.8) / 4 | 68.6 (58.5-82.0) / 3 |
+| [5th.c](5th.c) | C | tail calls | ✅ | wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 55.1 (49.7-58.8) / 1 | 233.8 (215.4-261.9) / 5 |
+| [jansforth.c](jansforth.c) | C | switch | — | — | Opcode enum, everything in one `memory[]` array | 75.4 (72.9-79.5) / 6 | — |
+| [recurse.c](recurse.c) | C | switch | — | — | `docol()` is the loop and recurses; return stack becomes a shadow stack | 76.4 (72.9-85.7) / 6 | — |
+| [6th.zig](6th.zig) | Zig | tail calls | ✅ | wasm32-wasi (`zig build -Dtarget=wasm32-wasi`, see build.zig's `buildWasi`) | `@call(.always_tail, primitives[code], ...)`; native result only | 70.4 (66.3-79.2) / 5 | — |
+| [jansforth.zig](jansforth.zig) | Zig | switch | — | — | `while (true) switch (op) { ... }`; dictionary generated like jansforth.rs's | 54.2 (51.2-63.8) / 1 | — |
+| [labeled.zig](labeled.zig) | Zig | labeled switch | — | — | jansforth.zig cell for cell; every prong `continue`s a labeled `switch` instead | 56.3 (51.1-75.6) / 1 | — |
 | [hybrid.zig](hybrid.zig) | Zig | labeled switch, hot prongs only | — | — | labeled.zig with the dispatch replicated for 37 hot opcodes; the rest share one site | — | — |
-| [4th.rs](4th.rs) | Rust | tail calls | ✅ | wasm32-wasip1 (Wasmtime, and uwasi in the browser) | Nightly `become`; every primitive returns `!` | 105.0 (94.5-114.8) / 9 | 490.5 (448.0-549.3) / 7 |
-| [jansforth.rs](jansforth.rs) | Rust | switch | — | — | Transcription of jansforth.c, run with `rust-script` | 94.3 (84.7-111.3) / 6 | — |
-| [wasm/tabulate.wast](wasm/tabulate.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | One big `br_table`, no indirect calls | — | 72.8 (68.7-110.3) / 1 |
-| [wasm/recurse.wast](wasm/recurse.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | Tabulate with a recursive `$docol`; colon-word returns live on the wasm call stack | — | 76.1 (64.2-87.5) / 2 |
-| [wasm/jonesforth.wast](wasm/jonesforth.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | `return_call_indirect`; state in globals | — | 303.2 (287.7-371.3) / 6 |
-| [wasm/localize.wast](wasm/localize.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | Same, with `cfa`/`ip`/`sp`/`rsp` passed as parameters | — | 268.0 (241.3-391.6) / 4 |
+| [4th.rs](4th.rs) | Rust | tail calls | ✅ | wasm32-wasip1 (Wasmtime, and uwasi in the browser) | Nightly `become`; every primitive returns `!` | 82.0 (77.7-90.7) / 8 | 397.1 (346.0-441.2) / 7 |
+| [jansforth.rs](jansforth.rs) | Rust | switch | — | — | Transcription of jansforth.c, run with `rust-script` | 79.7 (73.0-90.3) / 8 | — |
+| [wasm/tabulate.wast](wasm/tabulate.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | One big `br_table`, no indirect calls | — | 58.7 (53.8-71.5) / 1 |
+| [wasm/recurse.wast](wasm/recurse.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | Tabulate with a recursive `$docol`; colon-word returns live on the wasm call stack | — | 61.3 (51.4-67.5) / 2 |
+| [wasm/jonesforth.wast](wasm/jonesforth.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | `return_call_indirect`; state in globals | — | 276.1 (224.7-326.2) / 6 |
+| [wasm/localize.wast](wasm/localize.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | Same, with `cfa`/`ip`/`sp`/`rsp` passed as parameters | — | 222.2 (196.4-233.6) / 4 |
 | [jonesforth.S](../jonesforth/jonesforth.S) | x86 assembly | indirect threaded | — | Linux/i386 | Requires Linux on x86; not runnable on this macOS/arm64 host | N/R | — |
 
 ## Benchmarks
 
 Measured on macOS/arm64 with Apple clang 21.0.0, Rust nightly 1.101.0,
-Zig 0.15.2, Emscripten 6.0.2, WABT 1.0.39, and Wasmtime 49.0.1.
+Zig 0.15.2, wasi-sdk 34.0, WABT 1.0.39, and Wasmtime 49.0.1.
 Lower times are faster. Native and Wasmtime ranks are separate; medians within
 3% are tied.
 
@@ -111,7 +111,7 @@ The benchmark loads the definitions from [`fibonacci.fs`](../talks/fibonacci.fs)
 its fast-doubling `FIBONACCI` word 100,000 times at `n=46`, then checks the
 result against `1836311903`. Using 46 keeps the result in range for the
 32-bit-cell implementations. The Wasmtime column includes the hand-written
-`.wast` files, standalone Emscripten builds of `4th.c` and `5th.c`, and the
+`.wast` files, standalone wasi-sdk builds of `4th.c` and `5th.c`, and the
 Rust `wasm32-wasip1` build. Wasmtime modules were compiled once at optimization
 level 2 and run as precompiled modules with tail calls and exceptions enabled;
 module compilation is excluded, while process/runtime startup is included.
@@ -156,24 +156,23 @@ Run `python3 benchmark.py` from this directory to rebuild the native and Wasm
 targets in a temporary directory, validate each result, and print medians,
 ranges, and individual timings.
 The script accepts `--iterations`, `--trials`, and `--timeout` overrides; it
-requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
-`rust-src`, Zig, WABT, and Wasmtime.
+requires clang, wasi-sdk (`WASI_SDK_PATH` set, see
+bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
+`wasm32-wasip1` target and `rust-src`, Zig, WABT, and Wasmtime.
 
 ### Toolkits, briefly
 
-- **Emscripten** — full libc and a POSIX-ish runtime, paired here with
-  [xterm-pty](https://github.com/mame/xterm-pty) for a real terminal. Emits a
-  `.mjs` loader beside the `.wasm`. `4th.c`/`5th.c`/`6th.zig` can all still
-  target it (`assets/Makefile`'s `4th.mjs`/`5th.mjs`/`6th.mjs` rules), kept
-  only because the already-published posts
+- **wasi-sdk clang** — plain `wasm32-wasip1`, no JS glue; the artifacts are
+  bare `4th.wasm`/`5th.wasm` (`npm run build:4th`/`build`), and
+  [benchmark.py](benchmark.py) builds the same way (with `-O3`) for its own
+  Wasmtime comparison. The three published posts
   ([what-forth-again](https://bur.gy/2023/02/24/what-forth-again.html),
   [tail-recursion](https://bur.gy/2024/03/29/tail-recursion.html),
-  [why-not-zig](https://bur.gy/2024/08/31/why-not-zig.html)) hardcode it
-  directly. None of [html/4th.html](html/4th.html), [html/5th.html](html/5th.html),
-  or [html/6th.html](html/6th.html) use it anymore: see wasi-sdk/wasm32-wasi
-  below.
-- **wasi-sdk clang** — plain `wasm32-wasip1`, no JS glue; the artifacts are
-  bare `4th.wasm`/`5th.wasm` (`npm run build:4th`/`build`). Driven by
+  [why-not-zig](https://bur.gy/2024/08/31/why-not-zig.html)) used to hardcode
+  Emscripten's `.mjs` loader + xterm-pty directly; they now use
+  `wasi-repl.mjs` against `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm`
+  instead, same as [html/4th.html](html/4th.html), [html/5th.html](html/5th.html),
+  and [html/6th.html](html/6th.html) below. Driven by
   [uwasi](https://github.com/kateinoigakukun/uwasi) both in
   [web/4th.test.ts](web/4th.test.ts) (a finite, scripted stdin, alongside the
   same primitive-wordset matrix run against the Rust `web/4th.wasm`) and in

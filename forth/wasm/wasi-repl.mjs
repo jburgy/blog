@@ -8,7 +8,7 @@
 // xterm-pty demos (see those posts' own hardcoded scripts and
 // forth/README.md's "Toolkits, briefly" section). Named to pair with
 // wasi-worker.js: that's the Worker side, this is the main-thread side.
-import "./node_modules/@xterm/xterm/lib/xterm.js";
+import { Terminal } from "https://esm.sh/@xterm/xterm@5.5.0";
 import { Readline } from "https://esm.sh/xterm-readline@1.1.2";
 import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
 
