@@ -49,8 +49,34 @@ code_##_label
 
 #define STACK_SIZE (0x4000 / __SIZEOF_POINTER__) /* Number of elements in each stack */
 
-#ifdef EMSCRIPTEN
+#if defined(EMSCRIPTEN) || defined(__wasi__)
 #include <stdarg.h>
+
+#ifdef __wasi__
+/* wasi-libc has sbrk() (relative growth) but not Linux's brk() (absolute
+ * address), which 4th.fs's BRK/MORECORE words need (see GET-BRK + cells).
+ * Emulate it the classic way: ask sbrk() for the delta from the current
+ * break to the requested absolute address. wasi-libc's sbrk() additionally
+ * only accepts exact multiples of the wasm page size (65536 bytes) -- any
+ * other delta hits an internal abort() instead of failing gracefully -- so
+ * round the request up to a full page, same as 4th.fs's own MORECORE
+ * comment already assumes real Linux brk(2) does ("Linux can't extend the
+ * data segment by less than a single page"). Shrinking (addr below the
+ * current break) isn't supported: wasm linear memory can only grow, never
+ * shrink, so this fails explicitly rather than rounding a negative delta
+ * into a silent, misleading no-op success. 4th.fs's only caller, MORECORE,
+ * never shrinks.
+ */
+#define WASM_PAGE_SIZE 0x10000
+static int brk(void *addr)
+{
+    intptr_t delta = (intptr_t)addr - (intptr_t)sbrk(0);
+    if (delta < 0)
+        return -1;
+    delta = (delta + WASM_PAGE_SIZE - 1) & ~(WASM_PAGE_SIZE - 1);
+    return delta && sbrk(delta) == (void *)-1 ? -1 : 0;
+}
+#endif
 
 /* https://github.com/emscripten-core/emscripten/issues/6708 */
 enum SYS {SYS_read, SYS_write, SYS_open, SYS_close, SYS_brk=0x0c, SYS_exit=0x3c, SYS_creat=0x55};

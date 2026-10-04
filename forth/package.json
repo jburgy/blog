@@ -12,9 +12,11 @@
   },
   "scripts": {
     "build": "${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DEMSCRIPTEN -mtail-call -o 5th.wasm 5th.c",
+    "build:4th": "${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -o 4th.wasm 4th.c",
     "build:6th:web": "zig build -Dtarget=wasm32-emscripten -Dcpu=baseline+atomics+bulk_memory+tail_call",
-    "test": "npm run build && npm run test:node && npm run test:browser && rm -f 5th.wasm",
-    "test:browser": "npm run build:6th:web && node --test browser/6th.browser.mjs",
+    "build:6th:wasi": "zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call",
+    "test": "npm run build && npm run build:4th && npm run test:node && npm run test:browser && rm -f 4th.wasm 5th.wasm",
+    "test:browser": "npm run build:6th:wasi && node --test browser/4th.browser.mjs browser/5th.browser.mjs browser/6th.browser.mjs",
     "test:node": "vitest run --coverage",
     "test:web": "vitest run web/"
   },
