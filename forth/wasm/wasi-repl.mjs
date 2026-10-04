@@ -16,10 +16,17 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
 
 /**
  * @param {string} wasmUrl
- * @param {string | URL} [preambleUrl] defaults to the shared 4th.32.fs
+ * @param {string | URL | null} [preambleUrl] defaults to the shared 4th.32.fs
  *   dictionary (4th.c/5th.c/6th.zig); pass jonesforth.wasm's own
  *   `jonesforth.f` (a different address width, not a different protocol)
- *   to drive that interpreter instead.
+ *   to drive that interpreter instead, or explicit `null` for a WASI
+ *   command with no use for either (e.g. lisp-wasi.wasm/TinyBasic-wasi.wasm,
+ *   see jburgy.github.io's lisp/TinyBasic posts) -- omitting the argument
+ *   still gets the 4th.32.fs default, so every existing caller is
+ *   unaffected; only `null` explicitly opts all the way out. Verified
+ *   against real builds of both: feeding either the FORTH preamble as
+ *   typed input produces thousands of lines of garbage (parse errors /
+ *   IL-dump spam) before the interpreter ever reaches its own prompt.
  * @returns {{ term: Terminal, sendLine: (text: string) => void, getOutput: () => string, dispose: () => void }}
  *   `sendLine`/`getOutput` let a test drive the REPL deterministically
  *   (see wasi-repl-mocha.mjs). `sendLine` uses xterm.js's own `paste()` to
@@ -83,8 +90,10 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
         if (disposed) return;
         switch (type) {
             case "ready": {
-                const response = await fetch(preambleUrl);
-                channel.push(new Uint8Array(await response.arrayBuffer()));
+                if (preambleUrl) {
+                    const response = await fetch(preambleUrl);
+                    channel.push(new Uint8Array(await response.arrayBuffer()));
+                }
                 readLine();
                 break;
             }
