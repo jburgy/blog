@@ -14,6 +14,13 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
 
 /**
  * @param {string} wasmUrl
+ * @param {string} [preambleUrl] fed to the channel before the first prompt,
+ *   resolved against this module's own URL (e.g. "./forth/4th.32.fs"). Only
+ *   4th.c/5th.c/6th.zig share jonesforth.f's dictionary and expect it; other
+ *   WASI commands (e.g. lisp-wasi.wasm/TinyBasic-wasi.wasm) have no use for
+ *   it and must omit it, since feeding them FORTH source as if it were typed
+ *   input makes them choke on every line (verified: thousands of garbage
+ *   error lines before either interpreter ever reaches its own prompt).
  * @returns {{ term: Terminal, sendLine: (text: string) => void, getOutput: () => string }}
  *   `sendLine`/`getOutput` let a test drive the REPL deterministically
  *   (see wasi-repl-mocha.mjs). `sendLine` uses xterm.js's own `paste()` to
@@ -23,7 +30,7 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
  *   multi-character paste into a literal "\n" (no accidental paste-and-run),
  *   so only a lone, single-character paste of "\r" takes the submit path.
  */
-export function startRepl(wasmUrl) {
+export function startRepl(wasmUrl, preambleUrl) {
     const xterm = new Terminal();
     const rl = new Readline();
     xterm.loadAddon(rl);
@@ -72,8 +79,10 @@ export function startRepl(wasmUrl) {
     worker.addEventListener("message", async ({ data: { type, fd, data, code, message } }) => {
         switch (type) {
             case "ready": {
-                const response = await fetch(new URL("./forth/4th.32.fs", import.meta.url));
-                channel.push(new Uint8Array(await response.arrayBuffer()));
+                if (preambleUrl) {
+                    const response = await fetch(new URL(preambleUrl, import.meta.url));
+                    channel.push(new Uint8Array(await response.arrayBuffer()));
+                }
                 readLine();
                 break;
             }

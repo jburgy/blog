@@ -26,6 +26,10 @@ function waitFor(predicate, timeout = 60000, interval = 100) {
  * @param {object} options
  * @param {string} options.name e.g. "6th" -- used for the suite's own description
  * @param {string} options.wasmUrl e.g. "/assets/6th.wasm"
+ * @param {string} [options.preambleUrl] forwarded to startRepl; defaults to
+ *   the shared jonesforth.f dictionary since this helper is only ever used
+ *   by the 4th/5th/6th pages (see this file's own header comment) -- they
+ *   all need it, unlike startRepl's own generic default of none.
  * @param {string} [options.expected] text that must appear in the output after `command`;
  *   defaults to QUIT's decompile, since 4th.c/5th.c/6th.zig all share the same 4th.32.fs dictionary
  * @param {string} [options.command] defaults to "SEE QUIT"
@@ -33,6 +37,7 @@ function waitFor(predicate, timeout = 60000, interval = 100) {
 export function registerWasiReplSpec({
     name,
     wasmUrl,
+    preambleUrl = "./forth/4th.32.fs",
     expected = ": QUIT R0 RSP! INTERPRET BRANCH ( -8 ) ;",
     command = "SEE QUIT",
 }) {
@@ -41,7 +46,7 @@ export function registerWasiReplSpec({
         let repl;
 
         before(async () => {
-            repl = startRepl(wasmUrl);
+            repl = startRepl(wasmUrl, preambleUrl);
             await waitFor(() => repl.getOutput().includes("JONESFORTH VERSION"));
         });
 
