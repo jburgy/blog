@@ -36,7 +36,7 @@ jburgy/blog       --Pages -->  https://bur.gy/blog/       (the demos)
 
 1. **[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)** runs on
    every push to `main` (and builds, without deploying, on pull requests). It
-   checks out submodules, installs node, `emsdk` and `uv`, then runs
+   checks out submodules, installs node, `emsdk`, wasi-sdk and `uv`, then runs
    `make --jobs=4` in [`assets/`](assets/).
 2. `actions/upload-pages-artifact` takes the whole of `assets/` as-is and
    `actions/deploy-pages` publishes it. **Nothing outside `assets/` is ever
@@ -60,7 +60,7 @@ what is checked in is the recipe:
 
 | file | what it does |
 | --- | --- |
-| [`assets/Makefile`](assets/Makefile) | the whole build. `VPATH = ../forth`, so it reaches back into sibling folders rather than duplicating their sources: `emcc` for the C and Zig interpreters, `wat2wasm` for the hand-written wasm, `asc` for the AssemblyScript ones, and plain `cp` for data files like `jonesforth.f` |
+| [`assets/Makefile`](assets/Makefile) | the whole build. `VPATH = ../forth`, so it reaches back into sibling folders rather than duplicating their sources: `emcc` for the C and Zig interpreters' published (`.mjs`) builds, wasi-sdk/`uvx`+`python-zig` for their `.wasm` ones (no pty, not referenced by the published posts yet — see the table below), `wat2wasm` for the hand-written wasm, `asc` for the AssemblyScript ones, and plain `cp` for data files like `jonesforth.f` |
 | [`assets/package.json`](assets/package.json) | pulls in `@xterm/xterm` and `xterm-pty` (which the posts import straight out of `/blog/node_modules/`) and wraps the AssemblyScript builds |
 | [`assets/tsdown.config.ts`](assets/tsdown.config.ts) | bundles the `xterm-pty` submodule's `ttyClient`/`ttyServer` into `dist/`, which the site's `terminal.html` include imports |
 | [`assets/lisp.html`](assets/lisp.html), [`assets/TinyBasic.html`](assets/TinyBasic.html), `*.worker.js` | the standalone pages and worker entry points for the AssemblyScript demos |
@@ -70,9 +70,12 @@ What comes out, and where it comes from:
 
 | published as | built from | seen in |
 | --- | --- | --- |
-| `/blog/4th.mjs` | [`forth/4th.c`](forth/4th.c) | [What, Forth, Again?](https://bur.gy/2023/02/24/what-forth-again.html) |
-| `/blog/5th.mjs` | [`forth/5th.c`](forth/5th.c) | [What is Tail Call Elimination?](https://bur.gy/2024/03/29/tail-recursion.html) |
-| `/blog/6th.mjs` | [`forth/6th.zig`](forth/6th.zig) | [Why not try Zig next?](https://bur.gy/2024/08/31/why-not-zig.html) |
+| `/blog/4th.mjs` | [`forth/4th.c`](forth/4th.c) (Emscripten target) | [What, Forth, Again?](https://bur.gy/2023/02/24/what-forth-again.html), as published |
+| `/blog/4th.wasm` | [`forth/4th.c`](forth/4th.c) (wasi-sdk target) | [forth/html/4th.html](forth/html/4th.html) — no pty, not referenced by the published post yet |
+| `/blog/5th.mjs` | [`forth/5th.c`](forth/5th.c) (Emscripten target) | [What is Tail Call Elimination?](https://bur.gy/2024/03/29/tail-recursion.html), as published |
+| `/blog/5th.wasm` | [`forth/5th.c`](forth/5th.c) (wasi-sdk target) | [forth/html/5th.html](forth/html/5th.html) — no pty, not referenced by the published post yet |
+| `/blog/6th.mjs` | [`forth/6th.zig`](forth/6th.zig) (Emscripten target) | [Why not try Zig next?](https://bur.gy/2024/08/31/why-not-zig.html), as published |
+| `/blog/6th.wasm` | [`forth/6th.zig`](forth/6th.zig) (`wasm32-wasi` target) | [forth/html/6th.html](forth/html/6th.html) — no pty, not referenced by the published post yet |
 | `/blog/jonesforth.wasm` | [`forth/wasm/jonesforth.wast`](forth/wasm/jonesforth.wast) | [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html) |
 | `/blog/regexp/web/` | [`regexp/web/`](regexp/web/) + [`forth/wasm/tabulate.wast`](forth/wasm/tabulate.wast) | [What Makes an Expression Regular?](https://bur.gy/2026/09/24/what-makes-an-expression-regular.html) |
 | `/blog/fourt2py/web/` | [`fourt2py/web/`](fourt2py/web/) | shape a waveform's spectrum and hear `FOURT.F` transform it back, post forthcoming |

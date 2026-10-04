@@ -81,7 +81,7 @@ guarantee from the compiler: `__attribute__((musttail))`, `@call(.always_tail)`,
 
 | source | language | strategy | wasm | toolkit | notes | native ms (range) / rank | Wasmtime ms (range) / rank |
 | --- | --- | --- | :---: | --- | --- | ---: | ---: |
-| [4th.c](4th.c) | C | labels as values | ✅ | Emscripten (`make 4th.js`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | 70.8 (57.8-219.5) / 2 | 92.6 (79.3-181.3) / 3 |
+| [4th.c](4th.c) | C | labels as values | ✅ | Emscripten (`make 4th.js`) *and* wasi-sdk clang (`npm run build:4th`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | 70.8 (57.8-219.5) / 2 | 92.6 (79.3-181.3) / 3 |
 | [5th.c](5th.c) | C | tail calls | ✅ | Emscripten *and* wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 66.9 (58.4-128.0) / 1 | 284.7 (277.5-355.3) / 5 |
 | [jansforth.c](jansforth.c) | C | switch | — | — | Opcode enum, everything in one `memory[]` array | 93.0 (87.8-111.0) / 6 | — |
 | [recurse.c](recurse.c) | C | switch | — | — | `docol()` is the loop and recurses; return stack becomes a shadow stack | 96.2 (88.2-189.6) / 6 | — |
@@ -162,18 +162,44 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 ### Toolkits, briefly
 
 - **Emscripten** — full libc and a POSIX-ish runtime, paired here with
-  [xterm-pty](https://github.com/mame/xterm-pty) so the pages in [html/](html/)
-  get a real terminal. Emits a `.mjs` loader beside the `.wasm`.
-- **wasi-sdk clang** — plain `wasm32-wasip1`, no JS glue; the artifact is a
-  bare `5th.wasm`. Driven by [uwasi](https://github.com/kateinoigakukun/uwasi)
-  both in [web/4th.test.ts](web/4th.test.ts) (a finite, scripted stdin,
-  alongside the same primitive-wordset matrix run against `4th.wasm`) and in
+  [xterm-pty](https://github.com/mame/xterm-pty) for a real terminal. Emits a
+  `.mjs` loader beside the `.wasm`. `4th.c`/`5th.c`/`6th.zig` can all still
+  target it (`assets/Makefile`'s `4th.mjs`/`5th.mjs`/`6th.mjs` rules), kept
+  only because the already-published posts
+  ([what-forth-again](https://bur.gy/2023/02/24/what-forth-again.html),
+  [tail-recursion](https://bur.gy/2024/03/29/tail-recursion.html),
+  [why-not-zig](https://bur.gy/2024/08/31/why-not-zig.html)) hardcode it
+  directly. None of [html/4th.html](html/4th.html), [html/5th.html](html/5th.html),
+  or [html/6th.html](html/6th.html) use it anymore: see wasi-sdk/wasm32-wasi
+  below.
+- **wasi-sdk clang** — plain `wasm32-wasip1`, no JS glue; the artifacts are
+  bare `4th.wasm`/`5th.wasm` (`npm run build:4th`/`build`). Driven by
+  [uwasi](https://github.com/kateinoigakukun/uwasi) both in
+  [web/4th.test.ts](web/4th.test.ts) (a finite, scripted stdin, alongside the
+  same primitive-wordset matrix run against the Rust `web/4th.wasm`) and in
   the browser, where [wasm/wasi-worker.js](wasm/wasi-worker.js) backs stdin
   with a `SharedInputChannel` so `read()` genuinely blocks instead of seeing
-  EOF.
+  EOF -- what [html/4th.html](html/4th.html) and [html/5th.html](html/5th.html)
+  actually run. `4th.c`'s `brk(2)` shim (its `BRK`/`MORECORE` words pass an
+  absolute address, but wasi-libc's `sbrk()` only does relative growth, and
+  only in exact wasm-page multiples) is the one piece of source this needed;
+  `5th.c` calls `sbrk()` directly already, though its own `SYS_brk` path
+  (unlike `4th.c`'s) isn't exercised by any test here, this change included.
 - **Zig `wasm32-wasi`** — `6th.zig`'s other wasm target (`build.zig`'s
   `buildWasi`), no `emcc` step: zig's own linker produces the standalone
-  command directly. Shares `wasi-worker.js` with `5th.wasm` above.
+  command directly. Shares `wasi-worker.js` with `4th.wasm`/`5th.wasm` above,
+  and is what [html/6th.html](html/6th.html) actually runs -- no pty, no
+  xterm-pty; [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs) (`startRepl(wasmUrl)`)
+  does the line editing against `xterm.js`, shared by `html/4th.html`,
+  `html/5th.html`, and `html/6th.html`, and published standalone via
+  `assets/Makefile`'s own `wasi-repl.mjs` target -- not just a side effect of
+  building `4th.wasm`/`5th.wasm`/`6th.wasm` -- so a future post revision can
+  hardcode `/blog/wasi-repl.mjs` directly, the same way the jonesforth post
+  already hardcodes `/blog/main.js`. Each page also loads mocha from a CDN
+  and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
+  live REPL (`startRepl`'s return value, not simulated keystrokes) -- a human
+  visiting the page gets the same pass/fail report CI reads headless (see
+  `npm run test:browser` above).
 - **Rust `wasm32-wasip1`** — two profiles, because [4th.rs](4th.rs) halts by
   panicking: `make test-wasm` rebuilds `std` with `panic_unwind` for wasmtime,
   while `make web` swaps the panic for a host throw so the browser build in
@@ -212,8 +238,8 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 | --- | --- |
 | `make` | 4th, 5th, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and both Rust binaries |
 | `pytest forth/` | [test_4th.py](test_4th.py) (native) only — [test_4th_wasm.py](test_4th_wasm.py) is excluded, supplanted by `web/4th.test.ts` |
-| `npm test` | builds `5th.wasm` with wasi-sdk, runs every vitest suite, then builds `6th.mjs` with Zig + Emscripten and drives [html/6th.html](html/6th.html) in Chromium |
-| `npm run test:browser` | [browser/6th.browser.mjs](browser/6th.browser.mjs): serves the real `6th.html` demo, types `SEE QUIT`, and checks the rendered decompiled `QUIT` definition |
+| `npm test` | builds `4th.wasm`/`5th.wasm` with wasi-sdk and `6th.wasm` with Zig's `wasm32-wasi` target, runs every vitest suite, then drives [html/4th.html](html/4th.html)/[html/5th.html](html/5th.html)/[html/6th.html](html/6th.html) headless (`mocha-headless-chrome`, same tool `regexp/web` already uses) |
+| `npm run test:browser` | [browser/wasi-repl.browser.mjs](browser/wasi-repl.browser.mjs) (shared harness: [browser/wasi-demo.mjs](browser/wasi-demo.mjs)): serves each real `<n>th.html` demo and checks that its own in-page mocha spec ([wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs), loaded from the page itself, same as a human visiting it would see) passed |
 | `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) — the browser demo, driven in node; also covers `5th.wasm` if it's already been built, skipped otherwise |
 | `make test-wasm` | [4th.rs](4th.rs) under wasmtime with `-W exceptions=y` |
 

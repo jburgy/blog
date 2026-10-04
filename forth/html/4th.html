@@ -1,31 +1,33 @@
 <html>
 
-<!-- see https://github.com/mame/xterm-pty#emscripten-integration -->
+<!-- No Emscripten/xterm-pty here, unlike the published https://bur.gy/2023/02/24/what-forth-again.html
+     post, which still hardcodes /blog/4th.mjs + xterm-pty: 4th.c's wasi-sdk
+     build (forth/package.json's build:4th script) is a plain WASI command,
+     driven the same way as jonesforth.wasm (see wasm/worker.js and the "How
+     Many Roads Must a Man Walk Down?" post) -- a Worker blocks stdin on a
+     uwasi SharedInputChannel instead of a real pty. wasm/wasi-repl.mjs
+     (shared by html/4th.html, html/5th.html, html/6th.html) does the line
+     editing. This page is dual-purpose -- demo and test -- so it also loads
+     mocha from a CDN (same version regexp/web uses locally) and runs
+     wasm/wasi-repl-mocha.mjs's SEE QUIT check against the live REPL; a human
+     visiting the page sees its pass/fail report below the terminal, and CI
+     (see browser/wasi-demo.mjs) drives it headless. -->
 
 <head>
     <title>demo</title>
     <link rel="stylesheet" href="/assets/node_modules/@xterm/xterm/css/xterm.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mocha@12.0.3/mocha.css">
 </head>
 
 <body>
     <div id="terminal"></div>
+    <div id="mocha"></div>
+    <script src="https://cdn.jsdelivr.net/npm/mocha@12.0.3/mocha.js"></script>
+    <script>mocha.setup({ ui: "bdd", timeout: 60000 });</script>
     <script type="module">
-        import "/assets/node_modules/@xterm/xterm/lib/xterm.js";
-        import { openpty } from "/assets/node_modules/xterm-pty/index.mjs";
-        import initEmscripten from "/assets/4th.mjs";
-
-        const xterm = new Terminal();
-        xterm.open(document.getElementById("terminal"));
-
-        const { master, slave } = openpty();
-        xterm.loadAddon(master);
-
-        const response = await fetch("/assets/jonesforth.f");
-        const preamble = new Uint8Array(await response.arrayBuffer());
-        slave.ldisc.toUpperBuf.push(...preamble);
-
-        await initEmscripten({ pty: slave });
-        slave.ldisc.flushToUpper();
+        import { registerWasiReplSpec } from "/assets/wasi-repl-mocha.mjs";
+        registerWasiReplSpec({ name: "4th", wasmUrl: "/assets/4th.wasm" });
+        mocha.run();
     </script>
 </body>
 
