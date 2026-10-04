@@ -44,17 +44,17 @@ lib6th.a : 6th.zig
 # Emscripten's xterm-pty integration, so no --js-library/pthread glue is
 # needed here. See build.zig's buildWasi and forth/README.md. uvx/python-zig,
 # not a bare `zig build`, same as lib%.a above: deploy.yml has no system zig.
-6th.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js forth/4th.32.fs
+6th.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js demo.js forth/4th.32.fs
 	cd ../forth && uvx --from ziglang==0.15.2 python-zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call
 	cp ../forth/zig-out/web/wasi/6th.wasm $@
 
 # wasi-sdk clang (set up in deploy.yml by bytecodealliance/setup-wasi-sdk-action,
 # same action javascript.yml's forth job already uses), no emcc: html/4th.html
 # and html/5th.html drive these the same way as 6th.wasm above.
-4th.wasm : ../forth/4th.c worker.js wasi-worker.js forth/4th.32.fs
+4th.wasm : ../forth/4th.c worker.js wasi-worker.js demo.js forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -o $@ $<
 
-5th.wasm : ../forth/5th.c worker.js wasi-worker.js forth/4th.32.fs
+5th.wasm : ../forth/5th.c worker.js wasi-worker.js demo.js forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DEMSCRIPTEN -mtail-call -o $@ $<
 
 regexp : $(REGEXP) regexp/web/forth.wasm forth/4th.32.fs
@@ -108,4 +108,4 @@ serve-e2e :
 .PHONY : regexp fourt2py serve-e2e
 
 clean :
-	rm -rf *.o *.a *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py
+	rm -rf *.o *.a *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js wasi-worker.js demo.js regexp forth fourt2py

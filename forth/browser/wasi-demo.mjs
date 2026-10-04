@@ -1,18 +1,19 @@
-// Shared puppeteer harness for the wasi-worker.js browser demos (4th, 5th,
+// Shared puppeteer helper for the wasi-worker.js browser demos (4th, 5th,
 // 6th): boots html/<name>.html in a real headless Chromium behind a local
 // server (COOP/COEP headers, same as GitHub Pages' sw.js workaround), types
-// a command, and checks the rendered terminal. Parametrized per interpreter
-// by its own <name>.browser.mjs -- see 4th.browser.mjs/5th.browser.mjs/
-// 6th.browser.mjs -- since the harness itself (server, terminal hook,
-// worker.js/wasi-worker.js/4th.32.fs asset wiring) is identical across all
-// three; only the wasm binary and expected output differ.
+// a command, and checks the rendered terminal. No `node:test` imports here
+// on purpose -- same convention as ../wasm-test.ts: this module only exports
+// the reusable check; each <name>.browser.mjs owns its own `test(...)` call
+// (see 4th.browser.mjs/5th.browser.mjs/6th.browser.mjs), since the harness
+// itself (server, terminal hook, worker.js/wasi-worker.js/4th.32.fs asset
+// wiring) is identical across all three -- only the wasm binary and expected
+// output differ.
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { after, before, test } from "node:test";
 import puppeteer from "puppeteer";
 
 const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
@@ -96,16 +97,7 @@ function diagnostics(page) {
     }));
 }
 
-/**
- * @param {object} options
- * @param {string} options.name e.g. "6th" -- serves wasmFilePath at /assets/<name>.wasm
- * @param {string} options.wasmFilePath absolute path to the built .wasm
- * @param {string} options.expected text that must appear in the terminal after `command`
- * @param {string} [options.command] defaults to "SEE QUIT"
- */
-export function describeWasiDemo({ name, wasmFilePath, expected, command = "SEE QUIT" }) {
-    const htmlPath = `/forth/html/${name}.html`;
-
+async function startServer({ name, wasmFilePath, htmlPath }) {
     function assetPath(pathname) {
         if (pathname.startsWith(`${assetRoot}node_modules/`)) {
             return join(root, "forth", "node_modules", pathname.slice(`${assetRoot}node_modules/`.length));
@@ -113,7 +105,7 @@ export function describeWasiDemo({ name, wasmFilePath, expected, command = "SEE 
         if (pathname === `${assetRoot}${name}.wasm`) {
             return wasmFilePath;
         }
-        if (pathname === `${assetRoot}worker.js` || pathname === `${assetRoot}wasi-worker.js`) {
+        if (pathname === `${assetRoot}worker.js` || pathname === `${assetRoot}wasi-worker.js` || pathname === `${assetRoot}demo.js`) {
             return join(root, "forth", "wasm", pathname.slice(assetRoot.length));
         }
         if (pathname === `${assetRoot}forth/4th.32.fs`) {
@@ -130,55 +122,62 @@ export function describeWasiDemo({ name, wasmFilePath, expected, command = "SEE 
         return join(root, relative);
     }
 
-    async function startServer() {
-        const server = createServer(async (req, res) => {
-            try {
-                const url = new URL(req.url ?? "/", "http://127.0.0.1");
-                const pathname = url.pathname === "/" ? htmlPath : url.pathname;
-                const path = filePath(pathname);
-                if (!path) {
-                    res.writeHead(404).end("not found");
-                    return;
-                }
-                const body = await readFile(path);
-                res.writeHead(200, { ...sharedHeaders, "content-type": contentType(pathname) });
-                res.end(body);
-            } catch {
-                res.writeHead(404, sharedHeaders).end("not found");
+    const server = createServer(async (req, res) => {
+        try {
+            const url = new URL(req.url ?? "/", "http://127.0.0.1");
+            const pathname = url.pathname === "/" ? htmlPath : url.pathname;
+            const path = filePath(pathname);
+            if (!path) {
+                res.writeHead(404).end("not found");
+                return;
             }
-        });
-        server.listen(0, "localhost");
-        await once(server, "listening");
-        const { port } = server.address();
-        return {
-            origin: `http://localhost:${port}`,
-            async close() {
-                server.closeAllConnections();
-                server.close();
-                await once(server, "close");
-            },
-        };
-    }
-
-    let browser;
-    let server;
-
-    before(async () => {
-        server = await startServer();
-        browser = await puppeteer.launch({
-            headless: true,
-            args: process.platform === "linux"
-                ? ["--no-sandbox", "--enable-features=SharedArrayBuffer"]
-                : [],
-        });
+            const body = await readFile(path);
+            res.writeHead(200, { ...sharedHeaders, "content-type": contentType(pathname) });
+            res.end(body);
+        } catch {
+            res.writeHead(404, sharedHeaders).end("not found");
+        }
     });
+    server.listen(0, "localhost");
+    await once(server, "listening");
+    const { port } = server.address();
+    return {
+        origin: `http://localhost:${port}`,
+        async close() {
+            server.closeAllConnections();
+            server.close();
+            await once(server, "close");
+        },
+    };
+}
 
-    after(async () => {
-        await browser?.close();
-        await server?.close();
+/**
+ * Drives html/<name>.html in a real browser: types `command` and asserts
+ * `expected` shows up in the rendered terminal. Call this from inside your
+ * own `test(...)` (see node:test) -- it owns no test registration itself.
+ *
+ * @param {object} options
+ * @param {string} options.name e.g. "6th" -- serves wasmFilePath at /assets/<name>.wasm and html/<name>.html
+ * @param {string} options.wasmFilePath absolute path to the built .wasm
+ * @param {string} [options.expected] text that must appear in the terminal after `command`;
+ *   defaults to QUIT's decompile, since 4th.c/5th.c/6th.zig all share the same 4th.32.fs dictionary
+ * @param {string} [options.command] defaults to "SEE QUIT"
+ */
+export async function checkWasiDemo({
+    name,
+    wasmFilePath,
+    expected = ": QUIT R0 RSP! INTERPRET BRANCH ( -8 ) ;",
+    command = "SEE QUIT",
+}) {
+    const htmlPath = `/forth/html/${name}.html`;
+    const server = await startServer({ name, wasmFilePath, htmlPath });
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: process.platform === "linux"
+            ? ["--no-sandbox", "--enable-features=SharedArrayBuffer"]
+            : [],
     });
-
-    test(`${command} works in the ${name} browser demo`, { timeout: 120_000 }, async () => {
+    try {
         const page = await browser.newPage();
         await installTerminalHook(page);
         page.on("console", (message) => {
@@ -212,5 +211,8 @@ export function describeWasiDemo({ name, wasmFilePath, expected, command = "SEE 
         const text = await terminalText(page);
         assert.match(text, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
         await page.close();
-    });
+    } finally {
+        await browser.close();
+        await server.close();
+    }
 }

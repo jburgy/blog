@@ -164,9 +164,8 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 - **Emscripten** — full libc and a POSIX-ish runtime, paired here with
   [xterm-pty](https://github.com/mame/xterm-pty) for a real terminal. Emits a
   `.mjs` loader beside the `.wasm`. `4th.c`/`5th.c`/`6th.zig` can all still
-  target it (`assets/Makefile`'s `4th.mjs`/`5th.mjs`/`6th.mjs` rules, and
-  `6th.zig`'s own `npm run build:6th:web`), kept only because the
-  already-published posts
+  target it (`assets/Makefile`'s `4th.mjs`/`5th.mjs`/`6th.mjs` rules), kept
+  only because the already-published posts
   ([what-forth-again](https://bur.gy/2023/02/24/what-forth-again.html),
   [tail-recursion](https://bur.gy/2024/03/29/tail-recursion.html),
   [why-not-zig](https://bur.gy/2024/08/31/why-not-zig.html)) hardcode it
