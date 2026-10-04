@@ -23,9 +23,6 @@ const assetRoot = "/assets/";
 
 function resolvePath({ name, wasmFilePath, htmlPath }, pathname) {
     if (pathname === "/") pathname = htmlPath;
-    if (pathname.startsWith(`${assetRoot}node_modules/`)) {
-        return join(root, "forth", "node_modules", pathname.slice(`${assetRoot}node_modules/`.length));
-    }
     if (pathname === `${assetRoot}${name}-wasi.wasm`) {
         return wasmFilePath;
     }
