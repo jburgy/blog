@@ -38,7 +38,7 @@ def cmd(target: str = "4th.js"):
             "A\n",
         ),
         ("64 >R RSP@ 1 TELL RDROP\n", "@\n"),
-        ("65 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL\n", "A\n"),
+        ("65 DSP@ RSP@ C@C! RSP@ 1 TELL\n", "A\n"),
         ("64 >R 1 RSP@ +! RSP@ 1 TELL\n", "A\n"),
         (
             """

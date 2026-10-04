@@ -557,10 +557,16 @@
 
     (data (i32.const 0x5268) "\5c\52\00\00\04C@C!\00\00\00\2b\00\00\00")
     (func $c@c! (param $cfa i32) (param $ip i32) (param $sp i32) (param $rsp i32)
-        (local i32)
-        (memory.copy (local.tee 4 (i32.load (local.get $sp))) (i32.load offset=4 (local.get $sp)) (i32.const 1))
-        (i32.store offset=4 (local.get $sp) (local.get 4))
-        (return_call $next (local.get $cfa) (local.get $ip) (i32.add (local.get $sp) (i32.const 4)) (local.get $rsp))
+        ;; ( source dest -- source+1 dest+1 ), per jonesforth.S: dest is on
+        ;; top, source is one cell below; both addresses are left incremented.
+        (local $dest i32)
+        (local $source i32)
+        (local.set $dest (i32.load (local.get $sp)))
+        (local.set $source (i32.load offset=4 (local.get $sp)))
+        (memory.copy (local.get $dest) (local.get $source) (i32.const 1))
+        (i32.store (local.get $sp) (i32.add (local.get $dest) (i32.const 1)))
+        (i32.store offset=4 (local.get $sp) (i32.add (local.get $source) (i32.const 1)))
+        (return_call $next (local.get $cfa) (local.get $ip) (local.get $sp) (local.get $rsp))
     )
     (elem (i32.const 0x2b) $c@c!)
 

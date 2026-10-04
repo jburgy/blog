@@ -995,14 +995,16 @@ fn store_byte(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, target: usi
     become interp.next(sp2, rsp, ip, target);
 }
 
-// ( dest src -- dest ), as in 4th.c/6th.zig/jansforth.*; jonesforth.S instead
-// leaves both addresses incremented.
+// ( source dest -- source+1 dest+1 ), per jonesforth.S: dest is on top,
+// source is one cell below; both addresses are left incremented.
 fn c_copy(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, target: usize) -> ! {
-    let (src, sp1) = pop(interp, sp);
-    let dst = interp.read_cell(sp1);
-    let byte = interp.memory[src as usize];
-    interp.memory[dst as usize] = byte;
-    become interp.next(sp1, rsp, ip, target);
+    let dest = interp.read_cell(sp);
+    let source = interp.read_cell(sp + CELL);
+    let byte = interp.memory[source as usize];
+    interp.memory[dest as usize] = byte;
+    interp.write_cell(sp, dest + 1);
+    interp.write_cell(sp + CELL, source + 1);
+    become interp.next(sp, rsp, ip, target);
 }
 
 fn c_move(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, target: usize) -> ! {

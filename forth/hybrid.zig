@@ -733,10 +733,14 @@ pub const Forth = struct {
                     continue :dispatch fetchOp(self, &cfa, &ip);
                 },
                 .CCOPY => {
-                    const src: usize = @intCast(self.readI32(sp));
-                    const dst: usize = @intCast(self.readI32(sp + 1));
-                    self.memory.items[dst] = self.memory.items[src];
-                    sp += 1;
+                    // ( source dest -- source+1 dest+1 ), per jonesforth.S:
+                    // dest is on top, source is one cell below; both
+                    // addresses are left incremented.
+                    const dest: usize = @intCast(self.readI32(sp));
+                    const source: usize = @intCast(self.readI32(sp + 1));
+                    self.memory.items[dest] = self.memory.items[source];
+                    self.writeI32(sp, @intCast(dest + 1));
+                    self.writeI32(sp + 1, @intCast(source + 1));
                 },
                 .CMOVE => {
                     const src: usize = @intCast(self.readI32(sp + 2));
@@ -1190,7 +1194,7 @@ test "interp" {
         \\S0 @ DSP@ - HERE @ HERE @ 4 + 4 CMOVE S0 @ DSP@ - SWAP - . CR \ 4
         \\13622 DSP@ 2 NUMBER DROP EMIT CR \ A
         \\64 >R RSP@ 1 TELL RDROP CR \ @
-        \\64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL 2DROP CR \ @
+        \\64 DSP@ RSP@ C@C! RSP@ 1 TELL 2DROP DROP CR \ @
         \\64 >R 1 RSP@ +! RSP@ 1 TELL RDROP CR \ A
         \\VERSION . CR \ 47
         \\LATEST @ ID. CR \ SLOW

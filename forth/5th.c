@@ -373,8 +373,13 @@ DEFCODE(STOREBYTE, 0, "C@", FETCHBYTE)
 }
 DEFCODE(FETCHBYTE, 0, "C@C!", CCOPY)
 {
-    *(char *)sp[1] = *(char *)sp[0];
-    ++sp;
+    /* ( source dest -- source+1 dest+1 ), per jonesforth.S: dest is on top,
+       source is one cell below; both addresses are left incremented. */
+    char *dest = (char *)sp[0];
+    char *source = (char *)sp[1];
+    *dest = *source;
+    sp[0] = (intptr_t)(dest + 1);
+    sp[1] = (intptr_t)(source + 1);
     NEXT;
 }
 DEFCODE(CCOPY, 0, "CMOVE", CMOVE)

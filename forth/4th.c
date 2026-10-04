@@ -375,10 +375,16 @@ DEFCODE(STOREBYTE, 0, "C@", FETCHBYTE):
     push((unsigned char)*s);
     NEXT;
 DEFCODE(FETCHBYTE, 0, "C@C!", CCOPY):
-    s = (char *)pop();
-    r = (char *)pop();
+    /* ( source dest -- source+1 dest+1 ), per jonesforth.S: dest is on top,
+       source is one cell below; both addresses are left incremented. Reads
+       sp[0]/sp[1] in place (neither is popped), so check both are still
+       in bounds the same way forth_pop() would. */
+    assert(sp + 1 < stack + STACK_SIZE);
+    r = (char *)sp[0];
+    s = (char *)sp[1];
     *r = *s;
-    push((intptr_t)r);
+    sp[0] = (intptr_t)(r + 1);
+    sp[1] = (intptr_t)(s + 1);
     NEXT;
 DEFCODE(CCOPY, 0, "CMOVE", CMOVE):
     c = pop();

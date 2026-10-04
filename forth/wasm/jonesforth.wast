@@ -580,9 +580,15 @@
 
     (data (i32.const 0x5268) "\5c\52\00\00\04C@C!\00\00\00\2b\00\00\00")
     (func $c@c!
-        (local i32)
-        (memory.copy (local.tee 0 (call $pop)) (call $pop) (i32.const 1))
-        (call $push (local.get 0))
+        ;; ( source dest -- source+1 dest+1 ), per jonesforth.S: dest is on
+        ;; top, source is one cell below; both addresses are left incremented.
+        (local $dest i32)
+        (local $source i32)
+        (local.set $dest (i32.load (global.get $sp)))
+        (local.set $source (i32.load offset=4 (global.get $sp)))
+        (memory.copy (local.get $dest) (local.get $source) (i32.const 1))
+        (i32.store (global.get $sp) (i32.add (local.get $dest) (i32.const 1)))
+        (i32.store offset=4 (global.get $sp) (i32.add (local.get $source) (i32.const 1)))
         (return_call $next)
     )
     (elem (i32.const 0x2b) $c@c!)
