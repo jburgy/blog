@@ -481,12 +481,16 @@ fn _fetchbyte(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) ca
 }
 
 fn _ccopy(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callconv(conv) void {
-    const p = @abs(self.readInt(sp));
-    const q = @abs(self.readInt(sp + 4));
+    // ( source dest -- source+1 dest+1 ), per jonesforth.S: dest is on top
+    // (popped/pushed via %edi), source sits one cell below (read via 4(%esp)).
+    const dest = @abs(self.readInt(sp));
+    const source = @abs(self.readInt(sp + 4));
 
     const memory = self.memory.items.ptr;
-    memory[q] = memory[p];
-    self.next(sp + 4, rsp, ip, target);
+    memory[dest] = memory[source];
+    self.writeInt(sp, @intCast(dest + 1));
+    self.writeInt(sp + 4, @intCast(source + 1));
+    self.next(sp, rsp, ip, target);
 }
 
 fn _cmove(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) callconv(conv) void {
@@ -1099,7 +1103,7 @@ test Interp {
         \\ 1179010630 DSP@ HERE @ 4 CMOVE HERE @ 4 TELL DROP CR \ FFFF
         \\ 13622 DSP@ 2 NUMBER DROP EMIT CR \ A
         \\ 64 >R RSP@ 1 TELL RDROP CR \ @
-        \\ 64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL 2DROP CR \ @
+        \\ 64 DSP@ RSP@ C@C! RSP@ 1 TELL 2DROP DROP CR \ @
         \\ 64 >R 1 RSP@ +! RSP@ 1 TELL RDROP CR \ A
         \\ VERSION . CR \ 47 
         \\ LATEST @ ID. CR \ SLOW

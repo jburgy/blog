@@ -106,7 +106,7 @@ mod tests {
     #[case("", "3480240455236671827 DSP@ HERE @ 8 CMOVE HERE @ 8 TELL", "SYSCALL0")]
     #[case("", "13622 DSP@ 2 NUMBER DROP EMIT", "A")]
     #[case("", "64 >R RSP@ 1 TELL RDROP", "@")]
-    #[case("", "64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL", "@")]
+    #[case("", "64 DSP@ RSP@ C@C! RSP@ 1 TELL", "@")]
     #[case("", "64 >R 1 RSP@ +! RSP@ 1 TELL", "A")]
     #[case("", r#"
 : <BUILDS WORD CREATE DODOES , 0 , ;

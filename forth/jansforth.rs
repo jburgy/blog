@@ -478,10 +478,14 @@ impl Forth {
                     self.write_i32(sp, self.memory[addr] as i32);
                 }
                 43 => { // C@C!
-                    let src = self.read_i32(sp) as usize;
-                    let dst = self.read_i32(sp + 1) as usize;
-                    self.memory[dst] = self.memory[src];
-                    sp += 1;
+                    // ( source dest -- source+1 dest+1 ), per jonesforth.S:
+                    // dest is on top, source is one cell below; both
+                    // addresses are left incremented.
+                    let dest = self.read_i32(sp) as usize;
+                    let source = self.read_i32(sp + 1) as usize;
+                    self.memory[dest] = self.memory[source];
+                    self.write_i32(sp, dest as i32 + 1);
+                    self.write_i32(sp + 1, source as i32 + 1);
                 }
                 44 => { // CMOVE
                     let src = self.read_i32(sp + 2) as usize;
@@ -1006,7 +1010,7 @@ CHAR A EMIT CR \ A
 S0 @ DSP@ - HERE @ HERE @ 4 + 4 CMOVE S0 @ DSP@ - SWAP - . CR \ 4
 13622 DSP@ 2 NUMBER DROP EMIT CR \ A
 64 >R RSP@ 1 TELL RDROP CR \ @
-64 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL 2DROP CR \ @
+64 DSP@ RSP@ C@C! RSP@ 1 TELL 2DROP DROP CR \ @
 64 >R 1 RSP@ +! RSP@ 1 TELL RDROP CR \ A
 VERSION . CR \ 47
 LATEST @ ID. CR \ SLOW

@@ -523,9 +523,14 @@
             (br $next))
 
             ;; c@c!
-            (memory.copy (local.tee 4 (i32.load (local.get $sp))) (i32.load offset=4 (local.get $sp)) (i32.const 1))
-            (i32.store offset=4 (local.get $sp) (local.get 4))
-            (local.set $sp (i32.add (local.get $sp) (i32.const 4)))
+            ;; ( source dest -- source+1 dest+1 ), per jonesforth.S: dest is
+            ;; on top, source is one cell below; both addresses are left
+            ;; incremented.
+            (local.set 4 (i32.load (local.get $sp)))
+            (local.set 5 (i32.load offset=4 (local.get $sp)))
+            (memory.copy (local.get 4) (local.get 5) (i32.const 1))
+            (i32.store (local.get $sp) (i32.add (local.get 4) (i32.const 1)))
+            (i32.store offset=4 (local.get $sp) (i32.add (local.get 5) (i32.const 1)))
             (br $next))
 
             ;; cmove

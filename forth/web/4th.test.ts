@@ -132,7 +132,7 @@ const PRIMITIVE_CASES: [source: string, expected: string][] = [
         "A",
     ],
     ["64 >R RSP@ 1 TELL RDROP", "@"],
-    ["65 DSP@ RSP@ SWAP C@C! RSP@ 1 TELL", "A"],
+    ["65 DSP@ RSP@ C@C! RSP@ 1 TELL", "A"],
     ["64 >R 1 RSP@ +! RSP@ 1 TELL", "A"],
 ];
 

@@ -543,8 +543,12 @@ int main(void) {
                 memory[sp] = (unsigned char)bytes[memory[sp]];
                 break;
             case CCOPY:
-                bytes[memory[sp + 1]] = bytes[memory[sp]];
-                ++sp;
+                /* ( source dest -- source+1 dest+1 ), per jonesforth.S: dest
+                   is on top, source is one cell below; both addresses are
+                   left incremented. */
+                bytes[memory[sp]] = bytes[memory[sp + 1]];
+                ++memory[sp];
+                ++memory[sp + 1];
                 break;
             case CMOVE:
                 (void)memmove(bytes + memory[sp + 1], bytes + memory[sp + 2], (size_t)memory[sp]);
