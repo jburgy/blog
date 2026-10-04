@@ -217,7 +217,13 @@ def time_once(command: list[str], program: bytes, timeout: float) -> float:
 
 def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
     clang = require(os.environ.get("CC", "clang"))
-    emcc = require("emcc")
+    wasi_sdk = os.environ.get("WASI_SDK_PATH")
+    if not wasi_sdk:
+        raise RuntimeError(
+            "WASI_SDK_PATH must be set (see bytecodealliance/setup-wasi-sdk-action)"
+        )
+    wasi_clang = str(Path(wasi_sdk) / "bin" / "clang")
+    wasi_sysroot = str(Path(wasi_sdk) / "share" / "wasi-sysroot")
     rustup = require("rustup")
     cargo = require("cargo")
     zig = require("zig")
@@ -343,17 +349,22 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
         command = compile_wasm(wasmtime, wasm_file, wasm)
         targets.append((f"wasm/{source}.wast", "Wasmtime", command))
 
-    for source in ("4th", "5th"):
-        wasm_file = wasm / f"{source}-emscripten.wasm"
+    # Same wasi-sdk target assets/Makefile publishes as 4th-wasi.wasm/
+    # 5th-wasi.wasm (`-O3` added here for a fair comparison against the
+    # other optimized Wasmtime targets; the published build favours
+    # simplicity/size over speed). 5th.c's EMSCRIPTEN branch is reused
+    # rather than vestigial: wasi-libc's <sys/syscall.h>, like Emscripten's,
+    # doesn't define SYS_read/SYS_write/etc. either.
+    for source, extra_flags in (("4th", []), ("5th", ["-DEMSCRIPTEN", "-mtail-call"])):
+        wasm_file = wasm / f"{source}-wasi.wasm"
         build(
             [
-                emcc,
+                wasi_clang,
+                f"--sysroot={wasi_sysroot}",
                 "-O3",
-                "-DEMSCRIPTEN",
-                "-fblocks",
-                "-mtail-call",
-                "-sSTANDALONE_WASM=1",
-                "-sWASM=1",
+                "-Wall",
+                "-Wextra",
+                *extra_flags,
                 "-o",
                 str(wasm_file),
                 f"{source}.c",
@@ -361,7 +372,7 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
         )
         targets.append(
             (
-                f"{source}.c -> Emscripten Wasm",
+                f"{source}.c -> WASI Wasm",
                 "Wasmtime",
                 compile_wasm(wasmtime, wasm_file, wasm),
             )
