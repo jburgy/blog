@@ -113,7 +113,13 @@ Folders that feed a demo are marked ▶.
 
 `pythonpackage.yml` and `javascript.yml` both upload coverage to [Codecov](https://codecov.io/gh/jburgy/blog)
 (the badge above links there), the latter tagged with `forth`/`regexp-web`/`fourt2py`
-flags so each job's numbers stay distinguishable. This requires activating the repo at
+flags so each job's numbers stay distinguishable. Both workflows run
+unconditionally on every push (`javascript.yml` has no path filter) so every
+commit produces the same 5 uploads (2 Python matrix jobs + 3 JS jobs);
+[`codecov.yml`](codecov.yml)'s `after_n_builds: 5` tells Codecov to wait for
+all of them before finalizing the report — without it, Codecov finalizes as
+soon as the first couple of uploads land, silently dropping whichever jobs
+are still running. This requires activating the repo at
 [codecov.io](https://codecov.io) once and adding its upload token as the
 `CODECOV_TOKEN` repo secret; after that, opening a pull request's **Files
 changed** tab shows uncovered lines flagged inline, right next to the diff —
