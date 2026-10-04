@@ -9,6 +9,13 @@
 import "/assets/node_modules/@xterm/xterm/lib/xterm.js";
 import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
 
+/**
+ * @param {string} wasmUrl
+ * @returns {{ term: Terminal, sendLine: (text: string) => void, getOutput: () => string }}
+ *   `sendLine`/`getOutput` let a test drive the REPL deterministically
+ *   (see wasi-repl.spec.mjs) without simulating real keystrokes through
+ *   xterm -- the same channel a human's typing ends up pushing to anyway.
+ */
 export function startRepl(wasmUrl) {
     const xterm = new Terminal();
     xterm.open(document.getElementById("terminal"));
@@ -19,6 +26,7 @@ export function startRepl(wasmUrl) {
     const worker = new Worker("/assets/worker.js", { type: "module" });
 
     let line = "";
+    let output = "";
 
     worker.addEventListener("message", async ({ data: { type, fd, data, code, message } }) => {
         switch (type) {
@@ -29,7 +37,10 @@ export function startRepl(wasmUrl) {
             }
             case "output":
                 // Forth emits bare newlines; a terminal wants CR LF.
-                if (fd === 1 || fd === 2) xterm.write(data.replace(/\n/g, "\r\n"));
+                if (fd === 1 || fd === 2) {
+                    output += data;
+                    xterm.write(data.replace(/\n/g, "\r\n"));
+                }
                 break;
             case "exit":
                 xterm.write(`\r\n[Process exited with code ${code}]\r\n`);
@@ -40,10 +51,14 @@ export function startRepl(wasmUrl) {
         }
     });
 
+    function sendLine(text) {
+        channel.push(new TextEncoder().encode(text + "\n"));
+    }
+
     xterm.onData((key) => {
         if (key === "\r") {
             xterm.write("\r\n");
-            channel.push(new TextEncoder().encode(line + "\n"));
+            sendLine(line);
             line = "";
         } else if (key === "\x7f") {
             if (line) {
@@ -57,4 +72,7 @@ export function startRepl(wasmUrl) {
     });
 
     worker.postMessage({ sharedBuffer: channel.sharedBuffer, wasmUrl });
+
+    return { term: xterm, sendLine, getOutput: () => output };
 }
+

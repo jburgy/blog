@@ -195,7 +195,11 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
   `assets/Makefile`'s own `wasi-repl.mjs` target -- not just a side effect of
   building `4th.wasm`/`5th.wasm`/`6th.wasm` -- so a future post revision can
   hardcode `/blog/wasi-repl.mjs` directly, the same way the jonesforth post
-  already hardcodes `/blog/main.js`.
+  already hardcodes `/blog/main.js`. Each page also loads mocha from a CDN
+  and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
+  live REPL (`startRepl`'s return value, not simulated keystrokes) -- a human
+  visiting the page gets the same pass/fail report CI reads headless (see
+  `npm run test:browser` above).
 - **Rust `wasm32-wasip1`** — two profiles, because [4th.rs](4th.rs) halts by
   panicking: `make test-wasm` rebuilds `std` with `panic_unwind` for wasmtime,
   while `make web` swaps the panic for a host throw so the browser build in
@@ -234,8 +238,8 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 | --- | --- |
 | `make` | 4th, 5th, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and both Rust binaries |
 | `pytest forth/` | [test_4th.py](test_4th.py) (native) only — [test_4th_wasm.py](test_4th_wasm.py) is excluded, supplanted by `web/4th.test.ts` |
-| `npm test` | builds `4th.wasm`/`5th.wasm` with wasi-sdk and `6th.wasm` with Zig's `wasm32-wasi` target, runs every vitest suite, then drives [html/4th.html](html/4th.html)/[html/5th.html](html/5th.html)/[html/6th.html](html/6th.html) in Chromium |
-| `npm run test:browser` | [browser/4th.browser.mjs](browser/4th.browser.mjs)/[browser/5th.browser.mjs](browser/5th.browser.mjs)/[browser/6th.browser.mjs](browser/6th.browser.mjs) (shared harness: [browser/wasi-demo.mjs](browser/wasi-demo.mjs)): serves each real `<n>th.html` demo, types `SEE QUIT`, and checks the rendered decompiled `QUIT` definition |
+| `npm test` | builds `4th.wasm`/`5th.wasm` with wasi-sdk and `6th.wasm` with Zig's `wasm32-wasi` target, runs every vitest suite, then drives [html/4th.html](html/4th.html)/[html/5th.html](html/5th.html)/[html/6th.html](html/6th.html) headless (`mocha-headless-chrome`, same tool `regexp/web` already uses) |
+| `npm run test:browser` | [browser/4th.browser.mjs](browser/4th.browser.mjs)/[browser/5th.browser.mjs](browser/5th.browser.mjs)/[browser/6th.browser.mjs](browser/6th.browser.mjs) (shared harness: [browser/wasi-demo.mjs](browser/wasi-demo.mjs)): serves each real `<n>th.html` demo and checks that its own in-page mocha spec ([wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs), loaded from the page itself, same as a human visiting it would see) passed |
 | `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) — the browser demo, driven in node; also covers `5th.wasm` if it's already been built, skipped otherwise |
 | `make test-wasm` | [4th.rs](4th.rs) under wasmtime with `-W exceptions=y` |
 

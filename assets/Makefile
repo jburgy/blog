@@ -11,7 +11,7 @@ FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs we
 # vars and %.mjs/lib%.a rules below) once what-forth-again.html,
 # tail-recursion.html, and why-not-zig.html each use the wasi .wasm build
 # below instead.
-all : 4th.mjs 5th.mjs 6th.mjs 4th.wasm 5th.wasm 6th.wasm wasi-repl.mjs lisp TinyBasic jonesforth.wasm regexp fourt2py
+all : 4th.mjs 5th.mjs 6th.mjs 4th.wasm 5th.wasm 6th.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm regexp fourt2py
 	rm -rf *.a *.o node_modules/@xterm/xterm/src
 
 %.mjs : %.o jonesforth.f node_modules/xterm-pty/emscripten-pty.js
@@ -36,15 +36,15 @@ lib6th.a : 6th.zig
 
 # uvx/python-zig, not a bare `zig build`: deploy.yml has no system zig (same
 # reason lib%.a below uses it). See build.zig's buildWasi.
-6th.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs forth/4th.32.fs
+6th.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	cd ../forth && uvx --from ziglang==0.15.2 python-zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call
 	cp ../forth/zig-out/web/wasi/6th.wasm $@
 
 # wasi-sdk clang (deploy.yml: bytecodealliance/setup-wasi-sdk-action).
-4th.wasm : ../forth/4th.c worker.js wasi-worker.js wasi-repl.mjs forth/4th.32.fs
+4th.wasm : ../forth/4th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -o $@ $<
 
-5th.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs forth/4th.32.fs
+5th.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DEMSCRIPTEN -mtail-call -o $@ $<
 
 # Published standalone (not just a side effect of 4th.wasm/5th.wasm/6th.wasm
@@ -53,6 +53,13 @@ lib6th.a : 6th.zig
 # -- startRepl(wasmUrl) takes the one thing that differs per interpreter as
 # a plain argument, so there's no per-post copy to keep in sync.
 wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs
+	cp $< $@
+
+# html/4th.html/5th.html/6th.html each load this directly from /assets/ (not
+# just a side effect of 4th.wasm/5th.wasm/6th.wasm): the in-browser mocha
+# spec that gives a human visiting the page its own pass/fail report, same
+# one CI drives headless (see forth/browser/wasi-demo.mjs).
+wasi-repl-mocha.mjs : ../forth/wasm/wasi-repl-mocha.mjs
 	cp $< $@
 
 regexp : $(REGEXP) regexp/web/forth.wasm forth/4th.32.fs

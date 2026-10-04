@@ -7,18 +7,28 @@
      wasm/worker.js and the "How Many Roads Must a Man Walk Down?" post) -- a
      Worker blocks stdin on a uwasi SharedInputChannel instead of a real pty.
      wasm/wasi-repl.mjs (shared by html/4th.html, html/5th.html,
-     html/6th.html) does the line editing. -->
+     html/6th.html) does the line editing. This page is dual-purpose --
+     demo and test -- so it also loads mocha from a CDN (same version
+     regexp/web uses locally) and runs wasm/wasi-repl-mocha.mjs's SEE QUIT
+     check against the live REPL; a human visiting the page sees its
+     pass/fail report below the terminal, and CI (see
+     browser/wasi-demo.mjs) drives it headless. -->
 
 <head>
     <title>demo</title>
     <link rel="stylesheet" href="/assets/node_modules/@xterm/xterm/css/xterm.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mocha@12.0.3/mocha.css">
 </head>
 
 <body>
     <div id="terminal"></div>
+    <div id="mocha"></div>
+    <script src="https://cdn.jsdelivr.net/npm/mocha@12.0.3/mocha.js"></script>
+    <script>mocha.setup({ ui: "bdd", timeout: 60000 });</script>
     <script type="module">
-        import { startRepl } from "/assets/wasi-repl.mjs";
-        startRepl("/assets/5th.wasm");
+        import { registerWasiReplSpec } from "/assets/wasi-repl-mocha.mjs";
+        registerWasiReplSpec({ name: "5th", wasmUrl: "/assets/5th.wasm" });
+        mocha.run();
     </script>
 </body>
 

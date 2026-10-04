@@ -6,7 +6,8 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
-    "puppeteer": "^24.43.1",
+    "mocha": "^12.0.2",
+    "mocha-headless-chrome": "^5.1.0",
     "uwasi": "^1.6.0",
     "vitest": "^4.1.11"
   },
@@ -18,6 +19,9 @@
     "test:browser": "npm run build:6th:wasi && node --test browser/4th.browser.mjs browser/5th.browser.mjs browser/6th.browser.mjs",
     "test:node": "vitest run --coverage",
     "test:web": "vitest run web/"
+  },
+  "overrides": {
+    "@puppeteer/browsers": "^3.0.0"
   },
   "allowScripts": {
     "puppeteer@24.43.1": true
