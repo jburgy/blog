@@ -3,7 +3,7 @@ VPATH = ../forth
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 
-all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm regexp fourt2py node_modules/xterm-pty/package.json
+all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm regexp fourt2py node_modules/xterm-pty/package.json
 	rm -rf node_modules/@xterm/xterm/src
 
 jonesforth.wasm : ../forth/wasm/jonesforth.wast jonesforth.f main.js worker.js wasi-worker.js
@@ -22,6 +22,21 @@ jonesforth.wasm : ../forth/wasm/jonesforth.wast jonesforth.f main.js worker.js w
 
 5th-wasi.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DEMSCRIPTEN -mtail-call -o $@ $<
+
+# AssemblyScript (asc), not wasi-sdk/zig: lisp.wasm/TinyBasic.wasm's I/O is
+# custom getchar/putchar-style host imports, not libc, so there's no
+# compiler-provided WASI ABI to get "for free" the way 4th-wasi.wasm/
+# 5th-wasi.wasm/6th-wasi.wasm do -- wasi.ts/wasiHost.ts (in each project's
+# assembly/) implement real wasi_snapshot_preview1 fd_read/fd_write
+# themselves instead, driven by the exact same worker.js/wasi-worker.js/
+# wasi-repl.mjs harness. See assets/package.json's asbuild:*-wasi scripts for
+# the asc --use flags that wire core.ts's shared interpreter logic to this
+# build instead of host.ts's (lisp/TinyBasic's own, unchanged ABI).
+lisp-wasi.wasm : ../lisp/assembly/wasi.ts ../lisp/assembly/core.ts ../lisp/assembly/wasiHost.ts worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs node_modules/xterm-pty/package.json
+	npm run asbuild:lisp-wasi
+
+TinyBasic-wasi.wasm : ../TinyBasic/assembly/wasi.ts ../TinyBasic/assembly/core.ts ../TinyBasic/assembly/wasiHost.ts worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs node_modules/xterm-pty/package.json
+	npm run asbuild:TinyBasic-wasi
 
 # Published standalone (not just a side effect of 4th.wasm/5th.wasm/6th.wasm
 # above): a future jburgy.github.io post can hardcode /blog/wasi-repl.mjs
@@ -81,15 +96,16 @@ jonesforth.f: ../jonesforth/jonesforth.f
 # demo run in a browser, since that needs real SharedArrayBuffer/Atomics.wait.
 # Depends only on the genuinely file-tracked targets (real output file, real
 # mtime comparison against real prerequisites) so a stale one rebuilds and a
-# fresh one no-ops -- what `make` is for. Deliberately excludes
-# lisp/TinyBasic/regexp/fourt2py: none of those are file-tracked here (no
-# output file matching the target name, or fragile directory-mtime tracking),
-# so depending on them would rerun their recipes on every invocation,
-# defeating the fast "rebuild assets, reload" inner loop below. `make
-# <that target>` first if the demo you're testing needs one of those.
+# fresh one no-ops -- what `make` is for. Deliberately excludes the plain
+# `lisp`/`TinyBasic` targets (their custom, non-WASI builds) along with
+# regexp/fourt2py: none of those are file-tracked here (no output file
+# matching the target name, or fragile directory-mtime tracking), so
+# depending on them would rerun their recipes on every invocation, defeating
+# the fast "rebuild assets, reload" inner loop below. `make <that target>`
+# first if the demo you're testing needs one of those.
 # Skips (re)building the jburgy.github.io Jekyll site; run `node serve-e2e.mjs`
 # directly the first time, to build that site too.
-serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm jonesforth.wasm
+serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm
 	node serve-e2e.mjs --skip-jekyll-build
 
 .PHONY : regexp fourt2py serve-e2e
