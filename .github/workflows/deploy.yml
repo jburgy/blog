@@ -18,10 +18,6 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - uses: pyodide/setup-emsdk@v15
-        with:
-          version: 4.0.15
-          actions-cache-folder: 'emsdk-cache'
       - uses: bytecodealliance/setup-wasi-sdk-action@main
       - uses: astral-sh/setup-uv@v6
       - run: |

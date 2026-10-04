@@ -8,8 +8,6 @@ pub fn build(b: *Build) void {
 
     if (target.result.os.tag == .wasi) {
         try buildWasi(b, target, optimize);
-    } else if (target.result.cpu.arch.isWasm()) {
-        try buildWasm(b, target, optimize);
     } else {
         try buildNative(b, target, optimize);
     }
@@ -18,21 +16,16 @@ pub fn build(b: *Build) void {
 /// Invoke using
 /// zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call
 ///
-/// No emcc step, unlike buildWasm: zig's own linker produces a standalone
-/// `_start` command directly, the same shape 5th.wasm (wasi-sdk) and
-/// jonesforth.wasm (hand-written) already are. `openFlags` already has a
-/// `.wasi` branch and `key()` already exits cleanly on end-of-stream (see
-/// 6th.zig), so this needed no source changes — only a build target. Drive
-/// the result with `runWasiCommand` (forth/wasm/wasi-worker.js), the same
-/// shared WASI/stdin plumbing 5th.wasm and jonesforth.wasm use.
+/// Zig's own linker produces a standalone `_start` command directly, the
+/// same shape 5th.wasm (wasi-sdk) and jonesforth.wasm (hand-written) already
+/// are. `openFlags` already has a `.wasi` branch and `key()` already exits
+/// cleanly on end-of-stream (see 6th.zig), so this needed no source changes
+/// — only a build target. Drive the result with `runWasiCommand`
+/// (forth/wasm/wasi-worker.js), the same shared WASI/stdin plumbing 5th.wasm
+/// and jonesforth.wasm use.
 ///
-/// Installs under `web/wasi/`, not `web/`: both this and buildWasm name
-/// their output `6th.wasm` (Zig names the wasi executable that directly;
-/// emcc's `-o 6th.mjs` emits a same-basename `6th.wasm` beside it), and
-/// they're two incompatible binaries — one a bare WASI command, the other
-/// an Emscripten pthread module only loadable via its own `.mjs` glue.
-/// Sharing `web/` would let running both targets into the same prefix
-/// silently clobber one with the other.
+/// Installs under `web/wasi/`, not `web/`: keeps the layout consistent with
+/// a possible future wasm target sharing the `6th.wasm` basename.
 fn buildWasi(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
     const exe = b.addExecutable(.{
         .name = "6th",
@@ -47,44 +40,6 @@ fn buildWasi(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
     const install = b.addInstallArtifact(exe, .{
         .dest_dir = .{ .override = .{ .custom = "web/wasi" } },
     });
-    b.getInstallStep().dependOn(&install.step);
-}
-
-/// Invoke using
-/// zig build -Dtarget=wasm32-emscripten -Dcpu=baseline+atomics+bulk_memory+tail_call
-fn buildWasm(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
-    const lib = b.addLibrary(.{
-        .name = "zorth",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("6th.zig"),
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
-        .linkage = .static,
-    });
-    lib.rdynamic = true;
-
-    const emcc = b.addSystemCommand(&.{"emcc"});
-    emcc.addArg("-mtail-call");
-    emcc.addArg("-pthread");
-    emcc.addArg("-sPROXY_TO_PTHREAD");
-    emcc.addArg("-sEXPORTED_FUNCTIONS=_malloc,_main");
-    // Emscripten 4.0.14 removed USE_OFFSET_CONVERTER, and 4.0.15 (our CI
-    // toolchain) errors out if we still pass it.
-    emcc.addArg("-sASSERTIONS=2");
-    emcc.addArg("--js-library=node_modules/xterm-pty/emscripten-pty.js");
-    emcc.addArg("-o");
-    const out_file = emcc.addOutputFileArg("6th.mjs");
-    emcc.addArtifactArg(lib);
-
-    const install = b.addInstallDirectory(.{
-        .source_dir = out_file.dirname(),
-        .install_dir = .prefix,
-        .install_subdir = "web",
-    });
-    install.step.dependOn(&emcc.step);
-
     b.getInstallStep().dependOn(&install.step);
 }
 

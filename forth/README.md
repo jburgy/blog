@@ -81,11 +81,11 @@ guarantee from the compiler: `__attribute__((musttail))`, `@call(.always_tail)`,
 
 | source | language | strategy | wasm | toolkit | notes | native ms (range) / rank | Wasmtime ms (range) / rank |
 | --- | --- | --- | :---: | --- | --- | ---: | ---: |
-| [4th.c](4th.c) | C | labels as values | ✅ | Emscripten (`make 4th.js`) *and* wasi-sdk clang (`npm run build:4th`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | 70.8 (57.8-219.5) / 2 | 92.6 (79.3-181.3) / 3 |
-| [5th.c](5th.c) | C | tail calls | ✅ | Emscripten *and* wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 66.9 (58.4-128.0) / 1 | 284.7 (277.5-355.3) / 5 |
+| [4th.c](4th.c) | C | labels as values | ✅ | Emscripten (standalone Wasm, benchmark.py only) *and* wasi-sdk clang (`npm run build:4th`) | Original; `NEXT` is `goto **target`; standalone Wasm used for Wasmtime | 70.8 (57.8-219.5) / 2 | 92.6 (79.3-181.3) / 3 |
+| [5th.c](5th.c) | C | tail calls | ✅ | Emscripten (standalone Wasm, benchmark.py only) *and* wasi-sdk clang | `NEXT` is `musttail return ip->word->code(...)`; standalone Wasm used for Wasmtime | 66.9 (58.4-128.0) / 1 | 284.7 (277.5-355.3) / 5 |
 | [jansforth.c](jansforth.c) | C | switch | — | — | Opcode enum, everything in one `memory[]` array | 93.0 (87.8-111.0) / 6 | — |
 | [recurse.c](recurse.c) | C | switch | — | — | `docol()` is the loop and recurses; return stack becomes a shadow stack | 96.2 (88.2-189.6) / 6 | — |
-| [6th.zig](6th.zig) | Zig | tail calls | ✅ | Emscripten *or* wasm32-wasi (`zig build -Dtarget=wasm32-wasi`, see build.zig's `buildWasi`) | `@call(.always_tail, primitives[code], ...)`; native result only | 89.1 (83.9-221.4) / 5 | — |
+| [6th.zig](6th.zig) | Zig | tail calls | ✅ | wasm32-wasi (`zig build -Dtarget=wasm32-wasi`, see build.zig's `buildWasi`) | `@call(.always_tail, primitives[code], ...)`; native result only | 89.1 (83.9-221.4) / 5 | — |
 | [jansforth.zig](jansforth.zig) | Zig | switch | — | — | `while (true) switch (op) { ... }`; dictionary generated like jansforth.rs's | 71.8 (65.1-104.3) / 2 | — |
 | [labeled.zig](labeled.zig) | Zig | labeled switch | — | — | jansforth.zig cell for cell; every prong `continue`s a labeled `switch` instead | 76.7 (65.7-88.2) / 4 | — |
 | [hybrid.zig](hybrid.zig) | Zig | labeled switch, hot prongs only | — | — | labeled.zig with the dispatch replicated for 37 hot opcodes; the rest share one site | — | — |
@@ -161,17 +161,16 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
 
 ### Toolkits, briefly
 
-- **Emscripten** — full libc and a POSIX-ish runtime, paired here with
-  [xterm-pty](https://github.com/mame/xterm-pty) for a real terminal. Emits a
-  `.mjs` loader beside the `.wasm`. `4th.c`/`5th.c`/`6th.zig` can all still
-  target it (`assets/Makefile`'s `4th.mjs`/`5th.mjs`/`6th.mjs` rules), kept
-  only because the already-published posts
+- **Emscripten** — only used standalone by [benchmark.py](benchmark.py) to
+  add `4th.c`/`5th.c`'s Wasm to the Wasmtime benchmark column (see
+  Benchmarks above); no longer part of any browser demo. The three published
+  posts that used to hardcode its `.mjs` loader + xterm-pty
   ([what-forth-again](https://bur.gy/2023/02/24/what-forth-again.html),
   [tail-recursion](https://bur.gy/2024/03/29/tail-recursion.html),
-  [why-not-zig](https://bur.gy/2024/08/31/why-not-zig.html)) hardcode it
-  directly. None of [html/4th.html](html/4th.html), [html/5th.html](html/5th.html),
-  or [html/6th.html](html/6th.html) use it anymore: see wasi-sdk/wasm32-wasi
-  below.
+  [why-not-zig](https://bur.gy/2024/08/31/why-not-zig.html)) now use
+  `wasi-repl.mjs` against `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm`
+  instead, same as [html/4th.html](html/4th.html), [html/5th.html](html/5th.html),
+  and [html/6th.html](html/6th.html) below: see wasi-sdk/wasm32-wasi below.
 - **wasi-sdk clang** — plain `wasm32-wasip1`, no JS glue; the artifacts are
   bare `4th.wasm`/`5th.wasm` (`npm run build:4th`/`build`). Driven by
   [uwasi](https://github.com/kateinoigakukun/uwasi) both in
