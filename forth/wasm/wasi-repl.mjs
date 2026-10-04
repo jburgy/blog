@@ -46,35 +46,29 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
     const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
 
     let output = "";
-    // Mirrors main.js's resume heuristic: re-arm the next read() once a
-    // chunk ends in '\n' (the REPL's own prompt line), or after a short
-    // timeout if a chunk never does (e.g. an "OK " prompt with no newline).
-    // `armed` guards both paths from ever firing twice for the same turn:
-    // read() isn't idempotent -- calling it again while one is still
-    // pending silently abandons the old promise and reprints the prompt,
-    // which is exactly what produced an extra blank prompt line, since
-    // libc's own stdout buffering decides -- unpredictably from here --
-    // whether a reply arrives as one chunk or several.
-    let armed = false;
-    let timeout = -1;
     let disposed = false;
 
+    // Re-arms by calling itself from its own `rl.read().then()`, not
+    // reactively from 'output' messages (the previous design: re-arm once a
+    // chunk ends in '\n', or after a 100ms fallback timeout for one that
+    // doesn't). That heuristic assumed every submitted line eventually
+    // produces *some* output to react to, which is false: jonesforth.f's
+    // "OK " prompt (WELCOME) is a one-time startup banner, not reprinted
+    // per line (see jonesforth.f), so a blank/no-op input line can -- and
+    // does -- yield zero bytes back from the guest. With nothing to react
+    // to, the old code never called rl.read() again, and xterm-readline
+    // silently drops all further keystrokes while no read is pending --
+    // the terminal looked dead after the first no-op line (confirmed live
+    // with instrumented logging: readLine() simply never fired again).
+    // Calling itself unconditionally after every resolved read guarantees
+    // exactly one pending read at a time with no output-shaped guesswork:
+    // the next read only ever starts once the current one resolves.
     function readLine() {
-        if (armed) return;
-        armed = true;
-        if (timeout >= 0) {
-            clearTimeout(timeout);
-            timeout = -1;
-        }
+        if (disposed) return;
         rl.read("").then((text) => {
-            armed = false;
             processLine(text);
+            readLine();
         });
-    }
-
-    function resume() {
-        timeout = -1;
-        readLine();
     }
 
     function processLine(text) {
@@ -98,8 +92,6 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
                 if (fd === 1 || fd === 2) {
                     output += data;
                     rl.write(data);
-                    if (data.endsWith("\n")) readLine();
-                    else if (timeout < 0) timeout = setTimeout(resume, 100);
                 }
                 break;
             case "exit":
@@ -119,7 +111,6 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
     function dispose() {
         if (disposed) return;
         disposed = true;
-        if (timeout >= 0) clearTimeout(timeout);
         worker.terminate();
         xterm.dispose();
     }
