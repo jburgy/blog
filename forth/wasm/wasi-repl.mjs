@@ -1,13 +1,15 @@
-// Shared bootstrap for the no-pty wasi-worker.js browser demos (html/4th.html,
-// html/5th.html, html/6th.html): mounts xterm.js, feeds the shared
-// 4th.32.fs preamble to a Worker (see worker.js) over a uwasi
+// Main-thread bootstrap for the no-pty wasi-worker.js browser demos
+// (html/4th.html, html/5th.html, html/6th.html): mounts xterm.js, feeds the
+// shared 4th.32.fs preamble to a Worker (see worker.js) over a uwasi
 // SharedInputChannel, and does its own minimal line editing -- no real pty,
 // unlike the published posts' Emscripten + xterm-pty demos (see those posts'
 // own hardcoded scripts and forth/README.md's "Toolkits, briefly" section).
+// Named to pair with wasi-worker.js: that's the Worker side, this is the
+// main-thread side.
 import "/assets/node_modules/@xterm/xterm/lib/xterm.js";
 import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
 
-export function startDemo(wasmUrl) {
+export function startRepl(wasmUrl) {
     const xterm = new Terminal();
     xterm.open(document.getElementById("terminal"));
 

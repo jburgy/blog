@@ -5,7 +5,7 @@
      wasm32-wasi build (build.zig's buildWasi) is a plain WASI command, driven
      the same way as jonesforth.wasm (see wasm/worker.js and the "How Many
      Roads Must a Man Walk Down?" post) -- a Worker blocks stdin on a uwasi
-     SharedInputChannel instead of a real pty. wasm/demo.js (shared by
+     SharedInputChannel instead of a real pty. wasm/wasi-repl.mjs (shared by
      html/4th.html, html/5th.html, html/6th.html) does the line editing. -->
 
 <head>
@@ -16,8 +16,8 @@
 <body>
     <div id="terminal"></div>
     <script type="module">
-        import { startDemo } from "/assets/demo.js";
-        startDemo("/assets/6th.wasm");
+        import { startRepl } from "/assets/wasi-repl.mjs";
+        startRepl("/assets/6th.wasm");
     </script>
 </body>
 

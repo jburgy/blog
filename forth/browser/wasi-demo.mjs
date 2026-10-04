@@ -1,38 +1,22 @@
 // Shared puppeteer helper for the wasi-worker.js browser demos (4th, 5th,
 // 6th): boots html/<name>.html in a real headless Chromium behind a local
-// server (COOP/COEP headers, same as GitHub Pages' sw.js workaround), types
-// a command, and checks the rendered terminal. No `node:test` imports here
-// on purpose -- same convention as ../wasm-test.ts: this module only exports
-// the reusable check; each <name>.browser.mjs owns its own `test(...)` call
-// (see 4th.browser.mjs/5th.browser.mjs/6th.browser.mjs), since the harness
-// itself (server, terminal hook, worker.js/wasi-worker.js/4th.32.fs asset
-// wiring) is identical across all three -- only the wasm binary and expected
-// output differ.
+// server (COOP/COEP headers, see ../../assets/serve-e2e.mjs, which this
+// shares its static-file-serving core with), types a command, and checks the
+// rendered terminal. No `node:test` imports here on purpose -- same
+// convention as ../wasm-test.ts: this module only exports the reusable
+// check; each <name>.browser.mjs owns its own `test(...)` call (see
+// 4th.browser.mjs/5th.browser.mjs/6th.browser.mjs), since the harness itself
+// (server, terminal hook, worker.js/wasi-worker.js/4th.32.fs asset wiring) is
+// identical across all three -- only the wasm binary and expected output
+// differ.
 import assert from "node:assert/strict";
-import { once } from "node:events";
-import { readFile } from "node:fs/promises";
-import { createServer } from "node:http";
-import { extname, join, normalize, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer";
+import { safeJoin, startServer } from "../../assets/serve-e2e.mjs";
 
 const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const assetRoot = "/assets/";
-const sharedHeaders = {
-    "cross-origin-embedder-policy": "require-corp",
-    "cross-origin-opener-policy": "same-origin",
-};
-
-function contentType(pathname) {
-    return ({
-        ".css": "text/css; charset=utf-8",
-        ".f": "text/plain; charset=utf-8",
-        ".html": "text/html; charset=utf-8",
-        ".js": "text/javascript; charset=utf-8",
-        ".mjs": "text/javascript; charset=utf-8",
-        ".wasm": "application/wasm",
-    })[extname(pathname)] ?? "application/octet-stream";
-}
 
 function terminalText(page) {
     return page.evaluate(() => {
@@ -97,58 +81,21 @@ function diagnostics(page) {
     }));
 }
 
-async function startServer({ name, wasmFilePath, htmlPath }) {
-    function assetPath(pathname) {
-        if (pathname.startsWith(`${assetRoot}node_modules/`)) {
-            return join(root, "forth", "node_modules", pathname.slice(`${assetRoot}node_modules/`.length));
-        }
-        if (pathname === `${assetRoot}${name}.wasm`) {
-            return wasmFilePath;
-        }
-        if (pathname === `${assetRoot}worker.js` || pathname === `${assetRoot}wasi-worker.js` || pathname === `${assetRoot}demo.js`) {
-            return join(root, "forth", "wasm", pathname.slice(assetRoot.length));
-        }
-        if (pathname === `${assetRoot}forth/4th.32.fs`) {
-            return join(root, "forth", "4th.32.fs");
-        }
-        return null;
+function resolvePath({ name, wasmFilePath, htmlPath }, pathname) {
+    if (pathname === "/") pathname = htmlPath;
+    if (pathname.startsWith(`${assetRoot}node_modules/`)) {
+        return join(root, "forth", "node_modules", pathname.slice(`${assetRoot}node_modules/`.length));
     }
-
-    function filePath(pathname) {
-        const asset = assetPath(pathname);
-        if (asset) return asset;
-        const relative = normalize(pathname).replace(/^\/+/, "");
-        if (relative.startsWith("..")) return null;
-        return join(root, relative);
+    if (pathname === `${assetRoot}${name}.wasm`) {
+        return wasmFilePath;
     }
-
-    const server = createServer(async (req, res) => {
-        try {
-            const url = new URL(req.url ?? "/", "http://127.0.0.1");
-            const pathname = url.pathname === "/" ? htmlPath : url.pathname;
-            const path = filePath(pathname);
-            if (!path) {
-                res.writeHead(404).end("not found");
-                return;
-            }
-            const body = await readFile(path);
-            res.writeHead(200, { ...sharedHeaders, "content-type": contentType(pathname) });
-            res.end(body);
-        } catch {
-            res.writeHead(404, sharedHeaders).end("not found");
-        }
-    });
-    server.listen(0, "localhost");
-    await once(server, "listening");
-    const { port } = server.address();
-    return {
-        origin: `http://localhost:${port}`,
-        async close() {
-            server.closeAllConnections();
-            server.close();
-            await once(server, "close");
-        },
-    };
+    if (pathname === `${assetRoot}worker.js` || pathname === `${assetRoot}wasi-worker.js` || pathname === `${assetRoot}wasi-repl.mjs`) {
+        return join(root, "forth", "wasm", pathname.slice(assetRoot.length));
+    }
+    if (pathname === `${assetRoot}forth/4th.32.fs`) {
+        return join(root, "forth", "4th.32.fs");
+    }
+    return safeJoin(root, pathname);
 }
 
 /**
@@ -170,7 +117,7 @@ export async function checkWasiDemo({
     command = "SEE QUIT",
 }) {
     const htmlPath = `/forth/html/${name}.html`;
-    const server = await startServer({ name, wasmFilePath, htmlPath });
+    const server = await startServer((pathname) => resolvePath({ name, wasmFilePath, htmlPath }, pathname));
     const browser = await puppeteer.launch({
         headless: true,
         args: process.platform === "linux"
@@ -216,3 +163,4 @@ export async function checkWasiDemo({
         await server.close();
     }
 }
+

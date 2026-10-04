@@ -189,8 +189,13 @@ requires clang, Emscripten, nightly Rust with the `wasm32-wasip1` target and
   `buildWasi`), no `emcc` step: zig's own linker produces the standalone
   command directly. Shares `wasi-worker.js` with `4th.wasm`/`5th.wasm` above,
   and is what [html/6th.html](html/6th.html) actually runs -- no pty, no
-  xterm-pty; the page does its own minimal line editing against `xterm.js`,
-  the same way `wasm/main.js` does for jonesforth.wasm below.
+  xterm-pty; [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs) (`startRepl(wasmUrl)`)
+  does the line editing against `xterm.js`, shared by `html/4th.html`,
+  `html/5th.html`, and `html/6th.html`, and published standalone via
+  `assets/Makefile`'s own `wasi-repl.mjs` target -- not just a side effect of
+  building `4th.wasm`/`5th.wasm`/`6th.wasm` -- so a future post revision can
+  hardcode `/blog/wasi-repl.mjs` directly, the same way the jonesforth post
+  already hardcodes `/blog/main.js`.
 - **Rust `wasm32-wasip1`** — two profiles, because [4th.rs](4th.rs) halts by
   panicking: `make test-wasm` rebuilds `std` with `panic_unwind` for wasmtime,
   while `make web` swaps the panic for a host throw so the browser build in
