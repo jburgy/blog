@@ -36,6 +36,65 @@ function noSeek() {
     });
 }
 
+// uwasi's useStdio's fd_read (via ReadableTextProxy.readv) tries to
+// completely fill the requested buffer, retrying `stdin()` until it can or
+// hits true EOF. That's wrong for a classic POSIX read(): it's fine to
+// return less than asked for, and these guests rely on exactly that —
+// jonesforth's TIB refill (like 5th.c's key()) always requests a fixed 4096
+// bytes regardless of how much input is actually left. Preamble files are
+// essentially never an exact multiple of that, so the final, naturally
+// short read makes readv() retry forever on a channel that's meant to stay
+// open for more interactive input — a hang, not a crash, which is why it
+// looks like fd_write is simply never reached (execution is stuck inside
+// the *previous* fd_read). Hand-roll fd_read instead, short reads and all;
+// useStdio still covers fd_write/fd_fdstat_get/etc., which never have this
+// problem (writev() just writes whatever it's given, no retry loop).
+function blockingRead(channel) {
+    // ponytail: a 0ms Atomics.wait that can never actually wait (nothing else
+    // ever touches index 0 of this buffer). Its only job is the documented
+    // engine side effect of Atomics.wait pumping the agent cluster's pending
+    // cross-thread messages. Without it, a guest that never genuinely blocks
+    // (every fd_read is satisfied from input pushed up front, like
+    // jonesforth's/5th's preamble) runs `_start` to completion in one
+    // uninterrupted JS turn, and every `onOutput` postMessage queues up
+    // behind it instead of reaching the main thread as it's produced — so a
+    // real browser never repaints until the run is already over. Confirmed
+    // needed in Chromium; harmless in Node (worker_threads already pumps
+    // fine). If this turns out to be too fragile across engines, the robust
+    // fix is reinstating a real request/response round trip per read, like
+    // the original hand-rolled implementation this module replaced.
+    const yieldBuffer = new Int32Array(new SharedArrayBuffer(4));
+    return (options, abi, memoryView) => ({
+        fd_read: (fd, iovs, iovsLen, nreadPtr) => {
+            if (fd !== 0) return 8; // WASI_ERRNO_BADF
+            const view = memoryView();
+            // Bound consume() to what these iovecs can actually hold: it
+            // otherwise happily returns everything buffered, up to the
+            // channel's full capacity, and whatever doesn't fit in this
+            // call's iovecs would be silently lost (consumed from the
+            // channel, written nowhere).
+            let capacity = 0;
+            for (let i = 0; i < iovsLen; i++) {
+                capacity += view.getUint32(iovs + i * 8 + 4, true);
+            }
+            channel.waitForInput(null);
+            Atomics.wait(yieldBuffer, 0, 0, 0);
+            const bytes = channel.consume(capacity);
+            let totalRead = 0;
+            for (let i = 0; i < iovsLen && totalRead < bytes.length; i++) {
+                const iovecPtr = iovs + i * 8;
+                const bufPtr = view.getUint32(iovecPtr, true);
+                const bufLen = view.getUint32(iovecPtr + 4, true);
+                const n = Math.min(bufLen, bytes.length - totalRead);
+                new Uint8Array(view.buffer, bufPtr, n).set(bytes.subarray(totalRead, totalRead + n));
+                totalRead += n;
+            }
+            view.setUint32(nreadPtr, totalRead, true);
+            return 0; // WASI_ESUCCESS
+        },
+    });
+}
+
 /**
  * @param {BufferSource | WebAssembly.Module} wasm compiled WASI command (`_start`)
  * @param {SharedArrayBuffer} sharedBuffer a host-created `SharedInputChannel`'s buffer
@@ -57,15 +116,11 @@ export async function runWasiCommand(wasm, sharedBuffer, onOutput) {
             useProc(),
             noSeek(),
             useStdio({
-                // Block for real rather than draining whatever is buffered:
-                // these guests call plain read()/getchar(), never poll_oneoff.
-                stdin: () => {
-                    channel.waitForInput(null);
-                    return channel.consume();
-                },
                 stdout: (chunk) => onOutput(1, chunk),
                 stderr: (chunk) => onOutput(2, chunk),
             }),
+            // After useStdio, so this fd_read overrides its fill-the-buffer one.
+            blockingRead(channel),
         ],
     });
 
