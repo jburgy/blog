@@ -1,16 +1,11 @@
 name: JavaScript
 
 # `push` only, matching the Python workflow: adding `pull_request` as well runs
-# the whole thing twice on every PR branch.  The path filter is what the old
-# `forth-web` workflow contributed; everything else it did is the `forth` job.
-on:
-  push:
-    paths:
-      - "forth/**"
-      - "regexp/regexp.f"
-      - "regexp/web/**"
-      - "fourt2py/**"
-      - ".github/workflows/javascript.yml"
+# the whole thing twice on every PR branch. No path filter (unlike before):
+# Codecov's `after_n_builds: 5` in codecov.yml expects all 5 uploads (this
+# workflow's 3 jobs plus pythonpackage.yml's 2) on every commit, so forth/
+# regexp/fourt2py now build and upload coverage even when untouched.
+on: [push]
 
 jobs:
   forth:
