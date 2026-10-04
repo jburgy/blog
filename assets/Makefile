@@ -58,8 +58,8 @@ forth/4th.32.fs : ../forth/4th.32.fs
 	@mkdir -p $(@D)
 	cp $< $@
 
-node_modules/xterm-pty/package.json :
-	npm install @xterm/xterm xterm-pty
+node_modules/xterm-pty/package.json : package.json package-lock.json
+	npm ci
 
 lisp : client-server
 	npm run asbuild:lisp
