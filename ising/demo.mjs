@@ -13,6 +13,17 @@ const L = 32;
 const T = 2.5;
 const INTERVAL_MS = 150;
 
+// Not pure #0000ff: pure blue is too dark to read on a dark background (its
+// WCAG relative luminance is only ~0.07), so plain red/blue fails exactly
+// the "regardless of dark mode" requirement these are picked for. Both
+// colors below sit at a luminance (~0.18-0.20) chosen to contrast >=4:1
+// against *both* white and black -- see index.html's transparent lattice
+// background, which relies on that. Being red vs. blue (not red vs. green)
+// also keeps them apart on the one color-vision axis (red-green) most
+// color blindness affects.
+const SPIN_UP_COLOR = '#457b9d'; // steel blue
+const SPIN_DOWN_COLOR = '#e63946'; // imperial red
+
 /** One entry per selectable update rule: its id/label and its
  * `(spins, L, T) -> number[]` step function (see lattice.mjs). */
 const ALGORITHMS = [
@@ -70,7 +81,7 @@ export function attach(panel, { L: size = L, T: temperature = T, intervalMs = IN
         return circle;
     });
     const paint = (i) => {
-        circles[i].style.fill = spins[i] > 0 ? 'black' : 'yellow';
+        circles[i].style.fill = spins[i] > 0 ? SPIN_UP_COLOR : SPIN_DOWN_COLOR;
     };
     spins.forEach((_, i) => paint(i));
 

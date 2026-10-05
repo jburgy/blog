@@ -32,9 +32,9 @@
 			width: 100%;
 			max-width: 512px;
 			height: auto;
-			/* Fixed (not color-scheme-dependent) so the black/yellow spins
-			   stay visible regardless of the page's light/dark mode. */
-			background: #eee;
+			/* No background of its own: it shows through to the page's own
+			   light/dark background. The two spin colors in demo.mjs are
+			   tuned to read clearly against either. */
 			border: 1px solid rgba(128, 128, 128, .4);
 			border-radius: .25rem;
 		}
