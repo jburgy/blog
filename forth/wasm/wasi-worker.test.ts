@@ -24,7 +24,31 @@ test('5th.wasm: a scripted session exits cleanly on EOF', async ({ wasm }) => {
     expect(out).toBe('A');
 });
 
+// jonesforth.S's native ARGC/ARGV/ENVIRON read argv/envp straight off the
+// stack, because S0 there *is* the real process entry %esp, with Linux's
+// kernel-laid-out argc/argv/envp sitting right above it -- no separate
+// primitive needed. 4th.32.fs's (ARGC) (see 4th.c, 5th.c) exists only
+// because the C ports gave up that adjacency: S0 points at a dedicated
+// local `stack[]` array instead of the real entry stack, and wasi-libc's
+// `args_get` fills a completely unrelated buffer (its own malloc arena) for
+// argv. This test confirms that gap holds under wasm32-wasi too, so the
+// jonesforth.S trick can't be revived there and (ARGC) stays necessary.
+test('5th.wasm: (ARGC) is not S0 + CELL, so jonesforth.f\'s raw-stack ARGC/ARGV/ENVIRON ' +
+    'trick cannot be revived under WASI', async ({ wasm }) => {
+    const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
+    const channel = new SharedInputChannel(256 * 1024); // 4th.32.fs alone is ~55 KiB
+    let out = '';
+    channel.push(preamble);
+    channel.push(new TextEncoder().encode('(ARGC) S0 @ 4 + = .\n'));
+    channel.close();
+    const code = await runWasiCommand(wasm, channel.sharedBuffer, (_fd, chunk) => { out += chunk; });
+    expect(code).toBe(0);
+    // `out` also carries the boot banner, so compare only `.`'s own answer.
+    expect(out.trim().split(/\s+/).pop()).toBe('0'); // -1 (true) would mean the addresses coincide
+});
+
 let jonesforthWasmPath: string;
+let localizeWasmPath: string;
 let sixthWasmPath: string;
 let tmpDir: string;
 
@@ -38,6 +62,17 @@ beforeAll(async () => {
         join(import.meta.dirname, 'jonesforth.wast'),
     ]);
 
+    // README's other "full interpreter" wast port (tail calls, cfa/ip/sp/rsp
+    // as parameters instead of globals) -- same hand-rolled WASI surface as
+    // jonesforth.wast, checked alongside it below.
+    localizeWasmPath = join(tmpDir, 'localize.wasm');
+    await execFileAsync(join(import.meta.dirname, '../node_modules/.bin/wat2wasm'), [
+        '--enable-tail-call',
+        '--debug-names',
+        '-o', localizeWasmPath,
+        join(import.meta.dirname, 'localize.wast'),
+    ]);
+
     // zig build -Dtarget=wasm32-wasi (see build.zig's buildWasi)
     await execFileAsync('zig', [
         'build',
@@ -49,6 +84,30 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await rm(tmpDir, { recursive: true, force: true });
+});
+
+// jonesforth.f itself (unlike 4th.32.fs) defines ARGC/ARGV/ENVIRON the
+// original jonesforth.S way -- straight off S0, no (ARGC) primitive -- but
+// that only works where argc/argv genuinely sit on the real stack above S0
+// (see the 5th.wasm test above for where it doesn't). jonesforth.wast/
+// localize.wast sidestep the question entirely: they hand-roll their own
+// WASI imports and only ever wire up fd_read/fd_write/proc_exit, so there is
+// no args_get/args_sizes_get call anywhere in the module -- argv was simply
+// never fetched from the host, adjacent to S0 or otherwise. Loading
+// jonesforth.f here would still compile ARGC/ARGV/ENVIRON; they just read
+// whatever garbage sits at S0's fixed data-segment address instead of real
+// argv, which is why none of the scripted demo sessions ever call them.
+vitestTest.for([
+    ['jonesforth.wasm', () => jonesforthWasmPath],
+    ['localize.wasm', () => localizeWasmPath],
+])('%s never imports args_get/args_sizes_get, so it has no argv to expose and ' +
+    'never needed (ARGC) in the first place', async ([, getPath]) => {
+    const bytes = await readFile(getPath());
+    const module = await WebAssembly.compile(bytes);
+    const wasiImportNames = WebAssembly.Module.imports(module)
+        .filter((imp) => imp.module === 'wasi_snapshot_preview1')
+        .map((imp) => imp.name);
+    expect(wasiImportNames).toEqual(['fd_read', 'fd_write', 'proc_exit']);
 });
 
 test('6th.wasm (wasm32-wasi): a scripted session exits cleanly on EOF', async () => {

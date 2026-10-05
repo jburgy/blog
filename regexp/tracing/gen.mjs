@@ -85,7 +85,7 @@ text(20, 54, `One instant, NEXT #${SNAP} of ${o.steps.length.toLocaleString('en'
     panel(Y, 214, 'WebAssembly', ['_start is the whole', 'interpreter: one', 'function, one loop,', 'one 100-way br_table']);
     text(X0, Y + 24, 'Which tier runs _start (%IsTurboFanFunction)', 'b s');
     const tiers = [
-        ['eval #1', '4th.32.fs', 'uncompiled → TurboFan'],
+        ['eval #1', 'jonesforth.f', 'uncompiled → TurboFan'],
         ['eval #2–4', 'regexp.f + glue', 'TurboFan'],
         ['eval #5', 'this click', 'TurboFan'],
     ];
@@ -149,7 +149,7 @@ text(20, 54, `One instant, NEXT #${SNAP} of ${o.steps.length.toLocaleString('en'
         [0x2000, 0x4000, 'rs', 'return stack ↓'],
         [0x4000, 0x5000, 'seg alt', 'TIB'],
         [0x5000, 0x56fc, 'seg', ''],
-        [0x56fc, o.R.addr, 'seg alt', 'dictionary: 4th.32.fs, regexp.f, glue →'],
+        [0x56fc, o.R.addr, 'seg alt', 'dictionary: jonesforth.f, regexp.f, glue →'],
         [o.R.addr, o.R.end, 'seg now', ''],
         [o.R.end, HI, 'seg', ''],
     ];

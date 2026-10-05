@@ -5,7 +5,7 @@ const read = (path, enc = 'utf8') => fs.readFileSync(new URL(path, BLOG), enc);
 const { Matcher } = await import(new URL('regexp/web/matcher.mjs', BLOG));
 const m = await Matcher.fromSources({
   wasm: read('regexp/web/forth.wasm', null),
-  preamble: read('forth/4th.32.fs'),
+  preamble: read('jonesforth/jonesforth.f'),
   regexp: read('regexp/regexp.f'),
   text: process.argv[2] ?? 'abccbcccd',
 });
