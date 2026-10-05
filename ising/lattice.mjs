@@ -170,6 +170,11 @@ export function* swendsenWangGenerator(spins, L, T, random = Math.random) {
         const rx = find(x);
         const ry = find(y);
         if (rx === ry) return;
+        // The < and > cases are mirror images (whichever of rx/ry has the
+        // lower rank gets attached under the other), not independently
+        // meaningful: which one actually fires for a given pair of trees
+        // depends only on which argument order union() happened to be
+        // called with, not on anything about the trees themselves.
         if (rank[rx] < rank[ry]) parent[rx] = ry;
         else if (rank[rx] > rank[ry]) parent[ry] = rx;
         else {
@@ -226,7 +231,13 @@ export function* wolffGenerator(
     L,
     T,
     random = Math.random,
-    pickSeed = () => Math.floor(random() * spins.length),
+    // Clamped, not just Math.floor(random() * spins.length): random() is
+    // documented as uniform [0, 1), but a custom test double that slips and
+    // returns exactly 1 would otherwise pick the one out-of-bounds index
+    // (spins.length), silently degenerating into a cluster that never
+    // grows (undefined isn't strictly equal to any real spin) instead of a
+    // clear failure.
+    pickSeed = () => Math.min(Math.floor(random() * spins.length), spins.length - 1),
 ) {
     const p = bondProbability(T);
     const table = neighborTable(L);
