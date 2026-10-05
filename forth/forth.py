@@ -389,7 +389,7 @@ def fast_fib(n):
     return Fn
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     parser = ArgumentParser()
     parser.add_argument("n", type=int, help="which Fibonacci number")
     parser.add_argument(

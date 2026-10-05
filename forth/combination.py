@@ -49,7 +49,7 @@ def index(mask: int) -> int:
     return index
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     f = ForthCompiler().compile(index)
     dis(f)
     m = 0b111000

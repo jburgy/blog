@@ -181,7 +181,7 @@ def random_lp(seed, max_dim, continuous=False):
     m, n0 = rng.integers(2, max_dim, size=2)
     numle = rng.integers(0, m + 1)
     numge = rng.integers(0, m - numle + 1)
-    if continuous:
+    if continuous:  # pragma: no cover -- only test_matches_fortran_many sets this
         a = rng.uniform(-2, 8, (m, n0))
         b0 = rng.uniform(0, 10, m)
         c = rng.uniform(-2, 5, n0)
@@ -220,7 +220,7 @@ def test_agrees_with_highs():
 
 
 @slow
-def test_agrees_with_highs_many():
+def test_agrees_with_highs_many():  # pragma: no cover
     """Near-singular or degenerate bases may make a few problems disagree."""
     seeds = range(1000, 4000)
     disagree = [s for s in seeds if not agrees_with_highs(random_lp(s, 12))]
@@ -229,7 +229,7 @@ def test_agrees_with_highs_many():
 
 @slow
 @pytest.mark.skipif(smplx is smplx_py, reason="Fortran extension not built")
-def test_matches_fortran_many():
+def test_matches_fortran_many():  # pragma: no cover
     """Without pivot ties, smplx_py follows exactly the Fortran's path."""
     differ = []
     for seed in range(3000):
