@@ -1,11 +1,24 @@
 import { describe, expect, test } from 'vitest';
-import { createLattice, neighbors, metropolisGenerator, swendsenWangGenerator, wolffGenerator } from '../lattice.mjs';
+import {
+    createLattice,
+    neighbors,
+    metropolisGenerator,
+    swendsenWangGenerator,
+    wolffGenerator,
+    CRITICAL_TEMPERATURE,
+} from '../lattice.mjs';
 
 describe('createLattice', () => {
     test('starts fully ordered (every spin +1)', () => {
         const spins = createLattice(4);
         expect(spins.length).toBe(16);
         expect([...spins]).toEqual(new Array(16).fill(1));
+    });
+});
+
+describe('CRITICAL_TEMPERATURE', () => {
+    test("matches Onsager's exact value (k_B*T_c = 2J / ln(1 + sqrt(2)))", () => {
+        expect(CRITICAL_TEMPERATURE).toBeCloseTo(2.269185314213022, 12);
     });
 });
 

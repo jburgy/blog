@@ -42,8 +42,37 @@
 		.controls {
 			display: flex;
 			flex-wrap: wrap;
+			align-items: center;
 			gap: 1rem;
 			margin-top: .75rem;
+		}
+
+		.temperature {
+			display: inline-flex;
+			align-items: center;
+			gap: .4rem;
+		}
+
+		.temperature__track {
+			position: relative;
+			display: inline-block;
+		}
+
+		.critical-tick {
+			position: absolute;
+			top: 50%;
+			width: 2px;
+			height: .6rem;
+			background: currentColor;
+			opacity: .5;
+			transform: translate(-50%, -50%);
+			pointer-events: none;
+		}
+
+		input[type="range"] {
+			display: block;
+			width: 10rem;
+			vertical-align: middle;
 		}
 	</style>
 </head>
@@ -56,8 +85,10 @@
 		<a href="https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm">Metropolis</a>,
 		<a href="https://en.wikipedia.org/wiki/Swendsen%E2%80%93Wang_algorithm">Swendsen&ndash;Wang</a>, or the
 		<a href="https://en.wikipedia.org/wiki/Wolff_algorithm">Wolff algorithm</a>. Uncheck the active rule
-		to stop. Adapted from <a href="https://jsfiddle.net/jburgy/br0gk7s8/1/">a 2018 fiddle</a> paying tribute to
-		Jian-Sheng Wang's early
+		to stop. Drag the T slider to change the temperature live; the lone tick mark on it is Onsager's exact
+		critical temperature (k<sub>B</sub>T<sub>c</sub> = 2J&#8260;ln(1+&radic;2) &asymp; 2.27), where this
+		lattice stops spontaneously magnetizing. Adapted from
+		<a href="https://jsfiddle.net/jburgy/br0gk7s8/1/">a 2018 fiddle</a> paying tribute to Jian-Sheng Wang's early
 		<a href="https://www.physics.nus.edu.sg/~phywjs/lecture-notes/ising.ps">PostScript Ising demo</a>.
 	</p>
 

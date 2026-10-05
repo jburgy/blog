@@ -7,11 +7,24 @@
 // Wang's early PostScript Ising demo
 // (https://www.physics.nus.edu.sg/~phywjs/lecture-notes/ising.ps).
 
-import { createLattice, neighbors, metropolisGenerator, swendsenWangGenerator, wolffGenerator } from './lattice.mjs';
+import {
+    createLattice,
+    neighbors,
+    metropolisGenerator,
+    swendsenWangGenerator,
+    wolffGenerator,
+    CRITICAL_TEMPERATURE,
+} from './lattice.mjs';
 
 const L = 32;
 const T = 2.5;
 const INTERVAL_MS = 150;
+// Wide enough to show clearly ordered (T_MIN) and disordered (T_MAX)
+// behavior on either side of CRITICAL_TEMPERATURE (~2.27), without most of
+// the range being a less interesting extreme.
+const T_MIN = 0.5;
+const T_MAX = 4;
+const T_STEP = 0.01;
 
 // Not pure #0000ff: pure blue is too dark to read on a dark background (its
 // WCAG relative luminance is only ~0.07), so plain red/blue fails exactly
@@ -32,10 +45,25 @@ const ALGORITHMS = [
     { id: 'wolff', label: 'Wolff', createGenerator: wolffGenerator },
 ];
 
+// Where CRITICAL_TEMPERATURE falls along the slider's track, as a percent
+// of its length -- used to position TICK_MARKUP below, since not every
+// browser draws the tick(s) a <datalist> normally would for a range input
+// (this guarantees one regardless).
+const CRITICAL_TEMPERATURE_PERCENT = (100 * (CRITICAL_TEMPERATURE - T_MIN)) / (T_MAX - T_MIN);
+const TICK_MARKUP = `<span class="critical-tick" style="left: ${CRITICAL_TEMPERATURE_PERCENT}%"></span>`;
+
 const MARKUP = `
 <p data-role="title"></p>
 <svg data-role="lattice" height="512" width="512"></svg>
-<form class="controls">${ALGORITHMS.map(
+<form class="controls">
+    <label class="temperature">
+        T
+        <span class="temperature__track">
+            <input type="range" data-role="temperature" min="${T_MIN}" max="${T_MAX}" step="${T_STEP}" value="${T}" list="critical-temperature">
+            ${TICK_MARKUP}
+        </span>
+    </label>
+    <datalist id="critical-temperature"><option value="${CRITICAL_TEMPERATURE}"></option></datalist>${ALGORITHMS.map(
     ({ id, label }) => `
     <label><input type="checkbox" data-role="algorithm" value="${id}"> ${label}</label>`,
 ).join('')}
@@ -57,24 +85,31 @@ export function createPanel(document) {
 
 /**
  * Wire `panel` up: fill its SVG with one circle per site, then let its
- * checkboxes start/stop the simulation.
+ * checkboxes start/stop the simulation and its temperature slider adjust
+ * it live (restarting the active algorithm, if any, so it picks up the
+ * new T immediately).
  *
  * @param {HTMLElement} panel as returned by createPanel
  * @param {{ L?: number, T?: number, intervalMs?: number }} [options]
  * @returns {{ spins: Int8Array, stop: () => void }}
  */
-export function attach(panel, { L: size = L, T: temperature = T, intervalMs = INTERVAL_MS } = {}) {
+export function attach(panel, { L: size = L, T: initialTemperature = T, intervalMs = INTERVAL_MS } = {}) {
     const document = panel.ownerDocument;
     const spins = createLattice(size);
     // Shared by every algorithm: site positions don't change when the
-    // active rule does, so this is built once per attach(), not once per
-    // generator.
+    // active rule or temperature does, so this is built once per attach(),
+    // not once per generator.
     const neighborTable = neighbors(size);
     const svg = panel.querySelector('[data-role="lattice"]');
     const scale = parseFloat(svg.getAttribute('width')) / size;
     const delta = scale / 2;
 
-    panel.querySelector('[data-role="title"]').textContent = `Ising Model (${size}\u00d7${size}, T = ${temperature})`;
+    let temperature = initialTemperature;
+    const updateTitle = () => {
+        panel.querySelector('[data-role="title"]').textContent =
+            `Ising Model (${size}\u00d7${size}, T = ${temperature.toFixed(2)})`;
+    };
+    updateTitle();
 
     const circles = Array.from(spins, (_, i) => {
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -94,12 +129,15 @@ export function attach(panel, { L: size = L, T: temperature = T, intervalMs = IN
     // still how often the simulation actually steps -- every animation
     // frame just checks whether enough time has passed yet.
     let frameId = null;
+    let activeId = null;
     const stop = () => {
         if (frameId !== null) cancelAnimationFrame(frameId);
         frameId = null;
+        activeId = null;
     };
     const start = (id) => {
         stop();
+        activeId = id;
         const { createGenerator } = ALGORITHMS.find((algorithm) => algorithm.id === id);
         const generator = createGenerator(spins, neighborTable, temperature);
         let lastStep = 0;
@@ -124,6 +162,16 @@ export function attach(panel, { L: size = L, T: temperature = T, intervalMs = IN
             }
         });
     }
+
+    // Moving the slider never starts/stops anything by itself, same as
+    // resizing a window wouldn't -- it only changes what the *next* step
+    // (now, or whenever one is next started) uses, restarting the already-
+    // active algorithm, if any, so that next step comes immediately.
+    panel.querySelector('[data-role="temperature"]').addEventListener('input', (event) => {
+        temperature = parseFloat(event.target.value);
+        updateTitle();
+        if (activeId) start(activeId);
+    });
 
     return { spins, stop };
 }

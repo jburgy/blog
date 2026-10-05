@@ -27,6 +27,11 @@
  * statistical mechanics textbook. */
 export const J = 1;
 
+/** Onsager's exact critical temperature for the 2D square-lattice Ising
+ * model (k_B = 1): k_B*T_c = 2*J / ln(1 + sqrt(2)). Below it the lattice
+ * has a spontaneous net magnetization; above it, none. */
+export const CRITICAL_TEMPERATURE = (2 * J) / Math.log(1 + Math.sqrt(2));
+
 /**
  * Build an L*L lattice, every spin pointing up.
  *
