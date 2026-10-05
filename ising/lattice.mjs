@@ -6,8 +6,15 @@
 // comparing them.
 //
 // Spins are +-1, stored row-major (index i = y*L + x) in an Int8Array.
-// Every update function mutates `spins` in place and returns the indices
-// that flipped, so a caller only has to repaint those.
+// Each algorithm below is a generator, not a plain function: calling e.g.
+// metropolisGenerator(spins, L, T) once builds whatever that algorithm
+// needs (a neighbor table, union-find scratch, cluster-membership
+// tracking) as ordinary local variables, then yields the list of flipped
+// indices forever, one sweep/step per `.next()` call. That setup work only
+// ever has to happen once per generator, for free, just by being outside
+// the `for (;;)` loop -- no module-level cache keyed by lattice size
+// needed, since the generator's own locals already live exactly as long as
+// the generator does.
 
 /** Ferromagnetic coupling constant. Kept symbolic (rather than folded into
  * T) so the energy/probability formulas below read the same as in any
@@ -53,46 +60,35 @@ function left(i, L) {
 
 /**
  * The 4 nearest neighbors of site `i` on an L*L lattice with periodic
- * boundary conditions, in no particular order. A thin, allocating wrapper
- * around neighborTable(L) below, for tests and callers that just want a
- * plain array; the hot loops in this file read the table directly instead.
+ * boundary conditions, in no particular order.
  *
  * @param {number} i site index
  * @param {number} L lattice side length
  * @returns {number[]} length 4
  */
 export function neighbors(i, L) {
-    const table = neighborTable(L);
-    const base = 4 * i;
-    return [table[base], table[base + 1], table[base + 2], table[base + 3]];
+    return [down(i, L), up(i, L), right(i, L), left(i, L)];
 }
 
-const neighborTableCache = new Map();
-
 /**
- * Flat, cached-per-L table of every site's 4 neighbors: site i's neighbors
- * (down, up, right, left) are table[4*i], table[4*i+1], table[4*i+2],
- * table[4*i+3]. Site positions, not spins, determine this, so it only ever
- * needs computing once per L -- worth doing, since every algorithm below
- * looks up every visited site's neighbors on every single step, and without
- * this they'd each cost a fresh 4-element array allocation (what neighbors()
- * above returns) instead of 4 typed-array reads.
+ * Flat table of every site's 4 neighbors: site i's neighbors (down, up,
+ * right, left) are table[4*i] through table[4*i+3]. Site positions, not
+ * spins, determine this, so each generator below builds it once (not once
+ * per step) and closes over the result -- looking up a site's neighbors on
+ * every step via neighbors() above would instead cost a fresh 4-element
+ * array allocation per lookup.
  *
  * @param {number} L lattice side length
  * @returns {Int32Array} length 4*L*L
  */
 function neighborTable(L) {
-    let table = neighborTableCache.get(L);
-    if (table === undefined) {
-        const n = L * L;
-        table = new Int32Array(4 * n);
-        for (let i = 0; i < n; i++) {
-            table[4 * i] = down(i, L);
-            table[4 * i + 1] = up(i, L);
-            table[4 * i + 2] = right(i, L);
-            table[4 * i + 3] = left(i, L);
-        }
-        neighborTableCache.set(L, table);
+    const n = L * L;
+    const table = new Int32Array(4 * n);
+    for (let i = 0; i < n; i++) {
+        table[4 * i] = down(i, L);
+        table[4 * i + 1] = up(i, L);
+        table[4 * i + 2] = right(i, L);
+        table[4 * i + 3] = left(i, L);
     }
     return table;
 }
@@ -110,76 +106,59 @@ function bondProbability(T) {
 }
 
 /**
- * One Metropolis sweep: visit every site once (in index order) and flip it
- * with the standard single-spin-flip acceptance rule.
+ * Metropolis sweeps: each `.next()` visits every site once (in index order)
+ * and flips it with the standard single-spin-flip acceptance rule.
  *
  * @param {Int8Array} spins length L*L, entries +-1; mutated in place
  * @param {number} L lattice side length
  * @param {number} T temperature (k_B = 1)
  * @param {() => number} [random] uniform [0, 1) generator, injectable for tests
- * @returns {number[]} indices that flipped
+ * @yields {number[]} indices that flipped this sweep
  */
-export function metropolisSweep(spins, L, T, random = Math.random) {
+export function* metropolisGenerator(spins, L, T, random = Math.random) {
     const table = neighborTable(L);
-    const flipped = [];
-    for (let i = 0; i < spins.length; i++) {
-        const s = spins[i];
-        const base = 4 * i;
-        const alignedNeighbors = spins[table[base]] + spins[table[base + 1]] + spins[table[base + 2]] + spins[table[base + 3]];
-        const deltaE = 2 * J * s * alignedNeighbors;
-        if (deltaE <= 0 || random() < Math.exp(-deltaE / T)) {
-            spins[i] = -s;
-            flipped.push(i);
+    for (;;) {
+        const flipped = [];
+        for (let i = 0; i < spins.length; i++) {
+            const s = spins[i];
+            const base = 4 * i;
+            const alignedNeighbors =
+                spins[table[base]] + spins[table[base + 1]] + spins[table[base + 2]] + spins[table[base + 3]];
+            const deltaE = 2 * J * s * alignedNeighbors;
+            if (deltaE <= 0 || random() < Math.exp(-deltaE / T)) {
+                spins[i] = -s;
+                flipped.push(i);
+            }
         }
+        yield flipped;
     }
-    return flipped;
-}
-
-const swScratchCache = new Map();
-
-/**
- * Per-L union-find scratch for swendsenWangSweep, reused across calls
- * (reset, not reallocated) since a fresh sweep needs every entry back at
- * its own-root/rank-0/undecided starting state anyway -- allocating new
- * typed arrays for that every single sweep would just be needless garbage.
- *
- * @param {number} n site count (L*L)
- * @returns {{ parent: Int32Array, rank: Uint8Array, flipRoot: Int8Array }}
- */
-function swScratch(n) {
-    let scratch = swScratchCache.get(n);
-    if (scratch === undefined) {
-        scratch = { parent: new Int32Array(n), rank: new Uint8Array(n), flipRoot: new Int8Array(n) };
-        swScratchCache.set(n, scratch);
-    }
-    const { parent, rank, flipRoot } = scratch;
-    for (let i = 0; i < n; i++) {
-        parent[i] = i;
-        rank[i] = 0;
-        flipRoot[i] = -1; // undecided
-    }
-    return scratch;
 }
 
 /**
- * One Swendsen-Wang sweep: freeze a bond between every pair of aligned
- * neighbors with probability `bondProbability(T)`, union-find the resulting
- * clusters, then flip each whole cluster with probability 1/2.
+ * Swendsen-Wang sweeps: each `.next()` freezes a bond between every pair of
+ * aligned neighbors with probability `bondProbability(T)`, union-finds the
+ * resulting clusters, then flips each whole cluster with probability 1/2.
  *
  * @param {Int8Array} spins length L*L, entries +-1; mutated in place
  * @param {number} L lattice side length
  * @param {number} T temperature (k_B = 1)
  * @param {() => number} [random] uniform [0, 1) generator, injectable for tests
- * @returns {number[]} indices that flipped
+ * @yields {number[]} indices that flipped this sweep
  */
-export function swendsenWangSweep(spins, L, T, random = Math.random) {
+export function* swendsenWangGenerator(spins, L, T, random = Math.random) {
     const n = spins.length;
     const p = bondProbability(T);
     const table = neighborTable(L);
 
     // Union-find with path halving and union by rank, inlined: this sweep
     // runs every animation frame, so it's worth not allocating a class.
-    const { parent, rank, flipRoot } = swScratch(n);
+    // Allocated once here, reset (not reallocated) at the top of every
+    // sweep below -- a fresh sweep needs every entry back at its
+    // own-root/rank-0/undecided starting state regardless, so reusing the
+    // same typed arrays just avoids needless garbage.
+    const parent = new Int32Array(n);
+    const rank = new Uint8Array(n);
+    const flipRoot = new Int8Array(n);
     const find = (x) => {
         while (parent[x] !== x) {
             parent[x] = parent[parent[x]];
@@ -199,83 +178,88 @@ export function swendsenWangSweep(spins, L, T, random = Math.random) {
         }
     };
 
-    // Only the right/down bonds are visited, so each of the 2*L*L bonds in
-    // the lattice is considered exactly once.
-    for (let i = 0; i < n; i++) {
-        const base = 4 * i;
-        const d = table[base];
-        const r = table[base + 2];
-        if (spins[i] === spins[d] && random() < p) union(i, d);
-        if (spins[i] === spins[r] && random() < p) union(i, r);
-    }
-
-    const flipped = [];
-    for (let i = 0; i < n; i++) {
-        const root = find(i);
-        if (flipRoot[root] === -1) flipRoot[root] = random() < 0.5 ? 1 : 0;
-        if (flipRoot[root]) {
-            spins[i] = -spins[i];
-            flipped.push(i);
+    for (;;) {
+        for (let i = 0; i < n; i++) {
+            parent[i] = i;
+            rank[i] = 0;
+            flipRoot[i] = -1; // undecided
         }
-    }
-    return flipped;
-}
 
-const wolffScratchCache = new Map();
+        // Only the right/down bonds are visited, so each of the 2*L*L
+        // bonds in the lattice is considered exactly once.
+        for (let i = 0; i < n; i++) {
+            const base = 4 * i;
+            const d = table[base];
+            const r = table[base + 2];
+            if (spins[i] === spins[d] && random() < p) union(i, d);
+            if (spins[i] === spins[r] && random() < p) union(i, r);
+        }
 
-/**
- * Per-L cluster-membership scratch for wolffStep, reused across calls via
- * an epoch counter instead of reallocating: a typical cluster only touches
- * a small fraction of the lattice (see lattice.test.mjs/the demo for sizes),
- * so re-zeroing (or reallocating) a full L*L array on every single call --
- * the obvious approach -- would cost more than growing the cluster itself.
- * Bumping the epoch and comparing against it is equivalent to "is this site
- * marked in the current call" without touching every entry.
- *
- * @param {number} n site count (L*L)
- * @returns {{ visitedAt: Int32Array, epoch: number }}
- */
-function wolffScratch(n) {
-    let scratch = wolffScratchCache.get(n);
-    if (scratch === undefined) {
-        scratch = { visitedAt: new Int32Array(n), epoch: 0 };
-        wolffScratchCache.set(n, scratch);
+        const flipped = [];
+        for (let i = 0; i < n; i++) {
+            const root = find(i);
+            if (flipRoot[root] === -1) flipRoot[root] = random() < 0.5 ? 1 : 0;
+            if (flipRoot[root]) {
+                spins[i] = -spins[i];
+                flipped.push(i);
+            }
+        }
+        yield flipped;
     }
-    scratch.epoch++;
-    return scratch;
 }
 
 /**
- * One Wolff step: grow a single cluster from a random seed site by adding
- * aligned neighbors with probability `bondProbability(T)`, then flip that
- * whole cluster (always, unlike Swendsen-Wang's coin flip per cluster).
+ * Wolff steps: each `.next()` grows a single cluster from a seed site (see
+ * `pickSeed`) by adding aligned neighbors with probability
+ * `bondProbability(T)`, then flips that whole cluster (always, unlike
+ * Swendsen-Wang's coin flip per cluster).
  *
  * @param {Int8Array} spins length L*L, entries +-1; mutated in place
  * @param {number} L lattice side length
  * @param {number} T temperature (k_B = 1)
  * @param {() => number} [random] uniform [0, 1) generator, injectable for tests
- * @param {number} [seed] site to grow the cluster from, injectable for tests
- * @returns {number[]} indices that flipped (the grown cluster)
+ * @param {() => number} [pickSeed] returns the site to grow the next cluster from, injectable for tests
+ * @yields {number[]} indices that flipped (the grown cluster)
  */
-export function wolffStep(spins, L, T, random = Math.random, seed = Math.floor(random() * spins.length)) {
+export function* wolffGenerator(
+    spins,
+    L,
+    T,
+    random = Math.random,
+    pickSeed = () => Math.floor(random() * spins.length),
+) {
     const p = bondProbability(T);
     const table = neighborTable(L);
-    const seedSpin = spins[seed];
-    const { visitedAt, epoch } = wolffScratch(spins.length);
-    const cluster = [seed];
-    visitedAt[seed] = epoch;
 
-    for (let k = 0; k < cluster.length; k++) {
-        const base = 4 * cluster[k];
-        for (let d = base; d < base + 4; d++) {
-            const j = table[d];
-            if (visitedAt[j] !== epoch && spins[j] === seedSpin && random() < p) {
-                visitedAt[j] = epoch;
-                cluster.push(j);
+    // Cluster membership, reused across steps via an epoch counter instead
+    // of a fresh array: a typical cluster only touches a small fraction of
+    // the lattice, so re-zeroing a full L*L array on every single step --
+    // the obvious approach -- would cost more than growing the cluster
+    // itself. Bumping the epoch and comparing against it is equivalent to
+    // "is this site marked in the current step" without touching every
+    // entry.
+    const visitedAt = new Int32Array(spins.length);
+    let epoch = 0;
+
+    for (;;) {
+        epoch++;
+        const seed = pickSeed();
+        const seedSpin = spins[seed];
+        const cluster = [seed];
+        visitedAt[seed] = epoch;
+
+        for (let k = 0; k < cluster.length; k++) {
+            const base = 4 * cluster[k];
+            for (let d = base; d < base + 4; d++) {
+                const j = table[d];
+                if (visitedAt[j] !== epoch && spins[j] === seedSpin && random() < p) {
+                    visitedAt[j] = epoch;
+                    cluster.push(j);
+                }
             }
         }
-    }
 
-    for (const i of cluster) spins[i] = -spins[i];
-    return cluster;
+        for (const i of cluster) spins[i] = -spins[i];
+        yield cluster;
+    }
 }

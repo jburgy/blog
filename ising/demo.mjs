@@ -7,7 +7,7 @@
 // Wang's early PostScript Ising demo
 // (https://www.physics.nus.edu.sg/~phywjs/lecture-notes/ising.ps).
 
-import { createLattice, metropolisSweep, swendsenWangSweep, wolffStep } from './lattice.mjs';
+import { createLattice, metropolisGenerator, swendsenWangGenerator, wolffGenerator } from './lattice.mjs';
 
 const L = 32;
 const T = 2.5;
@@ -24,12 +24,12 @@ const INTERVAL_MS = 150;
 const SPIN_UP_COLOR = '#457b9d'; // steel blue
 const SPIN_DOWN_COLOR = '#e63946'; // imperial red
 
-/** One entry per selectable update rule: its id/label and its
- * `(spins, L, T) -> number[]` step function (see lattice.mjs). */
+/** One entry per selectable update rule: its id/label and the generator
+ * function that drives it (see lattice.mjs). */
 const ALGORITHMS = [
-    { id: 'metropolis', label: 'Naive Metropolis', step: metropolisSweep },
-    { id: 'swendsen-wang', label: 'Swendsen\u2013Wang', step: swendsenWangSweep },
-    { id: 'wolff', label: 'Wolff', step: wolffStep },
+    { id: 'metropolis', label: 'Naive Metropolis', createGenerator: metropolisGenerator },
+    { id: 'swendsen-wang', label: 'Swendsen\u2013Wang', createGenerator: swendsenWangGenerator },
+    { id: 'wolff', label: 'Wolff', createGenerator: wolffGenerator },
 ];
 
 const MARKUP = `
@@ -92,9 +92,10 @@ export function attach(panel, { L: size = L, T: temperature = T, intervalMs = IN
     };
     const start = (id) => {
         stop();
-        const { step } = ALGORITHMS.find((algorithm) => algorithm.id === id);
+        const { createGenerator } = ALGORITHMS.find((algorithm) => algorithm.id === id);
+        const generator = createGenerator(spins, size, temperature);
         timer = setInterval(() => {
-            for (const i of step(spins, size, temperature)) paint(i);
+            for (const i of generator.next().value) paint(i);
         }, intervalMs);
     };
 
