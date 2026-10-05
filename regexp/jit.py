@@ -170,7 +170,7 @@ class X86_64(bytearray):
         return bytes(self + self.FOOTER)
 
 
-class Arm64(list):
+class Arm64(list):  # pragma: no cover -- CI only runs x86_64, never this ISA
     """Code addresses are word indices; every jump to patch is a b or bl."""
 
     FAIL, NNODE = 22, 24
@@ -329,8 +329,11 @@ class Pattern:
             raise OSError(ctypes.get_errno(), "mmap failed")
         weakref.finalize(self, libc.munmap, addr, size)
         ctypes.memmove(addr, code, len(code))
-        # Linux flushes the instruction cache itself when a page turns executable
-        if sys.platform == "darwin" and platform.machine() == "arm64":
+        # Linux flushes the instruction cache itself when a page turns executable.
+        # CI is always linux, so this branch is unreachable there.
+        if (
+            sys.platform == "darwin" and platform.machine() == "arm64"
+        ):  # pragma: no cover
             libc.sys_icache_invalidate(
                 ctypes.c_void_p(addr), ctypes.c_size_t(len(code))
             )
