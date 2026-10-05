@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Browser demo for FOURT.F (shape a waveform in the frequency domain), a plain-JS specialization (see web/fourt.pow2.mjs); wasm/fourt.c is an optional manual comparison build",
   "scripts": {
-    "build:wasm": "emcc -O2 -s MODULARIZE=1 -s EXPORT_ES6=1 -s SINGLE_FILE=0 -s EXPORTED_FUNCTIONS=_fourt_,_malloc,_free -s EXPORTED_RUNTIME_METHODS=cwrap,ccall,getValue,setValue -o wasm/fourt.mjs wasm/fourt.c",
+    "build:wasm": "${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -O2 -mexec-model=reactor -Wl,--export=fourt_,--export=malloc,--export=free -o wasm/fourt.wasm wasm/fourt.c",
     "test": "vitest run --coverage web/",
     "benchmark": "npm run build:wasm && node web/benchmark.mjs"
   },

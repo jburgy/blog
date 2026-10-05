@@ -6,8 +6,8 @@
 // xterm-readline for line editing -- the same addon main.js (jonesforth.
 // wasm's original, since-retired published demo) already used against this
 // exact worker/channel protocol, rather than hand-rolling a second, weaker
-// line editor. Still no real pty, unlike the published posts' Emscripten +
-// xterm-pty demos (see those posts' own hardcoded scripts and
+// line editor. Still no real pty, unlike the old xterm-pty-based demos
+// those posts used before migrating to this module (see
 // forth/README.md's "Toolkits, briefly" section). Named to pair with
 // wasi-worker.js: that's the Worker side, this is the main-thread side.
 import { Terminal } from "https://esm.sh/@xterm/xterm@5.5.0";

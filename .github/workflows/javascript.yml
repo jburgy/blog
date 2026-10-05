@@ -95,10 +95,10 @@ jobs:
           node-version: 24
       - run: npm ci
 
-      # wasm/fourt.mjs (built from wasm/fourt.c by `npm run build:wasm`) is an
+      # wasm/fourt.wasm (built from wasm/fourt.c by `npm run build:wasm`) is an
       # optional, manual-only comparison build -- see web/test/fourt.test.mjs
       # and web/benchmark.mjs. The published demo only uses fourt.pow2.mjs
-      # (plain JS), so default `npm test` needs no emcc.
+      # (plain JS), so default `npm test` needs no wasi-sdk.
       - run: npm test
 
       - uses: codecov/codecov-action@v7

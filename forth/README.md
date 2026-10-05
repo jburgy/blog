@@ -169,7 +169,7 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   ([what-forth-again](https://bur.gy/2023/02/24/what-forth-again.html),
   [tail-recursion](https://bur.gy/2024/03/29/tail-recursion.html),
   [why-not-zig](https://bur.gy/2024/08/31/why-not-zig.html)) used to hardcode
-  Emscripten's `.mjs` loader + xterm-pty directly; they now use
+  a JS loader + xterm-pty directly; they now use
   `wasi-repl.mjs` against `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm`
   instead, same as [html/4th.html](html/4th.html), [html/5th.html](html/5th.html),
   and [html/6th.html](html/6th.html) below. Driven by
@@ -185,7 +185,7 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   `5th.c` calls `sbrk()` directly already, though its own `SYS_brk` path
   (unlike `4th.c`'s) isn't exercised by any test here, this change included.
 - **Zig `wasm32-wasi`** — `6th.zig`'s other wasm target (`build.zig`'s
-  `buildWasi`), no `emcc` step: zig's own linker produces the standalone
+  `buildWasi`): zig's own linker produces the standalone
   command directly. Shares `wasi-worker.js` with `4th.wasm`/`5th.wasm` above,
   and is what [html/6th.html](html/6th.html) actually runs -- no pty, no
   xterm-pty; [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs) (`startRepl(wasmUrl)`)

@@ -1,14 +1,13 @@
 <html>
 
-<!-- No Emscripten/xterm-pty here, unlike the published https://bur.gy/2024/08/31/why-not-zig.html
-     post, which still hardcodes /blog/6th.mjs + xterm-pty: 6th.zig's
-     wasm32-wasi build (build.zig's buildWasi) is a plain WASI command, driven
-     the same way as jonesforth.wasm (see wasm/worker.js and the "How Many
-     Roads Must a Man Walk Down?" post) -- a Worker blocks stdin on a uwasi
-     SharedInputChannel instead of a real pty. wasm/wasi-repl.mjs (shared by
-     html/4th.html, html/5th.html, html/6th.html) does the line editing. This
-     page is dual-purpose -- demo and test -- so it also loads mocha from a
-     CDN (same version regexp/web uses locally) and runs
+<!-- Same no-pty approach as the published https://bur.gy/2024/08/31/why-not-zig.html
+     post: 6th.zig's wasm32-wasi build (build.zig's buildWasi) is a plain WASI
+     command, driven the same way as jonesforth.wasm (see wasm/worker.js and the
+     "How Many Roads Must a Man Walk Down?" post) -- a Worker blocks stdin on a
+     uwasi SharedInputChannel instead of a real pty. wasm/wasi-repl.mjs (shared
+     by html/4th.html, html/5th.html, html/6th.html) does the line editing. This
+     page is dual-purpose -- demo and test -- so it also loads mocha from a CDN
+     (same version regexp/web uses locally) and runs
      wasm/wasi-repl-mocha.mjs's SEE QUIT check against the live REPL; a human
      visiting the page sees its pass/fail report below the terminal, and CI
      (see browser/wasi-demo.mjs) drives it headless. -->

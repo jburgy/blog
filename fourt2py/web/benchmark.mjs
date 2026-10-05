@@ -14,8 +14,8 @@
 //                        actually costs.
 //   "wasm (kernel)"   -- the same compiled fourt_(), but called through a
 //                        pointer allocated once outside the timing loop
-//                        (still marshalled in one setValue() per double --
-//                        this build doesn't export HEAPF64 for bulk copies
+//                        (still marshalled one double at a time via
+//                        DataView -- this build exports no bulk-copy helper
 //                        -- but the malloc/free pair only happens once).
 //                        This isolates the FFT and marshalling cost from
 //                        the per-call allocator cost, which has nothing to
@@ -26,6 +26,7 @@
 // show "--" for it.
 //
 // Usage: node web/benchmark.mjs [--iterations N] [--trials N] [--warmup N]
+import { readFile } from 'node:fs/promises';
 import { Fourt } from './fourt.mjs';
 import { fourt as fourtPure } from './fourt.pure.mjs';
 import { fourt as fourtPow2 } from './fourt.pow2.mjs';
@@ -80,27 +81,26 @@ function randomSpectrum(n, seed) {
 /** A raw, pointer-reusing path through the same compiled fourt_(), so the
  * timing isolates the FFT itself from malloc/marshal/free overhead. */
 function rawWasmKernel(wasm, n) {
-    const module = wasm.module;
     const BYTES_PER_DOUBLE = 8;
-    const dataPtr = module._malloc(2 * n * BYTES_PER_DOUBLE);
-    const nnPtr = module._malloc(4);
-    const workPtr = module._malloc(2 * n * BYTES_PER_DOUBLE);
-    module.setValue(nnPtr, n, 'i32');
+    const dataPtr = wasm.malloc(2 * n * BYTES_PER_DOUBLE);
+    const nnPtr = wasm.malloc(4);
+    const workPtr = wasm.malloc(2 * n * BYTES_PER_DOUBLE);
+    new DataView(wasm.memory.buffer).setInt32(nnPtr, n, true);
     return {
         run(input, isign, iform) {
-            // Same per-double setValue marshalling Fourt.transform() uses
-            // (the build doesn't export HEAPF64 for a bulk alternative) --
-            // the point of this "kernel" path isn't to avoid marshalling,
-            // just the repeated malloc/free a fresh transform() call does.
+            // Same per-double marshalling Fourt.transform() uses -- the
+            // point of this "kernel" path isn't to avoid marshalling, just
+            // the repeated malloc/free a fresh transform() call does.
+            const view = new DataView(wasm.memory.buffer);
             for (let i = 0; i < input.length; i++) {
-                module.setValue(dataPtr + i * BYTES_PER_DOUBLE, input[i], 'double');
+                view.setFloat64(dataPtr + i * BYTES_PER_DOUBLE, input[i], true);
             }
-            wasm.fourtRaw(dataPtr, nnPtr, 1, isign, iform, workPtr);
+            wasm.fourt_(dataPtr, nnPtr, 1, isign, iform, workPtr);
         },
         free() {
-            module._free(dataPtr);
-            module._free(nnPtr);
-            module._free(workPtr);
+            wasm.free(dataPtr);
+            wasm.free(nnPtr);
+            wasm.free(workPtr);
         },
     };
 }
@@ -108,12 +108,14 @@ function rawWasmKernel(wasm, n) {
 async function main() {
     const options = parseArgs(process.argv.slice(2));
     const fourtWasm = await Fourt.instantiate();
-    // Reach into the private module/cwrap'd function for the raw-kernel path.
-    // (Fourt doesn't expose these; this is benchmark-only plumbing, not a
-    // supported API.)
-    const module = await (await import(new URL('../wasm/fourt.mjs', import.meta.url))).default();
-    const fourtRaw = module.cwrap('fourt_', null, ['number', 'number', 'number', 'number', 'number', 'number']);
-    const wasm = { module, fourtRaw };
+    // Reach into a second, raw module instance for the "kernel" path below
+    // -- bypasses Fourt.transform()'s per-call malloc/free, not its
+    // marshalling (see rawWasmKernel's comment). Fourt doesn't expose its
+    // internal exports; this is benchmark-only plumbing, not a supported API.
+    const wasmUrl = new URL('../wasm/fourt.wasm', import.meta.url);
+    const { instance } = await WebAssembly.instantiate(await readFile(wasmUrl), {});
+    instance.exports._initialize();
+    const wasm = instance.exports;
 
     const lengths = [200, 256, 360, 512, 1000, 4096];
     const rows = [];

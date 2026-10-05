@@ -51,7 +51,7 @@ afterAll(async () => {
     await rm(tmpDir, { recursive: true, force: true });
 });
 
-test('6th.wasm (wasm32-wasi, no Emscripten): a scripted session exits cleanly on EOF', async () => {
+test('6th.wasm (wasm32-wasi): a scripted session exits cleanly on EOF', async () => {
     const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
     const channel = new SharedInputChannel(256 * 1024); // 4th.32.fs alone is ~55 KiB
     let out = '';

@@ -3,7 +3,7 @@
 // fixtures used for the C/wasm build (see fourt2py/wasm/fixtures.json and
 // fourt2py/wasm/generate_fixtures.py), captured from the authoritative
 // fourt2py.fourt f2py/Fortran binding. No wasm build needed here -- this is
-// plain JS, so it's fast to run and doesn't need emcc.
+// plain JS, so it's fast to run and doesn't need wasi-sdk.
 import { readFile } from 'node:fs/promises';
 import { describe, expect, test } from 'vitest';
 import { fourt } from '../fourt.pure.mjs';

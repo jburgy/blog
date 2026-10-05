@@ -49,10 +49,9 @@ code_##_label
 
 #define STACK_SIZE (0x4000 / __SIZEOF_POINTER__) /* Number of elements in each stack */
 
-#if defined(EMSCRIPTEN) || defined(__wasi__)
+#ifdef __wasi__
 #include <stdarg.h>
 
-#ifdef __wasi__
 /* wasi-libc has sbrk() (relative growth) but not Linux's brk() (absolute
  * address), which 4th.fs's BRK/MORECORE words need (see GET-BRK + cells).
  * Emulate it the classic way: ask sbrk() for the delta from the current
@@ -76,9 +75,7 @@ static int brk(void *addr)
     delta = (delta + WASM_PAGE_SIZE - 1) & ~(WASM_PAGE_SIZE - 1);
     return delta && sbrk(delta) == (void *)-1 ? -1 : 0;
 }
-#endif
 
-/* https://github.com/emscripten-core/emscripten/issues/6708 */
 enum SYS {SYS_read, SYS_write, SYS_open, SYS_close, SYS_brk=0x0c, SYS_exit=0x3c, SYS_creat=0x55};
 int syscall(int sysno, ...)
 {
@@ -188,11 +185,7 @@ static inline void forth_push(intptr_t **sp, intptr_t *stack, intptr_t value)
     *--(*sp) = value;
 }
 
-#ifdef EMSCRIPTEN
-int main(void)
-#else
 int main(int argc __attribute__((unused)), char *argv[])
-#endif
 {
     /* https://briancallahan.net/blog/20200808.html */
     intptr_t stack[STACK_SIZE];  /* Parameter stack */
@@ -428,12 +421,8 @@ DEFCONST(HERE, 0, "LATEST", LATEST, &latest);
 DEFCONST(LATEST, 0, "S0", SZ, &s0);
     intptr_t base;
 DEFCONST(SZ, 0, "BASE", BASE, &base);
-#ifdef EMSCRIPTEN
-DEFCONST(BASE, 0, "VERSION", VERSION, 47);
-#else
 DEFCONST(BASE, 0, "(ARGC)", ARGC, &argv[-1]);
 DEFCONST(ARGC, 0, "VERSION", VERSION, 47);
-#endif
 DEFCONST(VERSION, 0, "R0", RZ, return_stack + STACK_SIZE);
 DEFCONST(RZ, 0, "DOCOL", __DOCOL, &&DOCOL);
 DEFCONST(__DOCOL, 0, "DODOES", __DODOES, &&DODOES);

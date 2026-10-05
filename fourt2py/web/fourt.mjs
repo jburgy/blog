@@ -1,6 +1,10 @@
 // Drives fourt2py/wasm/fourt.c (a transliteration of FOURT.F, see
-// fourt2py/FOURT.F) compiled to WebAssembly by emcc. The C side keeps the
-// Fortran calling convention verbatim:
+// fourt2py/FOURT.F) compiled to a WASI "reactor" module by wasi-sdk clang
+// (see package.json's build:wasm script). fourt_ only does in-place number
+// crunching on its double* buffers -- no syscalls, no stdio -- so the
+// compiled module needs no WASI imports at all; plain
+// WebAssembly.instantiate() with an empty import object is enough. The C
+// side keeps the Fortran calling convention verbatim:
 //
 //   void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work);
 //
@@ -8,21 +12,28 @@
 // entry of `nn`'s product. This wrapper only drives the NDIM=1 case the demo
 // needs: a single FFT length `n`.
 
+import { readFile } from 'node:fs/promises';
+
 const BYTES_PER_DOUBLE = 8;
 const BYTES_PER_INT = 4;
 
 export class Fourt {
-    #module;
-    #fourt;
+    #exports;
 
-    constructor(module) {
-        this.#module = module;
-        this.#fourt = module.cwrap('fourt_', null, ['number', 'number', 'number', 'number', 'number', 'number']);
+    constructor(exports) {
+        this.#exports = exports;
     }
 
-    static async instantiate(moduleUrl = new URL('../wasm/fourt.mjs', import.meta.url)) {
-        const factory = (await import(moduleUrl)).default;
-        return new Fourt(await factory());
+    // Node-only (readFile, not fetch): fourt.mjs is a dev/benchmark
+    // comparison tool driven from fourt.test.mjs and benchmark.mjs -- the
+    // published browser demo (web/index.html) uses fourt.pow2.mjs instead.
+    static async instantiate(wasmUrl = new URL('../wasm/fourt.wasm', import.meta.url)) {
+        const bytes = await readFile(wasmUrl);
+        const { instance } = await WebAssembly.instantiate(bytes, {});
+        // WASI reactor ABI: run the module's global constructors once,
+        // before calling any other export (there's no _start to do it).
+        instance.exports._initialize();
+        return new Fourt(instance.exports);
     }
 
     /**
@@ -37,29 +48,33 @@ export class Fourt {
      * @returns {Float64Array} a fresh copy of the transformed buffer
      */
     transform(data, n, { isign = 1, iform = 1 } = {}) {
-        const module = this.#module;
-        const dataPtr = module._malloc(data.length * BYTES_PER_DOUBLE);
-        const nnPtr = module._malloc(BYTES_PER_INT);
+        const exports = this.#exports;
+        const dataPtr = exports.malloc(data.length * BYTES_PER_DOUBLE);
+        const nnPtr = exports.malloc(BYTES_PER_INT);
         // FOURT needs WORK only when a dimension isn't a power of two, but a
         // buffer sized to the full FFT length is always large enough and safe
         // to pass regardless.
-        const workPtr = module._malloc(2 * n * BYTES_PER_DOUBLE);
+        const workPtr = exports.malloc(2 * n * BYTES_PER_DOUBLE);
         try {
+            // Re-read exports.memory.buffer after every malloc: a grow can
+            // detach the previous ArrayBuffer.
+            let view = new DataView(exports.memory.buffer);
             for (let i = 0; i < data.length; i++) {
-                module.setValue(dataPtr + i * BYTES_PER_DOUBLE, data[i], 'double');
+                view.setFloat64(dataPtr + i * BYTES_PER_DOUBLE, data[i], true);
             }
-            module.setValue(nnPtr, n, 'i32');
-            this.#fourt(dataPtr, nnPtr, 1, isign, iform, workPtr);
+            view.setInt32(nnPtr, n, true);
+            exports.fourt_(dataPtr, nnPtr, 1, isign, iform, workPtr);
 
+            view = new DataView(exports.memory.buffer);
             const result = new Float64Array(data.length);
             for (let i = 0; i < result.length; i++) {
-                result[i] = module.getValue(dataPtr + i * BYTES_PER_DOUBLE, 'double');
+                result[i] = view.getFloat64(dataPtr + i * BYTES_PER_DOUBLE, true);
             }
             return result;
         } finally {
-            module._free(dataPtr);
-            module._free(nnPtr);
-            module._free(workPtr);
+            exports.free(dataPtr);
+            exports.free(nnPtr);
+            exports.free(workPtr);
         }
     }
 }
