@@ -1,0 +1,14 @@
+{
+  "name": "ising",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser demo for the 2D Ising model: naive Metropolis, Swendsen-Wang, and Wolff updates on the same lattice",
+  "scripts": {
+    "test": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
+    "vitest": "^4.1.11"
+  }
+}

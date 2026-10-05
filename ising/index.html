@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Ising Model &mdash; Metropolis vs. Swendsen&ndash;Wang vs. Wolff</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+		}
+
+		body {
+			margin: 0 auto;
+			max-width: 46rem;
+			padding: 2rem 1rem 4rem;
+			font: 16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+		}
+
+		h1 {
+			font-size: 1.6rem;
+			margin-bottom: .25rem;
+		}
+
+		.blurb {
+			margin-top: 0;
+			opacity: .75;
+		}
+
+		svg[data-role="lattice"] {
+			display: block;
+			width: 100%;
+			max-width: 512px;
+			height: auto;
+			/* No background of its own: it shows through to the page's own
+			   light/dark background. The two spin colors in demo.mjs are
+			   tuned to read clearly against either. */
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+		}
+
+		.controls {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 1rem;
+			margin-top: .75rem;
+		}
+
+		.temperature {
+			display: inline-flex;
+			align-items: center;
+			gap: .4rem;
+		}
+
+		.temperature__track {
+			position: relative;
+			display: inline-block;
+		}
+
+		.critical-tick {
+			position: absolute;
+			top: 50%;
+			width: 2px;
+			height: .6rem;
+			background: currentColor;
+			opacity: .5;
+			transform: translate(-50%, -50%);
+			pointer-events: none;
+		}
+
+		input[type="range"] {
+			display: block;
+			width: 10rem;
+			vertical-align: middle;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Ising Model</h1>
+	<p class="blurb">
+		An Ising lattice (periodic boundary conditions, size and temperature in the heading below), updated by
+		whichever rule is checked below: naive single-spin-flip
+		<a href="https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm">Metropolis</a>,
+		<a href="https://en.wikipedia.org/wiki/Swendsen%E2%80%93Wang_algorithm">Swendsen&ndash;Wang</a>, or the
+		<a href="https://en.wikipedia.org/wiki/Wolff_algorithm">Wolff algorithm</a>. Uncheck the active rule
+		to stop. Drag the T slider to change the temperature live; the lone tick mark on it is Onsager's exact
+		critical temperature (k<sub>B</sub>T<sub>c</sub> = 2J&#8260;ln(1+&radic;2) &asymp; 2.27), where this
+		lattice stops spontaneously magnetizing. Adapted from
+		<a href="https://jsfiddle.net/jburgy/br0gk7s8/1/">a 2018 fiddle</a> paying tribute to Jian-Sheng Wang's early
+		<a href="https://www.physics.nus.edu.sg/~phywjs/lecture-notes/ising.ps">PostScript Ising demo</a>.
+	</p>
+
+	<div id="demo"></div>
+
+	<script type="module">
+		import { createPanel, attach } from './demo.mjs';
+
+		const panel = createPanel(document);
+		document.getElementById('demo').append(panel);
+		attach(panel);
+	</script>
+</body>
+
+</html>
