@@ -1,5 +1,5 @@
 VPATH = ../forth
-# matcher.mjs fetches ../regexp.f and ../../jonesforth/jonesforth.f, so keep the repo layout
+# matcher.mjs fetches ../regexp.f and ../../jonesforth.f, so keep the repo layout
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 
@@ -57,7 +57,7 @@ wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs
 wasi-repl-mocha.mjs : ../forth/wasm/wasi-repl-mocha.mjs
 	cp $< $@
 
-regexp : $(REGEXP) regexp/web/forth.wasm jonesforth/jonesforth.f
+regexp : $(REGEXP) regexp/web/forth.wasm jonesforth.f
 
 $(REGEXP) : regexp/% : ../regexp/%
 	@mkdir -p $(@D)
@@ -77,16 +77,6 @@ forth/4th.32.fs : ../forth/4th.32.fs
 	@mkdir -p $(@D)
 	cp $< $@
 
-# A nested copy distinct from the flat jonesforth.f target below: matcher.mjs
-# resolves '../../jonesforth/jonesforth.f' relative to its own repo-layout
-# location, the same way forth/4th.32.fs above mirrors the source tree.
-# regexp.f never touches ARGC/ARGV/ENVIRON, so the real jonesforth.f preamble
-# works here without 4th.32.fs's (ARGC) primitive, which tabulate.wast (the
-# hand-rolled wasm backing regexp/web/forth.wasm) never defines.
-jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
-	@mkdir -p $(@D)
-	cp $< $@
-
 node_modules/xterm-pty/package.json : package.json package-lock.json
 	npm ci
 
@@ -102,6 +92,14 @@ client-server:
 %.js: ../forth/wasm/%.js
 	cp $< $@
 
+# The one copy of jonesforth.f in the deployed site: main.js's hardcoded
+# /blog/jonesforth.f (a published URL this repo can't rename) and
+# matcher.mjs's '../../jonesforth.f' (resolved via the repo-root
+# jonesforth.f symlink, so the same relative fetch works unmodified from
+# the source tree too) both resolve here -- regexp.f never touches
+# ARGC/ARGV/ENVIRON, so the real jonesforth.f preamble works fine on
+# tabulate.wast (regexp/web/forth.wasm's source), which never defines
+# 4th.32.fs's (ARGC) primitive.
 jonesforth.f: ../jonesforth/jonesforth.f
 	cp $< $@
 
@@ -125,4 +123,4 @@ serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi
 .PHONY : regexp fourt2py serve-e2e
 
 clean :
-	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f jonesforth lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py
+	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py

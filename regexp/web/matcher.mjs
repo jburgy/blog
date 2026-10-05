@@ -123,9 +123,14 @@ export class Matcher {
         // ENVIRON, and tabulate.wast (forth.wasm's source) never defines
         // 4th.32.fs's (ARGC) primitive, so loading 4th.32.fs here used to
         // print three silently-swallowed "PARSE ERROR: (ARGC)" lines.
+        // '../../jonesforth.f' (flat), not the submodule's own
+        // '../../jonesforth/jonesforth.f': the published blog post's own
+        // script already hardcodes /blog/jonesforth.f for its interpreter
+        // tabs, so this reuses that single deployed copy instead of
+        // shipping a second one (see the repo-root jonesforth.f symlink).
         const [wasm, preamble, regexp] = await Promise.all([
             fetch(url('./forth.wasm')).then((r) => r.arrayBuffer()),
-            fetch(url('../../jonesforth/jonesforth.f')).then((r) => r.text()),
+            fetch(url('../../jonesforth.f')).then((r) => r.text()),
             fetch(url('../regexp.f')).then((r) => r.text()),
         ]);
         return Matcher.fromSources({ wasm, preamble, regexp, text });
