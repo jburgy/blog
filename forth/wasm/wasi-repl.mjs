@@ -47,8 +47,7 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
     xterm.loadAddon(rl);
     xterm.open(document.getElementById("terminal"));
 
-    // Sized well past 4th.32.fs (~58 KiB), same margin as main.js's
-    // jonesforth.f channel.
+    // Sized well past 4th.32.fs (~58 KiB).
     const channel = new SharedInputChannel(128 * 1024);
     const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
 

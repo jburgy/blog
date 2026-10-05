@@ -220,12 +220,11 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
 - **wat2wasm** — the `.wast` files *are* the source, so the "toolkit" is only
   an assembler. `jonesforth.wast`'s `KEY` is a classic blocking `read()`, like
   the wasi-sdk and Zig builds above, so its browser demo (originally
-  [wasm/worker.js](wasm/worker.js)/`wasm/main.js`, the subject of
+  [wasm/worker.js](wasm/worker.js)/`main.js`, the subject of
   [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html),
   now that post's tab strip driving [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs)
-  like the other three interpreters -- `wasm/main.js` itself is unused and
-  kept only as a reference for the hand-rolled protocol `wasi-repl.mjs`
-  generalized)
+  like the other three interpreters -- `main.js` itself was unused and has
+  been removed; its hand-rolled protocol is what `wasi-repl.mjs` generalized)
   also runs on `wasi-worker.js` rather than hand-written WASI imports.
   [wasi-worker.test.ts](wasm/wasi-worker.test.ts) covers all three consumers,
   including why the never-exits-on-EOF jonesforth session is driven as a

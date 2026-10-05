@@ -6,7 +6,7 @@ FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs we
 all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py node_modules/xterm-pty/package.json
 	rm -rf node_modules/@xterm/xterm/src
 
-%.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f main.js worker.js wasi-worker.js
+%.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f worker.js wasi-worker.js
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
 
 # uvx/python-zig, not a bare `zig build`: deploy.yml has no system zig. See
@@ -92,16 +92,16 @@ client-server:
 %.js: ../forth/wasm/%.js
 	cp $< $@
 
-# The one copy of jonesforth.f in the deployed site: main.js's own fetch
-# below and the how-many-roads post's data-preamble attributes
-# (jburgy/jburgy.github.io) both point at this exact deployed path.
-# matcher.mjs resolves the identical '../../jonesforth/jonesforth.f'
-# relative to its own repo-layout location, mirroring the real jonesforth
-# submodule path so it also works unmodified straight from the source
-# tree (no copy needed in dev) -- same reasoning as forth/4th.32.fs above.
-# regexp.f never touches ARGC/ARGV/ENVIRON, so the real jonesforth.f
-# preamble works fine on tabulate.wast (regexp/web/forth.wasm's source),
-# which never defines 4th.32.fs's (ARGC) primitive.
+# The one copy of jonesforth.f in the deployed site: the how-many-roads
+# post's data-preamble attributes (jburgy/jburgy.github.io) point at this
+# exact deployed path. matcher.mjs resolves the identical
+# '../../jonesforth/jonesforth.f' relative to its own repo-layout
+# location, mirroring the real jonesforth submodule path so it also
+# works unmodified straight from the source tree (no copy needed in dev)
+# -- same reasoning as forth/4th.32.fs above. regexp.f never touches
+# ARGC/ARGV/ENVIRON, so the real jonesforth.f preamble works fine on
+# tabulate.wast (regexp/web/forth.wasm's source), which never defines
+# 4th.32.fs's (ARGC) primitive.
 jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 	@mkdir -p $(@D)
 	cp $< $@
@@ -126,4 +126,4 @@ serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi
 .PHONY : regexp fourt2py serve-e2e
 
 clean :
-	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py
+	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth lisp.js TinyBasic.js worker.js wasi-worker.js regexp forth fourt2py
