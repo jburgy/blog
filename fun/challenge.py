@@ -4,6 +4,7 @@
 #     "pillow",
 # ]
 # ///
+# pragma: exclude file
 
 import ast
 import base64

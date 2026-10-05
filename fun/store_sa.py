@@ -4,6 +4,7 @@
 #     "sqlalchemy>=1.4",
 # ]
 # ///
+# pragma: exclude file
 
 """SQLAlchemy version of store.py"""
 

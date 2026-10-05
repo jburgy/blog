@@ -4,6 +4,7 @@
 #     "sympy",
 # ]
 # ///
+# pragma: exclude file
 
 """Proof of concept HTML generator in pure python
 

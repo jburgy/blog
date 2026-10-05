@@ -1,3 +1,4 @@
+# pragma: exclude file
 """Package your layer content for AWS Lambda.
 
 To create a layer, bundle your packages into a .zip file archive that meets the

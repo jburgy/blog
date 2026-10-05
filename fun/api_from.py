@@ -5,6 +5,7 @@
 #     "pandas",
 # ]
 # ///
+# pragma: exclude file
 
 """
 Use introspection to auto-generate a FastAPI from a python package

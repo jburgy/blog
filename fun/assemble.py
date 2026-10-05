@@ -5,6 +5,7 @@
 # requires-python = "~=3.9"
 # dependencies = []
 # ///
+# pragma: exclude file
 
 from ast import literal_eval
 from dis import COMPILER_FLAG_NAMES, dis, show_code

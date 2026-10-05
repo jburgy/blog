@@ -4,6 +4,7 @@
 #     "pandas",
 # ]
 # ///
+# pragma: exclude file
 
 from json import load
 from urllib.parse import urlencode
