@@ -119,9 +119,13 @@ export class Matcher {
 
     static async create({ text = LOREM, base = import.meta.url } = {}) {
         const url = (path) => new URL(path, base);
+        // jonesforth.f, not 4th.32.fs: regexp.f never touches ARGC/ARGV/
+        // ENVIRON, and tabulate.wast (forth.wasm's source) never defines
+        // 4th.32.fs's (ARGC) primitive, so loading 4th.32.fs here used to
+        // print three silently-swallowed "PARSE ERROR: (ARGC)" lines.
         const [wasm, preamble, regexp] = await Promise.all([
             fetch(url('./forth.wasm')).then((r) => r.arrayBuffer()),
-            fetch(url('../../forth/4th.32.fs')).then((r) => r.text()),
+            fetch(url('../../jonesforth/jonesforth.f')).then((r) => r.text()),
             fetch(url('../regexp.f')).then((r) => r.text()),
         ]);
         return Matcher.fromSources({ wasm, preamble, regexp, text });

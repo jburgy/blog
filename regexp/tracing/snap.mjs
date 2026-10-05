@@ -40,7 +40,7 @@ Forth.prototype.eval = function (source) {
     evals.push({ source: source.slice(0, 40).replace(/\s+/g, ' '), before, after: tierOf(instance.exports._start), ms: +(performance.now() - t).toFixed(2) });
     return out;
 };
-const preamble = read('forth/4th.32.fs');
+const preamble = read('jonesforth/jonesforth.f');
 const regexp = read('regexp/regexp.f');
 
 const matcher = await Matcher.fromSources({ wasm, preamble, regexp, text: TEXT });

@@ -57,7 +57,7 @@ the code TurboFan generates.
   V8 13.6, Apple silicon). Offsets and registers change with the V8 version and
   the CPU.
 - Step 791, the addresses, and the cell offsets in `R` all depend on
-  `4th.32.fs`, `regexp.f`, and the glue in `matcher.mjs`. If you edit any of
+  `jonesforth.f`, `regexp.f`, and the glue in `matcher.mjs`. If you edit any of
   these, `gen.mjs` stops with `snapshot mismatch` and its hard-coded labels need
   updating.
 - Timings depend on the machine. `bench` reported 20–27 µs per search.

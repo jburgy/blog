@@ -1,5 +1,5 @@
 VPATH = ../forth
-# matcher.mjs fetches ../regexp.f and ../../forth/4th.32.fs, so keep the repo layout
+# matcher.mjs fetches ../regexp.f and ../../jonesforth/jonesforth.f, so keep the repo layout
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 
@@ -57,7 +57,7 @@ wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs
 wasi-repl-mocha.mjs : ../forth/wasm/wasi-repl-mocha.mjs
 	cp $< $@
 
-regexp : $(REGEXP) regexp/web/forth.wasm forth/4th.32.fs
+regexp : $(REGEXP) regexp/web/forth.wasm jonesforth/jonesforth.f
 
 $(REGEXP) : regexp/% : ../regexp/%
 	@mkdir -p $(@D)
@@ -74,6 +74,16 @@ $(FOURT2PY) : fourt2py/% : ../fourt2py/%
 	cp $< $@
 
 forth/4th.32.fs : ../forth/4th.32.fs
+	@mkdir -p $(@D)
+	cp $< $@
+
+# A nested copy distinct from the flat jonesforth.f target below: matcher.mjs
+# resolves '../../jonesforth/jonesforth.f' relative to its own repo-layout
+# location, the same way forth/4th.32.fs above mirrors the source tree.
+# regexp.f never touches ARGC/ARGV/ENVIRON, so the real jonesforth.f preamble
+# works here without 4th.32.fs's (ARGC) primitive, which tabulate.wast (the
+# hand-rolled wasm backing regexp/web/forth.wasm) never defines.
+jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 	@mkdir -p $(@D)
 	cp $< $@
 
@@ -115,4 +125,4 @@ serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi
 .PHONY : regexp fourt2py serve-e2e
 
 clean :
-	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py
+	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f jonesforth lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py
