@@ -40,10 +40,7 @@ worker.addEventListener('message', async (event) => {
 
     switch (type) {
         case 'ready': {
-            // Relative to this script's own published location, not hardcoded
-            // to /blog/: matches the repo-layout-relative convention matcher.mjs
-            // uses for the same file (see assets/Makefile).
-            const response = await fetch(new URL('./jonesforth/jonesforth.f', import.meta.url));
+            const response = await fetch('/blog/jonesforth.f');
             channel.push(new Uint8Array(await response.arrayBuffer()));
             readLine();
             break;
