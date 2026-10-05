@@ -7,7 +7,7 @@
 // Wang's early PostScript Ising demo
 // (https://www.physics.nus.edu.sg/~phywjs/lecture-notes/ising.ps).
 
-import { createLattice, metropolisGenerator, swendsenWangGenerator, wolffGenerator } from './lattice.mjs';
+import { createLattice, neighbors, metropolisGenerator, swendsenWangGenerator, wolffGenerator } from './lattice.mjs';
 
 const L = 32;
 const T = 2.5;
@@ -66,6 +66,10 @@ export function createPanel(document) {
 export function attach(panel, { L: size = L, T: temperature = T, intervalMs = INTERVAL_MS } = {}) {
     const document = panel.ownerDocument;
     const spins = createLattice(size);
+    // Shared by every algorithm: site positions don't change when the
+    // active rule does, so this is built once per attach(), not once per
+    // generator.
+    const neighborTable = neighbors(size);
     const svg = panel.querySelector('[data-role="lattice"]');
     const scale = parseFloat(svg.getAttribute('width')) / size;
     const delta = scale / 2;
@@ -80,23 +84,33 @@ export function attach(panel, { L: size = L, T: temperature = T, intervalMs = IN
         svg.appendChild(circle);
         return circle;
     });
-    const paint = (i) => {
-        circles[i].style.fill = spins[i] > 0 ? SPIN_UP_COLOR : SPIN_DOWN_COLOR;
-    };
-    spins.forEach((_, i) => paint(i));
+    const paint = (s) => s.forEach((si, i) => (circles[i].style.fill = si > 0 ? SPIN_UP_COLOR : SPIN_DOWN_COLOR));
+    paint(spins);
 
-    let timer = null;
+    // requestAnimationFrame, not setInterval: it automatically pauses while
+    // this tab isn't visible (nothing to repaint) instead of needing a
+    // fixed delay to always fire regardless, and stays in sync with the
+    // browser's own repaint cycle rather than racing it. intervalMs is
+    // still how often the simulation actually steps -- every animation
+    // frame just checks whether enough time has passed yet.
+    let frameId = null;
     const stop = () => {
-        clearInterval(timer);
-        timer = null;
+        if (frameId !== null) cancelAnimationFrame(frameId);
+        frameId = null;
     };
     const start = (id) => {
         stop();
         const { createGenerator } = ALGORITHMS.find((algorithm) => algorithm.id === id);
-        const generator = createGenerator(spins, size, temperature);
-        timer = setInterval(() => {
-            for (const i of generator.next().value) paint(i);
-        }, intervalMs);
+        const generator = createGenerator(spins, neighborTable, temperature);
+        let lastStep = 0;
+        const tick = (now) => {
+            if (now - lastStep >= intervalMs) {
+                lastStep = now;
+                paint(generator.next().value);
+            }
+            frameId = requestAnimationFrame(tick);
+        };
+        frameId = requestAnimationFrame(tick);
     };
 
     const checkboxes = Array.from(panel.querySelectorAll('[data-role="algorithm"]'));

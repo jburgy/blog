@@ -7,14 +7,20 @@
 //
 // Spins are +-1, stored row-major (index i = y*L + x) in an Int8Array.
 // Each algorithm below is a generator, not a plain function: calling e.g.
-// metropolisGenerator(spins, L, T) once builds whatever that algorithm
-// needs (a neighbor table, union-find scratch, cluster-membership
-// tracking) as ordinary local variables, then yields the list of flipped
-// indices forever, one sweep/step per `.next()` call. That setup work only
-// ever has to happen once per generator, for free, just by being outside
-// the `for (;;)` loop -- no module-level cache keyed by lattice size
-// needed, since the generator's own locals already live exactly as long as
-// the generator does.
+// metropolisGenerator(spins, neighbors, T) once builds whatever that
+// algorithm needs (union-find scratch, cluster-membership tracking) as
+// ordinary local variables, then yields `spins` forever, once per
+// sweep/step, after mutating it in place. That setup work only ever has to
+// happen once per generator, for free, just by being outside the
+// `for (;;)` loop -- no module-level cache keyed by lattice size needed,
+// since the generator's own locals already live exactly as long as the
+// generator does.
+//
+// The one piece of per-generator setup worth hoisting out further still is
+// the neighbor table: it depends only on L, not on which algorithm or how
+// many generators use it, so callers build it once via neighbors(L) and
+// pass the same table to every generator they create, rather than each
+// generator rebuilding its own copy.
 
 /** Ferromagnetic coupling constant. Kept symbolic (rather than folded into
  * T) so the energy/probability formulas below read the same as in any
@@ -36,59 +42,29 @@ export function createLattice(L) {
     return new Int8Array(L * L).fill(1);
 }
 
-/** Index of the neighbor one row below `i` (wraps top-to-bottom). */
-function down(i, L) {
-    return (i + L) % (L * L);
-}
-
-/** Index of the neighbor one row above `i` (wraps bottom-to-top). */
-function up(i, L) {
-    return (i - L + L * L) % (L * L);
-}
-
-/** Index of the neighbor one column right of `i` (wraps right-to-left). */
-function right(i, L) {
-    const j = i + 1;
-    return j % L ? j : j - L;
-}
-
-/** Index of the neighbor one column left of `i` (wraps left-to-right). */
-function left(i, L) {
-    const j = i - 1;
-    return i % L ? j : j + L;
-}
-
 /**
- * The 4 nearest neighbors of site `i` on an L*L lattice with periodic
- * boundary conditions, in no particular order.
- *
- * @param {number} i site index
- * @param {number} L lattice side length
- * @returns {number[]} length 4
- */
-export function neighbors(i, L) {
-    return [down(i, L), up(i, L), right(i, L), left(i, L)];
-}
-
-/**
- * Flat table of every site's 4 neighbors: site i's neighbors (down, up,
- * right, left) are table[4*i] through table[4*i+3]. Site positions, not
- * spins, determine this, so each generator below builds it once (not once
- * per step) and closes over the result -- looking up a site's neighbors on
- * every step via neighbors() above would instead cost a fresh 4-element
- * array allocation per lookup.
+ * Flat table of every site's 4 neighbors on an L*L lattice with periodic
+ * boundary conditions: site i's neighbors (down, up, right, left) are
+ * table[4*i] through table[4*i+3]. Site positions, not spins, determine
+ * this, so build it once per lattice size and pass the same table to every
+ * generator below -- they each look up every visited site's neighbors on
+ * every single step, so a fresh 4-element array per lookup (down/up/right/
+ * left computed individually) would cost needless allocation in the
+ * hottest loop in this file.
  *
  * @param {number} L lattice side length
  * @returns {Int32Array} length 4*L*L
  */
-function neighborTable(L) {
+export function neighbors(L) {
     const n = L * L;
     const table = new Int32Array(4 * n);
     for (let i = 0; i < n; i++) {
-        table[4 * i] = down(i, L);
-        table[4 * i + 1] = up(i, L);
-        table[4 * i + 2] = right(i, L);
-        table[4 * i + 3] = left(i, L);
+        const right = i + 1;
+        const left = i - 1;
+        table[4 * i] = (i + L) % n; // down
+        table[4 * i + 1] = (i - L + n) % n; // up
+        table[4 * i + 2] = right % L ? right : right - L;
+        table[4 * i + 3] = i % L ? left : left + L;
     }
     return table;
 }
@@ -110,27 +86,27 @@ function bondProbability(T) {
  * and flips it with the standard single-spin-flip acceptance rule.
  *
  * @param {Int8Array} spins length L*L, entries +-1; mutated in place
- * @param {number} L lattice side length
+ * @param {Int32Array} neighbors flat neighbor table, see neighbors(L)
  * @param {number} T temperature (k_B = 1)
  * @param {() => number} [random] uniform [0, 1) generator, injectable for tests
- * @yields {number[]} indices that flipped this sweep
+ * @yields {Int8Array} `spins`, mutated in place by this sweep
  */
-export function* metropolisGenerator(spins, L, T, random = Math.random) {
-    const table = neighborTable(L);
+export function* metropolisGenerator(spins, neighbors, T, random = Math.random) {
     for (;;) {
-        const flipped = [];
         for (let i = 0; i < spins.length; i++) {
             const s = spins[i];
             const base = 4 * i;
             const alignedNeighbors =
-                spins[table[base]] + spins[table[base + 1]] + spins[table[base + 2]] + spins[table[base + 3]];
+                spins[neighbors[base]] +
+                spins[neighbors[base + 1]] +
+                spins[neighbors[base + 2]] +
+                spins[neighbors[base + 3]];
             const deltaE = 2 * J * s * alignedNeighbors;
             if (deltaE <= 0 || random() < Math.exp(-deltaE / T)) {
                 spins[i] = -s;
-                flipped.push(i);
             }
         }
-        yield flipped;
+        yield spins;
     }
 }
 
@@ -140,15 +116,14 @@ export function* metropolisGenerator(spins, L, T, random = Math.random) {
  * resulting clusters, then flips each whole cluster with probability 1/2.
  *
  * @param {Int8Array} spins length L*L, entries +-1; mutated in place
- * @param {number} L lattice side length
+ * @param {Int32Array} neighbors flat neighbor table, see neighbors(L)
  * @param {number} T temperature (k_B = 1)
  * @param {() => number} [random] uniform [0, 1) generator, injectable for tests
- * @yields {number[]} indices that flipped this sweep
+ * @yields {Int8Array} `spins`, mutated in place by this sweep
  */
-export function* swendsenWangGenerator(spins, L, T, random = Math.random) {
+export function* swendsenWangGenerator(spins, neighbors, T, random = Math.random) {
     const n = spins.length;
     const p = bondProbability(T);
-    const table = neighborTable(L);
 
     // Union-find with path halving and union by rank, inlined: this sweep
     // runs every animation frame, so it's worth not allocating a class.
@@ -194,22 +169,18 @@ export function* swendsenWangGenerator(spins, L, T, random = Math.random) {
         // bonds in the lattice is considered exactly once.
         for (let i = 0; i < n; i++) {
             const base = 4 * i;
-            const d = table[base];
-            const r = table[base + 2];
+            const d = neighbors[base];
+            const r = neighbors[base + 2];
             if (spins[i] === spins[d] && random() < p) union(i, d);
             if (spins[i] === spins[r] && random() < p) union(i, r);
         }
 
-        const flipped = [];
         for (let i = 0; i < n; i++) {
             const root = find(i);
             if (flipRoot[root] === -1) flipRoot[root] = random() < 0.5 ? 1 : 0;
-            if (flipRoot[root]) {
-                spins[i] = -spins[i];
-                flipped.push(i);
-            }
+            if (flipRoot[root]) spins[i] = -spins[i];
         }
-        yield flipped;
+        yield spins;
     }
 }
 
@@ -220,15 +191,15 @@ export function* swendsenWangGenerator(spins, L, T, random = Math.random) {
  * Swendsen-Wang's coin flip per cluster).
  *
  * @param {Int8Array} spins length L*L, entries +-1; mutated in place
- * @param {number} L lattice side length
+ * @param {Int32Array} neighbors flat neighbor table, see neighbors(L)
  * @param {number} T temperature (k_B = 1)
  * @param {() => number} [random] uniform [0, 1) generator, injectable for tests
  * @param {() => number} [pickSeed] returns the site to grow the next cluster from, injectable for tests
- * @yields {number[]} indices that flipped (the grown cluster)
+ * @yields {Int8Array} `spins`, mutated in place by this step
  */
 export function* wolffGenerator(
     spins,
-    L,
+    neighbors,
     T,
     random = Math.random,
     // Clamped, not just Math.floor(random() * spins.length): random() is
@@ -240,7 +211,6 @@ export function* wolffGenerator(
     pickSeed = () => Math.min(Math.floor(random() * spins.length), spins.length - 1),
 ) {
     const p = bondProbability(T);
-    const table = neighborTable(L);
 
     // Cluster membership, reused across steps via an epoch counter instead
     // of a fresh array: a typical cluster only touches a small fraction of
@@ -262,7 +232,7 @@ export function* wolffGenerator(
         for (let k = 0; k < cluster.length; k++) {
             const base = 4 * cluster[k];
             for (let d = base; d < base + 4; d++) {
-                const j = table[d];
+                const j = neighbors[d];
                 if (visitedAt[j] !== epoch && spins[j] === seedSpin && random() < p) {
                     visitedAt[j] = epoch;
                     cluster.push(j);
@@ -271,6 +241,6 @@ export function* wolffGenerator(
         }
 
         for (const i of cluster) spins[i] = -spins[i];
-        yield cluster;
+        yield spins;
     }
 }
