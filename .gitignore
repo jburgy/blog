@@ -79,3 +79,4 @@ fourt2py/wasm/fourt.wasm
 zig-cache/
 zig-out/
 forth/target/
+min-cost-flow/target/

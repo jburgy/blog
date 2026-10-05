@@ -1,0 +1,24 @@
+[package]
+name = "min-cost-flow"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# Clarabel is a pure-Rust interior-point conic solver (Apache-2.0). Its
+# default build needs no external BLAS/LAPACK: the KKT systems for LP/QP are
+# solved with Clarabel's own sparse LDL (a Rust port of QDLDL + AMD
+# ordering) -- the "Laplacian/Newton solve" step of an IPM, borrowed
+# wholesale instead of hand-written.
+#
+# BLAS/LAPACK backends (Accelerate/MKL/OpenBLAS/Netlib) only come into play
+# for the *dense* factorizations used by Clarabel's SDP cone, which plain
+# min-cost flow (an LP) never touches. If this ever grows a quadratic/SOCP
+# term (e.g. a congestion penalty), flip on one of:
+#   features = ["sdp", "sdp-accelerate"]   # macOS: Apple Accelerate framework
+#   features = ["sdp", "sdp-mkl"]          # Intel MKL
+#   features = ["sdp", "sdp-openblas"]     # OpenBLAS
+clarabel = "0.11"
+
+[dev-dependencies]
+rand = "0.8"
