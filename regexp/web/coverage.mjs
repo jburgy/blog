@@ -9,9 +9,9 @@
 // coverage/lcov.info (and Codecov's line annotations) match the repo.
 //
 // The copy lives as a sibling of this directory, *not* under /tmp: matcher.mjs
-// resolves '../../jonesforth/jonesforth.f' and '../regexp.f' relative to its
-// own URL, so the copy needs the same depth under the repo root for those
-// fetches to still resolve.
+// resolves '../../jonesforth.f' (the repo-root symlink into the jonesforth
+// submodule) and '../regexp.f' relative to its own URL, so the copy needs
+// the same depth under the repo root for those fetches to still resolve.
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
