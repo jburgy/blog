@@ -104,16 +104,29 @@ impl Network {
 
         // Flow conservation: N x = b, one row per node, N[v, e] = +1 if e
         // leaves v, -1 if e enters v.
+        //
+        // Clarabel's new_from_triplets sorts triplets by (column, row) using
+        // Rust's adaptive sort_by, which is O(nnz) on already-sorted input.
+        // Our column index (the loop counter `j`) is already non-decreasing
+        // by construction; emitting each edge's two row entries in ascending
+        // order too (rather than always `from` then `to`) means the whole
+        // triplet stream arrives pre-sorted, so that sort degenerates to a
+        // single linear pass instead of doing real merge work.
         let mut rows = Vec::with_capacity(2 * m);
         let mut cols = Vec::with_capacity(2 * m);
         let mut vals = Vec::with_capacity(2 * m);
         for (j, e) in self.edges.iter().enumerate() {
-            rows.push(e.from);
+            let (lo, lo_val, hi, hi_val) = if e.from < e.to {
+                (e.from, 1.0, e.to, -1.0)
+            } else {
+                (e.to, -1.0, e.from, 1.0)
+            };
+            rows.push(lo);
             cols.push(j);
-            vals.push(1.0);
-            rows.push(e.to);
+            vals.push(lo_val);
+            rows.push(hi);
             cols.push(j);
-            vals.push(-1.0);
+            vals.push(hi_val);
         }
         let incidence = CscMatrix::new_from_triplets(n, m, rows, cols, vals);
 
