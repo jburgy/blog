@@ -51,7 +51,7 @@ const O_NONBLOCK = 0o4_000;
 fn openFlags(flags: i32) std.c.O {
     const f: usize = @intCast(flags);
     return switch (builtin.os.tag) {
-        .linux, .macos, .emscripten => .{
+        .linux, .macos => .{
             // O_RDONLY/O_WRONLY/O_RDWR are 0/1/2: the access mode is the
             // low two bits, not just the O_RDWR bit alone (masking with
             // O_RDWR would fold plain O_WRONLY into O_RDONLY).

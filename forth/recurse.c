@@ -58,7 +58,7 @@ static char *bytes; /* defined below the rodata dictionary; declared early so do
 
 /* syscall(2) is deprecated on macOS ("please switch to a supported
    interface"). jonesforth.f only ever drives the handful of syscall numbers
-   below through it (same idea as 4th.c's EMSCRIPTEN/wasi shim), so dispatch
+   below through it (same idea as 4th.c's wasi shim), so dispatch
    those to the equivalent, supported libc calls directly instead. Buffer and
    path arguments are memory[]-relative offsets exactly like every other
    pointer in this file (see TELL's write(STDOUT_FILENO, bytes + memory[sp +

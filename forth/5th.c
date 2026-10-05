@@ -6,10 +6,12 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#ifdef EMSCRIPTEN
+#ifdef NO_LIBC_SYSCALL_NUMS
 #include <stdarg.h>
 
-/* https://github.com/emscripten-core/emscripten/issues/6708 */
+/* wasi-libc's <sys/syscall.h> doesn't define SYS_read/SYS_write/etc. (see
+ * forth/benchmark.py), so this file spells out, itself, the SYS_* numbers
+ * its own FORTH words (SYSCALL0-3) rely on. */
 enum SYS {SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk};
 #endif
 
@@ -37,7 +39,7 @@ static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_lin
 struct interp_t {
     intptr_t state;
     struct word_t *latest;
-#ifndef EMSCRIPTEN
+#ifndef NO_LIBC_SYSCALL_NUMS
     intptr_t *argc;
 #endif
     intptr_t *s0;
@@ -393,7 +395,7 @@ DEFCONST(STATE, 0, "HERE", HERE, &env->here)
 DEFCONST(HERE, 0, "LATEST", LATEST, &env->latest)
 DEFCONST(LATEST, 0, "S0", SZ, &env->s0)
 DEFCONST(SZ, 0, "BASE", BASE, &env->base)
-#ifdef EMSCRIPTEN
+#ifdef NO_LIBC_SYSCALL_NUMS
 DEFCONST(BASE, 0, "VERSION", VERSION, 47)
 #else
 DEFCONST(BASE, 0, "(ARGC)", ARGC, env->argc)
@@ -643,7 +645,7 @@ DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
         case SYS_brk:
             sp[1] = sp[1] ? (intptr_t)sbrk((intptr_t)sbrk(0) + sp[1]) : (intptr_t)sbrk(sp[1]);
             break;
-#ifndef EMSCRIPTEN
+#ifndef NO_LIBC_SYSCALL_NUMS
         case SYS_setuid:
             sp[1] = setuid(sp[1]);
             break;
@@ -654,7 +656,7 @@ DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
 }
 DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
 {
-#ifndef EMSCRIPTEN
+#ifndef NO_LIBC_SYSCALL_NUMS
     switch (sp[0])
     {
         case SYS_getuid:
@@ -665,7 +667,7 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
     NEXT;
 }
 
-#ifdef EMSCRIPTEN
+#ifdef NO_LIBC_SYSCALL_NUMS
 int main(void)
 #else
 int main(int argc __attribute__((unused)), char *argv[])
@@ -678,7 +680,7 @@ int main(int argc __attribute__((unused)), char *argv[])
     struct interp_t env = {
         .state = 0,
         .latest = &name_SYSCALL0,
-#ifndef EMSCRIPTEN
+#ifndef NO_LIBC_SYSCALL_NUMS
         .argc = (intptr_t *)&argv[-1],
 #endif
         .s0 = stack + N,

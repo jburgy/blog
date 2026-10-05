@@ -71,7 +71,7 @@ inline fn codeFieldAddress(w: Address) usize {
 
 inline fn openFlags(flags: usize) std.c.O {
     return switch (builtin.os.tag) {
-        .linux, .macos, .emscripten => .{
+        .linux, .macos => .{
             // O_RDWR (2) alone only covers bit 1; RDONLY/WRONLY/RDWR need
             // both access-mode bits, i.e. O_WRONLY | O_RDWR (3).
             .ACCMODE = @enumFromInt(flags & (O_WRONLY | O_RDWR)),
