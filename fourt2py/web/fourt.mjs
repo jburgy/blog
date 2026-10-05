@@ -12,6 +12,10 @@
 // entry of `nn`'s product. This wrapper only drives the NDIM=1 case the demo
 // needs: a single FFT length `n`.
 
+/* v8 ignore file -- fourt.test.mjs skips itself unless wasm/fourt.wasm has
+ * been built (npm run build:wasm, a manual/optional step), so this file
+ * normally runs uninstrumented under `npm test`. */
+
 import { readFile } from 'node:fs/promises';
 
 const BYTES_PER_DOUBLE = 8;
