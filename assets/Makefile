@@ -1,12 +1,12 @@
 VPATH = ../forth
-# matcher.mjs fetches ../regexp.f and ../../jonesforth.f, so keep the repo layout
+# matcher.mjs fetches ../regexp.f and ../../jonesforth/jonesforth.f, so keep the repo layout
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 
 all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py node_modules/xterm-pty/package.json
 	rm -rf node_modules/@xterm/xterm/src
 
-%.wasm : ../forth/wasm/%.wast jonesforth.f main.js worker.js wasi-worker.js
+%.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f main.js worker.js wasi-worker.js
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
 
 # uvx/python-zig, not a bare `zig build`: deploy.yml has no system zig. See
@@ -43,10 +43,10 @@ TinyBasic-wasi.wasm : ../TinyBasic/assembly/wasi.ts ../TinyBasic/assembly/core.t
 	npm run asbuild:TinyBasic-wasi
 
 # Published standalone (not just a side effect of 4th.wasm/5th.wasm/6th.wasm
-# above): a future jburgy.github.io post can hardcode /blog/wasi-repl.mjs
-# directly, the same way the jonesforth post already hardcodes /blog/main.js
-# -- startRepl(wasmUrl) takes the one thing that differs per interpreter as
-# a plain argument, so there's no per-post copy to keep in sync.
+# above): the how-many-roads post's tab strip hardcodes /blog/wasi-repl.mjs
+# directly (jburgy/jburgy.github.io) -- startRepl(wasmUrl, preambleUrl) takes
+# the two things that differ per interpreter as plain arguments, so there's
+# no per-post copy to keep in sync.
 wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs
 	cp $< $@
 
@@ -57,7 +57,7 @@ wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs
 wasi-repl-mocha.mjs : ../forth/wasm/wasi-repl-mocha.mjs
 	cp $< $@
 
-regexp : $(REGEXP) regexp/web/forth.wasm jonesforth.f
+regexp : $(REGEXP) regexp/web/forth.wasm jonesforth/jonesforth.f
 
 $(REGEXP) : regexp/% : ../regexp/%
 	@mkdir -p $(@D)
@@ -92,15 +92,18 @@ client-server:
 %.js: ../forth/wasm/%.js
 	cp $< $@
 
-# The one copy of jonesforth.f in the deployed site: main.js's hardcoded
-# /blog/jonesforth.f (a published URL this repo can't rename) and
-# matcher.mjs's '../../jonesforth.f' (resolved via the repo-root
-# jonesforth.f symlink, so the same relative fetch works unmodified from
-# the source tree too) both resolve here -- regexp.f never touches
-# ARGC/ARGV/ENVIRON, so the real jonesforth.f preamble works fine on
-# tabulate.wast (regexp/web/forth.wasm's source), which never defines
-# 4th.32.fs's (ARGC) primitive.
-jonesforth.f: ../jonesforth/jonesforth.f
+# The one copy of jonesforth.f in the deployed site: main.js's own fetch
+# below and the how-many-roads post's data-preamble attributes
+# (jburgy/jburgy.github.io) both point at this exact deployed path.
+# matcher.mjs resolves the identical '../../jonesforth/jonesforth.f'
+# relative to its own repo-layout location, mirroring the real jonesforth
+# submodule path so it also works unmodified straight from the source
+# tree (no copy needed in dev) -- same reasoning as forth/4th.32.fs above.
+# regexp.f never touches ARGC/ARGV/ENVIRON, so the real jonesforth.f
+# preamble works fine on tabulate.wast (regexp/web/forth.wasm's source),
+# which never defines 4th.32.fs's (ARGC) primitive.
+jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
+	@mkdir -p $(@D)
 	cp $< $@
 
 # Local stand-in for GitHub Pages' split-origin, cross-origin-isolated setup
@@ -123,4 +126,4 @@ serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi
 .PHONY : regexp fourt2py serve-e2e
 
 clean :
-	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth.f lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py
+	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth lisp.js TinyBasic.js main.js worker.js wasi-worker.js regexp forth fourt2py

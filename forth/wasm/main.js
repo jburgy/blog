@@ -40,7 +40,13 @@ worker.addEventListener('message', async (event) => {
 
     switch (type) {
         case 'ready': {
-            const response = await fetch('/blog/jonesforth.f');
+            // Relative to this script's own published location (assets
+            // root), not hardcoded to /blog/: matches the repo-layout
+            // mirroring convention matcher.mjs already uses for the same
+            // file (see assets/Makefile). Unused in practice -- nothing
+            // loads main.js itself (see forth/README.md) -- but kept
+            // consistent with the one real copy regardless.
+            const response = await fetch(new URL('./jonesforth/jonesforth.f', import.meta.url));
             channel.push(new Uint8Array(await response.arrayBuffer()));
             readLine();
             break;
