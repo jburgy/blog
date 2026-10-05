@@ -50,6 +50,7 @@ exclude_also = [
 ]
 
 [tool.coverage.run]
+source = ["."]
 omit = [
     "aoc2024/*",
     "progress/*",
