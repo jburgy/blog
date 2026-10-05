@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Ising Model &mdash; Metropolis vs. Swendsen&ndash;Wang vs. Wolff</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+		}
+
+		body {
+			margin: 0 auto;
+			max-width: 46rem;
+			padding: 2rem 1rem 4rem;
+			font: 16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+		}
+
+		h1 {
+			font-size: 1.6rem;
+			margin-bottom: .25rem;
+		}
+
+		.blurb {
+			margin-top: 0;
+			opacity: .75;
+		}
+
+		svg[data-role="lattice"] {
+			display: block;
+			width: 100%;
+			max-width: 512px;
+			height: auto;
+			/* Fixed (not color-scheme-dependent) so the black/yellow spins
+			   stay visible regardless of the page's light/dark mode. */
+			background: #eee;
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+		}
+
+		.controls {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 1rem;
+			margin-top: .75rem;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Ising Model</h1>
+	<p class="blurb">
+		A 32&times;32 Ising lattice (periodic boundary conditions), updated by whichever rule is checked below:
+		naive single-spin-flip <a href="https://en.wikipedia.org/wiki/Metropolis%E2%80%93Hastings_algorithm">
+			Metropolis</a>, <a href="https://en.wikipedia.org/wiki/Swendsen%E2%80%93Wang_algorithm">Swendsen&ndash;Wang</a>,
+		or the <a href="https://en.wikipedia.org/wiki/Wolff_algorithm">Wolff algorithm</a>. Uncheck the active rule
+		to stop. Adapted from <a href="https://jsfiddle.net/jburgy/br0gk7s8/1/">a 2018 fiddle</a> paying tribute to
+		Jian-Sheng Wang's early
+		<a href="https://www.physics.nus.edu.sg/~phywjs/lecture-notes/ising.ps">PostScript Ising demo</a>.
+	</p>
+
+	<div id="demo"></div>
+
+	<script type="module">
+		import { createPanel, attach } from './demo.mjs';
+
+		const panel = createPanel(document);
+		document.getElementById('demo').append(panel);
+		attach(panel);
+	</script>
+</body>
+
+</html>

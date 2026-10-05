@@ -2,8 +2,9 @@ VPATH = ../forth
 # matcher.mjs fetches ../regexp.f and ../../jonesforth/jonesforth.f, so keep the repo layout
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
+ISING = $(addprefix ising/,index.html demo.mjs lattice.mjs)
 
-all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py node_modules/xterm-pty/package.json
+all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs lisp TinyBasic jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising node_modules/xterm-pty/package.json
 	rm -rf node_modules/@xterm/xterm/src
 
 %.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f worker.js wasi-worker.js
@@ -73,6 +74,12 @@ $(FOURT2PY) : fourt2py/% : ../fourt2py/%
 	@mkdir -p $(@D)
 	cp $< $@
 
+ising : $(ISING)
+
+$(ISING) : ising/% : ../ising/%
+	@mkdir -p $(@D)
+	cp $< $@
+
 forth/4th.32.fs : ../forth/4th.32.fs
 	@mkdir -p $(@D)
 	cp $< $@
@@ -123,7 +130,7 @@ jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm
 	node serve-e2e.mjs --skip-jekyll-build
 
-.PHONY : regexp fourt2py serve-e2e
+.PHONY : regexp fourt2py ising serve-e2e
 
 clean :
-	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth lisp.js TinyBasic.js worker.js wasi-worker.js regexp forth fourt2py
+	rm -rf *.mjs *.d.ts *.wasm* node_modules dist jonesforth lisp.js TinyBasic.js worker.js wasi-worker.js regexp forth fourt2py ising
