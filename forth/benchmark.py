@@ -355,7 +355,10 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
     # simplicity/size over speed). 5th.c's NO_LIBC_SYSCALL_NUMS branch
     # spells out the numbers itself: wasi-libc's <sys/syscall.h> doesn't
     # define SYS_read/SYS_write/etc. either.
-    for source, extra_flags in (("4th", []), ("5th", ["-DNO_LIBC_SYSCALL_NUMS", "-mtail-call"])):
+    for source, extra_flags in (
+        ("4th", []),
+        ("5th", ["-DNO_LIBC_SYSCALL_NUMS", "-mtail-call"]),
+    ):
         wasm_file = wasm / f"{source}-wasi.wasm"
         build(
             [
