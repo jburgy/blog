@@ -3,17 +3,10 @@
   "version": "1.0.0",
   "description": "https://justine.lol/sectorlisp/ in https://www.assemblyscript.org/",
   "scripts": {
-    "asbuild:lisp": "npx -y --package assemblyscript asc --config ../lisp/asconfig.json ../lisp/assembly/index.ts -o lisp.wasm --target release --use getchar=../lisp/assembly/host/getchar --use putchar=../lisp/assembly/host/putchar",
     "asbuild:lisp-wasi": "npx -y --package assemblyscript asc --config ../lisp/asconfig.json ../lisp/assembly/wasi.ts -o lisp-wasi.wasm --target wasi --use getchar=../lisp/assembly/wasiHost/getchar --use putchar=../lisp/assembly/wasiHost/putchar",
-    "asbuild:TinyBasic": "npx -y --package assemblyscript asc --config ../TinyBasic/asconfig.json ../TinyBasic/assembly/index.ts -o TinyBasic.wasm --target release --use ScreenChar=../TinyBasic/assembly/host/ScreenChar --use KeyInChar=../TinyBasic/assembly/host/KeyInChar --use OutStr=../TinyBasic/assembly/host/OutStr",
-    "asbuild:TinyBasic-wasi": "npx -y --package assemblyscript asc --config ../TinyBasic/asconfig.json ../TinyBasic/assembly/wasi.ts -o TinyBasic-wasi.wasm --target wasi --use ScreenChar=../TinyBasic/assembly/wasiHost/ScreenChar --use KeyInChar=../TinyBasic/assembly/wasiHost/KeyInChar --use OutStr=../TinyBasic/assembly/wasiHost/OutStr",
-    "build": "npx -y --package tsdown --package typescript@^6.0.3 tsdown"
+    "asbuild:TinyBasic-wasi": "npx -y --package assemblyscript asc --config ../TinyBasic/asconfig.json ../TinyBasic/assembly/wasi.ts -o TinyBasic-wasi.wasm --target wasi --use ScreenChar=../TinyBasic/assembly/wasiHost/ScreenChar --use KeyInChar=../TinyBasic/assembly/wasiHost/KeyInChar --use OutStr=../TinyBasic/assembly/wasiHost/OutStr"
   },
   "author": "Jan Burgy",
   "license": "ISC",
-  "type": "module",
-  "dependencies": {
-    "@xterm/xterm": "^6.0.0",
-    "xterm-pty": "^0.12.0"
-  }
+  "type": "module"
 }

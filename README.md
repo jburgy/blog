@@ -42,9 +42,9 @@ jburgy/blog       --Pages -->  https://bur.gy/blog/       (the demos)
    `actions/deploy-pages` publishes it. **Nothing outside `assets/` is ever
    served.**
 3. A post on bur.gy loads the result with an absolute path — `/blog/wasi-repl.mjs`,
-   `/blog/lisp.worker.js`, `/blog/regexp/web/demo.mjs`. Same origin, so no CORS,
+   `/blog/jonesforth.wasm`, `/blog/regexp/web/demo.mjs`. Same origin, so no CORS,
    no CDN, and the demo version always matches whatever `main` last built.
-4. GitHub Pages sends no COOP/COEP headers, but `xterm-pty` needs
+4. GitHub Pages sends no COOP/COEP headers, but `wasi-worker.js` needs
    `SharedArrayBuffer` to block a worker on a read. The site works around this
    with a service worker,
    [`docs/sw.js`](https://github.com/jburgy/jburgy.github.io/blob/main/docs/sw.js),
@@ -61,9 +61,7 @@ what is checked in is the recipe:
 | file | what it does |
 | --- | --- |
 | [`assets/Makefile`](assets/Makefile) | the whole build. `VPATH = ../forth`, so it reaches back into sibling folders rather than duplicating their sources: wasi-sdk/`uvx`+`python-zig` for the C and Zig interpreters' `.wasm` builds, `wat2wasm` for the hand-written wasm, `asc` for the AssemblyScript ones, and plain `cp` for data files like `jonesforth.f` |
-| [`assets/package.json`](assets/package.json) | pulls in `@xterm/xterm` and `xterm-pty` (which the posts import straight out of `/blog/node_modules/`) and wraps the AssemblyScript builds |
-| [`assets/tsdown.config.ts`](assets/tsdown.config.ts) | bundles the `xterm-pty` submodule's `ttyClient`/`ttyServer` into `dist/`, which the site's `terminal.html` include imports |
-| [`assets/lisp.html`](assets/lisp.html), [`assets/TinyBasic.html`](assets/TinyBasic.html), `*.worker.js` | the standalone pages and worker entry points for the AssemblyScript demos |
+| [`assets/package.json`](assets/package.json) | wraps the `asc` invocations for the AssemblyScript builds, run through `npx` so nothing needs installing |
 | [`assets/thug-life.js`](assets/thug-life.js), [`assets/regexp-snapshot.svg`](assets/regexp-snapshot.svg) | one-off assets embedded by a single post each |
 
 What comes out, and where it comes from:
@@ -76,12 +74,9 @@ What comes out, and where it comes from:
 | `/blog/jonesforth.wasm` | [`forth/wasm/jonesforth.wast`](forth/wasm/jonesforth.wast) | [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html) |
 | `/blog/regexp/web/` | [`regexp/web/`](regexp/web/) + [`forth/wasm/tabulate.wast`](forth/wasm/tabulate.wast) | [What Makes an Expression Regular?](https://bur.gy/2026/09/24/what-makes-an-expression-regular.html) |
 | `/blog/fourt2py/web/` | [`fourt2py/web/`](fourt2py/web/) | shape a waveform's spectrum and hear `FOURT.F` transform it back, post forthcoming |
-| `/blog/lisp.worker.js` | [`lisp/assembly/`](lisp/assembly/) | [What do you mean, homoiconic?](https://bur.gy/2023/03/09/what-do-you-mean-homoiconic.html) |
-| `/blog/TinyBasic.worker.js` | [`TinyBasic/assembly/`](TinyBasic/assembly/) | [When did Basic become insulting?](https://bur.gy/2023/03/16/put-it-in-a-brandy-snifter.html) |
-| `/blog/lisp-wasi.wasm` | [`lisp/assembly/wasi.ts`](lisp/assembly/wasi.ts) (real WASI ABI, same `core.ts`) | not yet published -- see #128's pattern, applied here in a follow-up PR |
-| `/blog/TinyBasic-wasi.wasm` | [`TinyBasic/assembly/wasi.ts`](TinyBasic/assembly/wasi.ts) (real WASI ABI, same `core.ts`) | not yet published -- see #128's pattern, applied here in a follow-up PR |
+| `/blog/lisp-wasi.wasm` | [`lisp/assembly/wasi.ts`](lisp/assembly/wasi.ts) (real WASI ABI, same `core.ts`) | [What do you mean, homoiconic?](https://bur.gy/2023/03/09/what-do-you-mean-homoiconic.html) |
+| `/blog/TinyBasic-wasi.wasm` | [`TinyBasic/assembly/wasi.ts`](TinyBasic/assembly/wasi.ts) (real WASI ABI, same `core.ts`) | [When did Basic become insulting?](https://bur.gy/2023/03/16/put-it-in-a-brandy-snifter.html) |
 | `/blog/jonesforth.f` | the [`jonesforth`](jonesforth/) submodule | every Forth terminal |
-| `/blog/dist/`, `/blog/node_modules/` | the [`xterm-pty`](xterm-pty/) submodule and npm | every terminal |
 
 ## Folders
 
