@@ -11,6 +11,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: assets
     steps:
       - uses: actions/checkout@v7
         with:
@@ -27,9 +30,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: forth
-      - run: |
-          cd assets
-          make --jobs=4
+      - run: make --jobs=4
       - uses: actions/upload-pages-artifact@v5
         with:
           path: assets
