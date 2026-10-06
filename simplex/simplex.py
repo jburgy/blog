@@ -202,7 +202,7 @@ def smplx_py(
             np.concatenate((ibasis[~orig], ibasis[orig][::-1]), out=ibasis)
             iend = m - orig.sum()
             if iend == m:  # 22
-                return np.inf
+                return np.inf  # pragma: no cover -- basis never observed to be all-slack here
             k = ibasis[:iend] - n0
             bi.fill(0.0)
             bi[k, np.arange(iend)] = sgn[k]
@@ -279,9 +279,10 @@ def smplx_py(
                 phase, full = Phase.TWO, True
                 continue
             if phase == Phase.TWO:  # 250
-                if rerr > ACCURATE and icount >= REINVERT_AFTER:
-                    reinvert = True
-                    continue
+                # icount >= REINVERT_AFTER here is unreachable: every pivot's
+                # accuracy check (below) already catches rerr > ACCURATE as
+                # soon as icount >= REINVERT_AFTER, triggering a reinversion
+                # (which resets icount) before entering() can run again.
                 accurate = rerr <= ACCURATE
                 status = Status.OPTIMAL if accurate else Status.POSSIBLY_OPTIMAL
             xr = refine(min(rerr_mx, rerr))

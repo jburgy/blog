@@ -1,4 +1,5 @@
 import os
+import sys
 
 import numpy as np
 import pytest
@@ -163,6 +164,133 @@ def test_small(solve, a, b0, c, numle, numge, expected):
 
 
 @pytest.mark.parametrize(
+    "a, b0, c, numle, numge",
+    [
+        ([[1, 1]], [1], [1, 1], 0, 0),  # m < 2
+        ([[1], [1]], [1, 1], [1], 0, 0),  # n0 < 2
+        ([[1, 1], [1, 1]], [1, 1], [1, 1], 2, 1),  # numle + numge > m
+        ([[1, 1], [1, 1]], [-1, 1], [1, 1], 0, 0),  # negative b0
+    ],
+    ids=["m<2", "n0<2", "ms>m", "b0<0"],
+)
+def test_input_error(a, b0, c, numle, numge):
+    """Line 71: malformed input is rejected before any work is done."""
+    ind, x, z, iter = smplx_py(np.array(a, float), b0, c, numle=numle, numge=numge)
+    assert ind == Status.INPUT_ERROR
+    assert x.size == 0
+    assert iter == 0
+
+
+@pytest.mark.parametrize(
+    "a, b0, c, numle, numge, mxiter, status",
+    [
+        ([[1, 1], [1, 1]], [4, 6], [3, 2], 0, 0, 0, Status.MAX_ITER),
+        (
+            # a singular reinverted basis is undone and retried (220-224, 345)
+            [
+                [-1, 3, 3, -3, -3, 1, -1],
+                [-1, 2, 2, 2, -3, 1, -1],
+                [-1, 2, 2, 1, -2, 3, -1],
+                [-1, 2, 2, 1, -2, 3, -1],
+            ],
+            [5, 1, 4, 4],
+            [0, 3, -1, 1, 2, 3, -3],
+            2,
+            1,
+            None,
+            Status.UNBOUNDED,
+        ),
+        (
+            # a zero entering column triggers re-pricing (248, 322-326)
+            [
+                [2, -3, -2, -2, 0, 1],
+                [2, -2, -1, -1, 3, 2],
+                [1, -3, 3, 3, 3, -2],
+                [1, -3, 3, 3, 3, -2],
+                [3, 3, 2, 2, -1, -3],
+            ],
+            [0, 1, 5, 5, 3],
+            [0, -3, -1, 2, 1, 3],
+            3,
+            2,
+            None,
+            Status.POSSIBLY_OPTIMAL,
+        ),
+        (
+            # a reinverted basis is still inaccurate (218, 219, 240, 241)
+            [
+                [4.496144, -1.376633],
+                [-1.019595, 0.138141],
+                [3.283271, 3.488998],
+                [1.971289, 3.267647],
+                [3.413679, 4.35834],
+                [3.393604, 3.652275],
+                [7.133898, 4.513934],
+                [3.524697, 0.001854],
+            ],
+            [1.727011, 2.113286, 1.339765, 2.371946, 7.33293, 6.641006, 7.19713, 8.684866],
+            [0.89933, 4.719698],
+            1,
+            7,
+            None,
+            Status.INACCURATE,
+        ),
+        (
+            # phase ONE completes without needing refine() (279-280)
+            [[-2, 4], [-3, 2], [-2, 5], [2, 5], [-1, 0]],
+            [4, 7, 7, 5, 0],
+            [2, -3],
+            4,
+            0,
+            None,
+            Status.OPTIMAL,
+        ),
+        (
+            # phase NEGATIVE completes once refine() rounds tiny negatives to 0 (290-292)
+            [
+                [4.035756889597703e-07, 1.5845018386330012e-06, 1.0564148275466847e-06],
+                [-6.296907098534084e-07, -2.407119482461017e-07, -6.171321068159333e-07],
+                [-1.8204420685136873e-06, -1.3842673881231862e-06, -1.0084620030730482e-06],
+            ],
+            [7.326586631695245e-07, 7.301256851360827e-07, 1.3450444191958612e-06],
+            [2.20025760865713e-06, 1.2812056306626758e-06, 1.3580311596911918e-06],
+            2,
+            1,
+            None,
+            Status.OPTIMAL,
+        ),
+    ],
+    ids=[
+        "max-iter",
+        "reinvert-undo",
+        "reprice-zero-column",
+        "reinvert-inaccurate",
+        "phase-one-clean-exit",
+        "phase-negative-refine",
+    ],
+)
+def test_internal_edge_cases(a, b0, c, numle, numge, mxiter, status):
+    """Pin down rare branches of smplx_py found by fuzzing random LPs."""
+    ind, *_ = smplx_py(np.array(a, float), b0, c, numle=numle, numge=numge, mxiter=mxiter)
+    assert ind == status
+
+
+def test_import_fallback(monkeypatch):
+    """Lines 468-469: smplx falls back to smplx_py when _simplex can't be imported."""
+    import importlib
+
+    import simplex
+
+    monkeypatch.setitem(sys.modules, "_simplex", None)
+    try:
+        importlib.reload(simplex)
+        assert simplex.smplx is simplex.smplx_py
+    finally:
+        monkeypatch.delitem(sys.modules, "_simplex", raising=False)
+        importlib.reload(simplex)
+
+
+@pytest.mark.parametrize(
     "n, iend", [(1, 0), (2, 0), (4, 0), (5, 0), (5, 2), (3, 1), (6, 5)]
 )
 def test_crout1(n, iend):
@@ -173,6 +301,25 @@ def test_crout1(n, iend):
     ainv = a.copy()
     assert not crout1(ainv, iend, np.empty(n - 1, np.intp), np.empty((n, n)))
     np.testing.assert_allclose(ainv @ a, np.eye(n), atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    "a, iend",
+    [
+        ([[0.0]], 0),  # n == 1, zero pivot (378)
+        ([[0.0, 1.0], [0.0, 1.0]], 1),  # zero column among the first iend columns (390)
+        (
+            [[0.0, 0.0, 0.0], [0.0, 1.0, 2.0], [0.0, 2.0, 1.0]],
+            0,
+        ),  # zero pivot column in the LU loop (410)
+        ([[1.0, 2.0], [2.0, 4.0]], 0),  # singular last pivot (430)
+    ],
+    ids=["n1", "zero-column", "lu-zero-pivot", "singular-last-pivot"],
+)
+def test_crout1_singular(a, iend):
+    a = np.array(a)
+    n = a.shape[0]
+    assert crout1(a, iend, np.empty(max(n - 1, 0), np.intp), np.empty((n, n)))
 
 
 def random_lp(seed, max_dim, continuous=False):
