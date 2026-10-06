@@ -201,7 +201,8 @@ def test_input_error(a, b0, c, numle, numge):
             Status.UNBOUNDED,
         ),
         (
-            # a zero entering column triggers re-pricing (248, 322-326)
+            # unbounded once entering_column also chops negligible slack
+            # columns, removing a BLAS-order-dependent false pivot candidate
             [
                 [2, -3, -2, -2, 0, 1],
                 [2, -2, -1, -1, 3, 2],
@@ -214,7 +215,30 @@ def test_input_error(a, b0, c, numle, numge):
             3,
             2,
             None,
-            Status.POSSIBLY_OPTIMAL,
+            Status.UNBOUNDED,
+        ),
+        (
+            # a near-singular basis triggers reinversion (350), which fails
+            # and is undone and retried (224-228) before succeeding
+            [
+                [1, 1, -2, 2, 1],
+                [3, 0, -1, -2, -2],
+                [
+                    3.9997160359244193,
+                    9.000040699293043,
+                    1.000345272243278,
+                    -8.999466827536974,
+                    3.9999359412640363,
+                ],
+                [-2, -3, -1, 3, 2],
+                [-1, -3, 0, 3, -3],
+            ],
+            [5, 6, 0, 7, 4],
+            [-2, 3, 0, -3, 1],
+            2,
+            0,
+            None,
+            Status.OPTIMAL,
         ),
         (
             # a reinverted basis is still inaccurate (218, 219, 240, 241)
@@ -281,7 +305,8 @@ def test_input_error(a, b0, c, numle, numge):
     ids=[
         "max-iter",
         "reinvert-undo",
-        "reprice-zero-column",
+        "slack-column-chop-unbounded",
+        "reinvert-retry-succeeds",
         "reinvert-inaccurate",
         "phase-one-clean-exit",
         "phase-negative-refine",

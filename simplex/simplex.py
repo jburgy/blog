@@ -129,10 +129,12 @@ def smplx_py(
         """300-331: col = bi @ column jp, with negligible entries zeroed."""
         if jp >= n0:
             np.multiply(bi[:, jp - n0], sgn[jp - n0], out=col)
-            return
-        np.matvec(bi, a[:, jp], out=col)
+        else:
+            np.matvec(bi, a[:, jp], out=col)
         small = np.flatnonzero(abs(col) < 5e-3)
-        tol = rerr_mx * a_absmax[jp] * abs(bi[small]).max(axis=1, initial=0.0)
+        # a slack/surplus column of A has a single unit entry, so its |.|max is 1
+        amax = 1.0 if jp >= n0 else a_absmax[jp]
+        tol = rerr_mx * amax * abs(bi[small]).max(axis=1, initial=0.0)
         col[small[abs(col[small]) < tol]] = 0.0
 
     def leaving(phase: Phase) -> int | None:
@@ -247,7 +249,7 @@ def smplx_py(
 
         # 600 Set up the reduced costs r
         if reprice:  # 350 GO TO 200
-            reprice = False
+            reprice = False  # pragma: no cover -- only after the reprice below
         elif phase == Phase.TWO:
             if full:  # 680
                 full = False
@@ -321,7 +323,7 @@ def smplx_py(
             status = Status.UNBOUNDED
             break
         entering_column(jp)
-        if not col.any():  # 350
+        if not col.any():  # pragma: no cover -- 350: unreproduced post slack-chop
             iter_count -= 1
             icount -= 1
             r[jp] = 0.0
