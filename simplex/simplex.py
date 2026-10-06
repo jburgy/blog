@@ -249,7 +249,7 @@ def smplx_py(
 
         # 600 Set up the reduced costs r
         if reprice:  # 350 GO TO 200
-            reprice = False  # pragma: no cover -- only after the reprice below
+            reprice = False
         elif phase == Phase.TWO:
             if full:  # 680
                 full = False
@@ -323,7 +323,7 @@ def smplx_py(
             status = Status.UNBOUNDED
             break
         entering_column(jp)
-        if not col.any():  # pragma: no cover -- 350: unreproduced post slack-chop
+        if not col.any():  # 350
             iter_count -= 1
             icount -= 1
             r[jp] = 0.0

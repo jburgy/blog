@@ -218,6 +218,27 @@ def test_input_error(a, b0, c, numle, numge):
             Status.UNBOUNDED,
         ),
         (
+            # a deliberately near-singular basis (det ~= 1e-4 after the first
+            # pivot, giving a basis inverse with ~1e4-scale entries) chops a
+            # third variable's column to zero (327-331), permanently zeroing
+            # its reduced cost (252) instead of retrying it once the basis is
+            # better conditioned. This is a known, ~50-year-old limitation of
+            # chop-and-forget repricing: Harris's two-pass ratio test (Math.
+            # Programming 5(1):1-28, 1973) exists precisely to avoid it. The
+            # true optimum uses this variable heavily (scipy/HiGHS: z ~=
+            # 16_666_666.67 at x = [0, 0, 333333.33]), not the 10.0 below.
+            [
+                [1e-4, 1.0, 1e-9],
+                [1.0, 3.0, 3e-5],
+            ],
+            [1e-5, 10.0],
+            [100.0, 1.0, 50.0],
+            2,
+            0,
+            None,
+            Status.OPTIMAL,
+        ),
+        (
             # a near-singular basis triggers reinversion (350), which fails
             # and is undone and retried (224-228) before succeeding
             [
@@ -306,6 +327,7 @@ def test_input_error(a, b0, c, numle, numge):
         "max-iter",
         "reinvert-undo",
         "slack-column-chop-unbounded",
+        "reprice-permanently-drops-variable",
         "reinvert-retry-succeeds",
         "reinvert-inaccurate",
         "phase-one-clean-exit",
