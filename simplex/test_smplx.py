@@ -228,7 +228,16 @@ def test_input_error(a, b0, c, numle, numge):
                 [7.133898, 4.513934],
                 [3.524697, 0.001854],
             ],
-            [1.727011, 2.113286, 1.339765, 2.371946, 7.33293, 6.641006, 7.19713, 8.684866],
+            [
+                1.727011,
+                2.113286,
+                1.339765,
+                2.371946,
+                7.33293,
+                6.641006,
+                7.19713,
+                8.684866,
+            ],
             [0.89933, 4.719698],
             1,
             7,
@@ -246,11 +255,20 @@ def test_input_error(a, b0, c, numle, numge):
             Status.OPTIMAL,
         ),
         (
-            # phase NEGATIVE completes once refine() rounds tiny negatives to 0 (290-292)
+            # phase NEGATIVE completes once refine() rounds tiny
+            # negatives to 0 (290-292)
             [
                 [4.035756889597703e-07, 1.5845018386330012e-06, 1.0564148275466847e-06],
-                [-6.296907098534084e-07, -2.407119482461017e-07, -6.171321068159333e-07],
-                [-1.8204420685136873e-06, -1.3842673881231862e-06, -1.0084620030730482e-06],
+                [
+                    -6.296907098534084e-07,
+                    -2.407119482461017e-07,
+                    -6.171321068159333e-07,
+                ],
+                [
+                    -1.8204420685136873e-06,
+                    -1.3842673881231862e-06,
+                    -1.0084620030730482e-06,
+                ],
             ],
             [7.326586631695245e-07, 7.301256851360827e-07, 1.3450444191958612e-06],
             [2.20025760865713e-06, 1.2812056306626758e-06, 1.3580311596911918e-06],
@@ -271,7 +289,9 @@ def test_input_error(a, b0, c, numle, numge):
 )
 def test_internal_edge_cases(a, b0, c, numle, numge, mxiter, status):
     """Pin down rare branches of smplx_py found by fuzzing random LPs."""
-    ind, *_ = smplx_py(np.array(a, float), b0, c, numle=numle, numge=numge, mxiter=mxiter)
+    ind, *_ = smplx_py(
+        np.array(a, float), b0, c, numle=numle, numge=numge, mxiter=mxiter
+    )
     assert ind == status
 
 
@@ -284,7 +304,7 @@ def test_import_fallback(monkeypatch):
     monkeypatch.setitem(sys.modules, "_simplex", None)
     try:
         importlib.reload(simplex)
-        assert simplex.smplx is simplex.smplx_py
+        assert simplex.smplx is simplex.smplx_py  # ty: ignore[unresolved-attribute]
     finally:
         monkeypatch.delitem(sys.modules, "_simplex", raising=False)
         importlib.reload(simplex)

@@ -202,7 +202,9 @@ def smplx_py(
             np.concatenate((ibasis[~orig], ibasis[orig][::-1]), out=ibasis)
             iend = m - orig.sum()
             if iend == m:  # 22
-                return np.inf  # pragma: no cover -- basis never observed to be all-slack here
+                return (
+                    np.inf
+                )  # pragma: no cover -- basis never observed to be all-slack here
             k = ibasis[:iend] - n0
             bi.fill(0.0)
             bi[k, np.arange(iend)] = sgn[k]
