@@ -9,9 +9,13 @@
 // default test-file glob would otherwise pick this up and try to execute it
 // directly in Node, where wasi-repl.mjs's own browser-only imports (xterm.js,
 // a Worker, ...) can't resolve/run.
+//
+// `waitFor` is exported too: index.html's own lazy, per-<details> smoke
+// tests need the same polling helper but (unlike registerWasiReplSpec) don't
+// send a command into the live terminal, so they can't reuse the spec itself.
 import { startRepl } from "./wasi-repl.mjs";
 
-function waitFor(predicate, timeout = 60000, interval = 100) {
+export function waitFor(predicate, timeout = 60000, interval = 100) {
     return new Promise((resolve, reject) => {
         const start = Date.now();
         (function check() {

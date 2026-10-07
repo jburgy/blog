@@ -52,6 +52,20 @@
 			opacity: .75;
 		}
 
+		/* One discreet pass/fail line per demo, inserted next to its summary
+		   by the lazy mocha smoke test -- see smokeTest() at the bottom. */
+		.test-status {
+			margin: .35rem 0 0;
+			font-size: .8rem;
+			font-family: Menlo, Consolas, monospace;
+			opacity: .6;
+		}
+
+		.test-status--fail {
+			color: #dc322f;
+			opacity: 1;
+		}
+
 		/* Containers demo.mjs modules/startRepl mount into, lazily, on first
 		   <details> open -- see the two toggle listeners at the bottom. */
 		.demo,
@@ -401,6 +415,52 @@
 
 	<script type="module">
 		import { startRepl } from './wasi-repl.mjs';
+		import { waitFor } from './wasi-repl-mocha.mjs';
+
+		// Every REPL demo's startup output: the four jonesforth clones (fed
+		// jonesforth.f/4th.32.fs) print the "JONESFORTH VERSION" welcome
+		// banner; TinyBasic/lisp (data-preamble="none", no FORTH dictionary
+		// to load) instead print a single ':'/'*' ready prompt.
+		const replReady = {
+			'jonesforth.wasm': 'JONESFORTH VERSION',
+			'6th-wasi.wasm': 'JONESFORTH VERSION',
+			'5th-wasi.wasm': 'JONESFORTH VERSION',
+			'4th-wasi.wasm': 'JONESFORTH VERSION',
+			'TinyBasic-wasi.wasm': ':',
+			'lisp-wasi.wasm': '*',
+		};
+
+		// Loaded once, the first time any demo runs a smoke test -- not on
+		// page load, same "don't boot it until it's needed" rule as the
+		// demos themselves.
+		let mochaLoading;
+		function loadMocha() {
+			return mochaLoading ??= new Promise((resolve, reject) => {
+				const script = document.createElement('script');
+				script.src = 'https://cdn.jsdelivr.net/npm/mocha@12.0.3/mocha.js';
+				script.addEventListener('load', () => resolve(window.Mocha));
+				script.addEventListener('error', reject);
+				document.head.append(script);
+			});
+		}
+
+		// A throwaway Mocha instance per call, not the usual global
+		// describe/it/mocha.run() singleton -- this page mounts up to nine
+		// independent demos, each lazily, so each needs its own isolated,
+		// repeatable run rather than one shared suite that can only run
+		// once. Reports a single discreet pass/fail line next to the
+		// summary instead of mocha's own styled HTML reporter.
+		async function smokeTest(details, title, fn, timeout = 15000) {
+			const Mocha = await loadMocha();
+			const mocha = new Mocha({ reporter: function () { }, timeout });
+			mocha.suite.addTest(new Mocha.Test(title, fn));
+			const status = document.createElement('p');
+			status.className = 'test-status';
+			details.querySelector('summary').after(status);
+			const failures = await new Promise((resolve) => mocha.run(resolve));
+			status.classList.toggle('test-status--fail', !!failures);
+			status.textContent = `${failures ? '✗' : '✓'} ${title}`;
+		}
 
 		// Each <details> mounts its demo at most once, the first time it's
 		// opened -- nine live demos (six of them a Worker + WebAssembly
@@ -411,30 +471,35 @@
 				details.dataset.started = '1';
 				const { wasm, preamble } = details.dataset;
 				const container = details.querySelector('[data-role="terminal"]');
-				startRepl(wasm, preamble === 'none' ? null : preamble, container);
+				const repl = startRepl(wasm, preamble === 'none' ? null : preamble, container);
+				const expected = replReady[wasm];
+				smokeTest(details, `prints ${JSON.stringify(expected)}`, () => waitFor(() => repl.getOutput().includes(expected)), 60000);
 			});
 		}
 
 		for (const details of document.querySelectorAll('details[data-module]')) {
-			details.addEventListener('toggle', async () => {
+			details.addEventListener('toggle', () => {
 				if (!details.open || details.dataset.started) return;
 				details.dataset.started = '1';
-				const { createPanel, attach } = await import(details.dataset.module);
-				const panel = createPanel(document);
-				details.querySelector('[data-role="panel"]').append(panel);
-				const controller = await attach(panel);
-
-				if (details.dataset.demo === 'regexp') {
-					const { run, input } = controller;
-					input.value = 'l(a|o)b';
-					run();
-					for (const button of details.querySelectorAll('.examples button')) {
-						button.addEventListener('click', () => {
-							input.value = button.textContent;
-							run();
-						});
+				let controller;
+				smokeTest(details, 'demo loads', async () => {
+					const { createPanel, attach } = await import(details.dataset.module);
+					const panel = createPanel(document);
+					details.querySelector('[data-role="panel"]').append(panel);
+					controller = await attach(panel);
+				}).then(() => {
+					if (details.dataset.demo === 'regexp' && controller) {
+						const { run, input } = controller;
+						input.value = 'l(a|o)b';
+						run();
+						for (const button of details.querySelectorAll('.examples button')) {
+							button.addEventListener('click', () => {
+								input.value = button.textContent;
+								run();
+							});
+						}
 					}
-				}
+				});
 			});
 		}
 	</script>

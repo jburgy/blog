@@ -87,7 +87,12 @@ export function safeJoin(base, pathname) {
  * response only starts once the file is confirmed openable, so a missing
  * file still gets a clean 404 rather than a 200 that aborts mid-stream.
  *
- * @param {(pathname: string) => string | null | undefined} resolvePath
+ * @param {(pathname: string) => string | { redirect: string } | null | undefined} resolvePath
+ *   a `{ redirect }` result 301s instead of serving a file -- see
+ *   resolveBlogOrSitePath's bare "/blog" case below: silently serving
+ *   assets/index.html's content *at* that URL (no trailing slash) would
+ *   leave the browser's own address bar one directory level too shallow,
+ *   breaking every `./`-relative import/asset the page itself requests.
  * @param {number} [port] defaults to 0 (OS-assigned)
  */
 export async function startServer(resolvePath, port = 0) {
@@ -96,6 +101,10 @@ export async function startServer(resolvePath, port = 0) {
         const path = resolvePath(url.pathname);
         if (!path) {
             res.writeHead(404, sharedHeaders).end("not found");
+            return;
+        }
+        if (typeof path === "object") {
+            res.writeHead(301, { ...sharedHeaders, location: path.redirect }).end();
             return;
         }
         const stream = createReadStream(path);
@@ -119,7 +128,8 @@ export async function startServer(resolvePath, port = 0) {
 }
 
 function resolveBlogOrSitePath(pathname, assetsDir, siteDir) {
-    const isBlog = pathname === "/blog" || pathname.startsWith("/blog/");
+    if (pathname === "/blog") return { redirect: "/blog/" };
+    const isBlog = pathname.startsWith("/blog/");
     const base = isBlog ? assetsDir : siteDir;
     let rel = isBlog ? pathname.slice("/blog".length) || "/" : pathname;
     if (rel.endsWith("/")) rel += "index.html";
