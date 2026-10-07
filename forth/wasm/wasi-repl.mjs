@@ -27,6 +27,12 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
  *   against real builds of both: feeding either the FORTH preamble as
  *   typed input produces thousands of lines of garbage (parse errors /
  *   IL-dump spam) before the interpreter ever reaches its own prompt.
+ * @param {string | HTMLElement} [container] defaults to `#terminal`, same as
+ *   every existing caller (a single demo per page). Pass an element (or a
+ *   different id) to mount more than one REPL on the same page at once --
+ *   e.g. assets/index.html's landing page, where each interpreter gets its
+ *   own `<details>` instead of sharing one div like the tabbed how-many-roads
+ *   post does.
  * @returns {{ term: Terminal, sendLine: (text: string) => void, getOutput: () => string, dispose: () => void }}
  *   `sendLine`/`getOutput` let a test drive the REPL deterministically
  *   (see wasi-repl-mocha.mjs). `sendLine` uses xterm.js's own `paste()` to
@@ -41,11 +47,11 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
  *   same `#terminal` div without the old Worker's `fd_read` wait loop or its
  *   stray `postMessage`s outliving it.
  */
-export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", import.meta.url)) {
+export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", import.meta.url), container = "terminal") {
     const xterm = new Terminal();
     const rl = new Readline();
     xterm.loadAddon(rl);
-    xterm.open(document.getElementById("terminal"));
+    xterm.open(typeof container === "string" ? document.getElementById(container) : container);
 
     // Sized well past 4th.32.fs (~58 KiB).
     const channel = new SharedInputChannel(128 * 1024);

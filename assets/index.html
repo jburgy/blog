@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>bur.gy/blog &mdash; demos</title>
+	<link rel="stylesheet" href="https://esm.sh/@xterm/xterm@5.5.0/css/xterm.css" crossorigin="anonymous">
+	<style>
+		:root {
+			color-scheme: light dark;
+		}
+
+		body {
+			margin: 0 auto;
+			max-width: 46rem;
+			padding: 2rem 1rem 4rem;
+			font: 16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+		}
+
+		h1 {
+			font-size: 1.6rem;
+			margin-bottom: .25rem;
+		}
+
+		.blurb {
+			margin-top: 0;
+			opacity: .75;
+		}
+
+		code {
+			font-family: Menlo, Consolas, monospace;
+		}
+
+		details {
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+			padding: .5rem .75rem;
+			margin-bottom: .5rem;
+		}
+
+		summary {
+			cursor: pointer;
+		}
+
+		summary .desc {
+			opacity: .75;
+		}
+
+		details p {
+			margin: .5rem 0 .25rem;
+			opacity: .75;
+		}
+
+		/* Containers demo.mjs modules/startRepl mount into, lazily, on first
+		   <details> open -- see the two toggle listeners at the bottom. */
+		.demo,
+		.repl {
+			margin-top: .75rem;
+		}
+
+		.repl {
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+			padding: .5rem;
+			overflow-x: auto;
+		}
+
+		/* ising/index.html's demo-specific rules, scoped under .demo--ising
+		   so they can't leak into any other inlined demo. */
+		.demo--ising svg[data-role="lattice"] {
+			display: block;
+			width: 100%;
+			max-width: 512px;
+			height: auto;
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+		}
+
+		.demo--ising .controls {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 1rem;
+			margin-top: .75rem;
+		}
+
+		.demo--ising .temperature {
+			display: inline-flex;
+			align-items: center;
+			gap: .4rem;
+		}
+
+		.demo--ising .temperature__track {
+			position: relative;
+			display: inline-block;
+		}
+
+		.demo--ising .critical-tick {
+			position: absolute;
+			top: 50%;
+			width: 2px;
+			height: .6rem;
+			background: currentColor;
+			opacity: .5;
+			transform: translate(-50%, -50%);
+			pointer-events: none;
+		}
+
+		.demo--ising input[type="range"] {
+			display: block;
+			width: 10rem;
+			vertical-align: middle;
+		}
+
+		/* fourt2py/web/index.html's demo-specific rules, scoped under
+		   .demo--fourt2py. */
+		.demo--fourt2py {
+			--accent: #39ff6a;
+		}
+
+		.demo--fourt2py .panel {
+			display: flex;
+			flex-direction: column;
+			gap: .75rem;
+		}
+
+		.demo--fourt2py .scope-wrap {
+			border-radius: .25rem;
+			overflow: hidden;
+			border: 1px solid rgba(128, 128, 128, .4);
+			background: #000;
+		}
+
+		.demo--fourt2py canvas[data-role="scope"] {
+			display: block;
+			width: 100%;
+			height: auto;
+		}
+
+		.demo--fourt2py .chart-wrap {
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+			padding: .25rem 0;
+		}
+
+		.demo--fourt2py svg.chart {
+			display: block;
+			width: 100%;
+			height: auto;
+		}
+
+		.demo--fourt2py .chart__zero {
+			stroke: currentColor;
+			stroke-opacity: .35;
+			stroke-dasharray: 2 3;
+		}
+
+		.demo--fourt2py .chart__stem {
+			stroke: var(--accent);
+			stroke-opacity: .5;
+			stroke-width: 2;
+		}
+
+		.demo--fourt2py .chart__line {
+			stroke: var(--accent);
+			stroke-width: 1.5;
+			stroke-opacity: .6;
+		}
+
+		.demo--fourt2py .chart__knot {
+			fill: var(--accent);
+			stroke: #000;
+			stroke-opacity: .25;
+			cursor: ns-resize;
+			touch-action: none;
+		}
+
+		.demo--fourt2py .chart__label {
+			font-size: 9px;
+			fill: currentColor;
+			opacity: .6;
+			text-anchor: middle;
+			font-family: Menlo, Consolas, monospace;
+		}
+
+		.demo--fourt2py .controls {
+			display: flex;
+			align-items: center;
+			gap: .75rem;
+		}
+
+		.demo--fourt2py .controls button {
+			font: inherit;
+			padding: .5rem 1rem;
+			border: 1px solid currentColor;
+			border-radius: .25rem;
+			background: transparent;
+			color: inherit;
+			cursor: pointer;
+		}
+
+		.demo--fourt2py .status {
+			font-size: .9rem;
+			opacity: .75;
+		}
+
+		/* regexp/web/index.html's demo-specific rules, scoped under
+		   .demo--regexp. */
+		.demo--regexp {
+			--accent: #b58900;
+		}
+
+		.demo--regexp .examples button {
+			font: inherit;
+			font-family: Menlo, Consolas, monospace;
+			cursor: pointer;
+			margin: 0 .35rem .35rem 0;
+			padding: .15rem .45rem;
+			border: 1px solid rgba(128, 128, 128, .5);
+			border-radius: .25rem;
+			background: transparent;
+			color: inherit;
+		}
+
+		.demo--regexp .query {
+			display: flex;
+			gap: .5rem;
+			align-items: flex-end;
+			flex-wrap: wrap;
+		}
+
+		.demo--regexp .query__label {
+			display: flex;
+			flex-direction: column;
+			gap: .25rem;
+			flex: 1 1 18rem;
+			font-size: .85rem;
+			text-transform: uppercase;
+			letter-spacing: .06em;
+			opacity: .75;
+		}
+
+		.demo--regexp .query input,
+		.demo--regexp .query button {
+			font: inherit;
+			padding: .5rem .75rem;
+			border: 1px solid currentColor;
+			border-radius: .25rem;
+			background: transparent;
+			color: inherit;
+		}
+
+		.demo--regexp .query input {
+			font-family: Menlo, Consolas, monospace;
+			text-transform: none;
+			letter-spacing: normal;
+		}
+
+		.demo--regexp .query button {
+			cursor: pointer;
+		}
+
+		.demo--regexp .status {
+			min-height: 1.6em;
+			font-size: .9rem;
+			opacity: .75;
+		}
+
+		.demo--regexp .panel[data-state="error"] .status {
+			color: #dc322f;
+			opacity: 1;
+		}
+
+		.demo--regexp .subject {
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+			padding: 1rem;
+			text-align: justify;
+			white-space: pre-wrap;
+		}
+
+		.demo--regexp .subject mark {
+			background: var(--accent);
+			color: #fff;
+			border-radius: .15rem;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>bur.gy/blog</h1>
+	<p class="blurb">
+		Demos built from <a href="https://github.com/jburgy/blog">jburgy/blog</a>, latest first. Each entry links
+		to the source it is built from; open it to run the demo in place.
+	</p>
+
+	<details data-module="./ising/demo.mjs">
+		<summary><a href="https://github.com/jburgy/blog/blob/main/ising/lattice.mjs"><code>ising/lattice.mjs</code></a>
+			&mdash; <span class="desc">2D Ising model comparing naive Metropolis, Swendsen&ndash;Wang, and Wolff
+				cluster updates on the same lattice</span></summary>
+		<p>No post yet.</p>
+		<div class="demo demo--ising" data-role="panel"></div>
+	</details>
+
+	<details data-module="./fourt2py/web/demo.mjs">
+		<summary><a href="https://github.com/jburgy/blog/blob/main/fourt2py/FOURT.F"><code>fourt2py/FOURT.F</code></a>
+			&mdash; <span class="desc">1960s Fortran FOURT transform called from Python, with a browser demo that
+				reshapes a waveform's spectrum</span></summary>
+		<p>No post yet.</p>
+		<div class="demo demo--fourt2py" data-role="panel"></div>
+	</details>
+
+	<details data-module="./regexp/web/demo.mjs" data-demo="regexp">
+		<summary><a href="https://github.com/jburgy/blog/blob/main/regexp/regexp.f"><code>regexp/regexp.f</code></a>
+			&mdash; <span class="desc">Thompson's 1968 regular-expression construction, implemented in FORTH and run
+				in the browser</span></summary>
+		<p>2026-09-24 &middot;
+			<a href="https://bur.gy/2026/09/24/what-makes-an-expression-regular.html">What Makes an Expression
+				Regular?</a></p>
+		<div class="demo demo--regexp">
+			<p class="examples">
+				Try:
+				<button type="button">dolor</button>
+				<button type="button">l(a|o)b</button>
+				<button type="button">(a|e|i|o|u)(a|e|i|o|u)</button>
+				<button type="button">do*l</button>
+				<button type="button">e(x|s)</button>
+			</p>
+			<div data-role="panel"></div>
+		</div>
+	</details>
+
+	<details data-wasm="jonesforth.wasm" data-preamble="jonesforth/jonesforth.f">
+		<summary><a
+				href="https://github.com/jburgy/blog/blob/main/forth/wasm/jonesforth.wast"><code>forth/wasm/jonesforth.wast</code></a>
+			&mdash; <span class="desc">jonesforth ported to hand-written WebAssembly, using
+				<code>return_call_indirect</code> tail calls</span></summary>
+		<p>2025-11-29 &middot;
+			<a href="https://bur.gy/2025/11/29/how-many-roads.html">How Many Roads Must a Man Walk Down?</a></p>
+		<div class="repl">
+			<div data-role="terminal"></div>
+		</div>
+	</details>
+
+	<details data-wasm="6th-wasi.wasm">
+		<summary><a href="https://github.com/jburgy/blog/blob/main/forth/6th.zig"><code>forth/6th.zig</code></a>
+			&mdash; <span class="desc">jonesforth clone in Zig using <code>@call(.always_tail, ...)</code> for
+				tail calls</span></summary>
+		<p>2024-08-31 &middot; <a href="https://bur.gy/2024/08/31/why-not-zig.html">Why not try Zig next?</a></p>
+		<div class="repl">
+			<div data-role="terminal"></div>
+		</div>
+	</details>
+
+	<details data-wasm="5th-wasi.wasm">
+		<summary><a href="https://github.com/jburgy/blog/blob/main/forth/5th.c"><code>forth/5th.c</code></a>
+			&mdash; <span class="desc">jonesforth clone in GNU C using <code>musttail</code> instead of labels as
+				values</span></summary>
+		<p>2024-03-29 &middot;
+			<a href="https://bur.gy/2024/03/29/tail-recursion.html">What is Tail Call Elimination?</a></p>
+		<div class="repl">
+			<div data-role="terminal"></div>
+		</div>
+	</details>
+
+	<details data-wasm="TinyBasic-wasi.wasm" data-preamble="none">
+		<summary><a
+				href="https://github.com/jburgy/blog/blob/main/TinyBasic/assembly/core.ts"><code>TinyBasic/assembly/core.ts</code></a>
+			&mdash; <span class="desc">Tiny BASIC's original IL virtual machine, reimplemented in
+				AssemblyScript</span></summary>
+		<p>2023-03-16 &middot;
+			<a href="https://bur.gy/2023/03/16/put-it-in-a-brandy-snifter.html">When did Basic become
+				insulting?</a></p>
+		<div class="repl">
+			<div data-role="terminal"></div>
+		</div>
+	</details>
+
+	<details data-wasm="lisp-wasi.wasm" data-preamble="none">
+		<summary><a
+				href="https://github.com/jburgy/blog/blob/main/lisp/assembly/core.ts"><code>lisp/assembly/core.ts</code></a>
+			&mdash; <span class="desc">justine.lol's sectorlisp interpreter, rewritten in AssemblyScript</span>
+		</summary>
+		<p>2023-03-09 &middot;
+			<a href="https://bur.gy/2023/03/09/what-do-you-mean-homoiconic.html">What do you mean,
+				homoiconic?</a></p>
+		<div class="repl">
+			<div data-role="terminal"></div>
+		</div>
+	</details>
+
+	<details data-wasm="4th-wasi.wasm">
+		<summary><a href="https://github.com/jburgy/blog/blob/main/forth/4th.c"><code>forth/4th.c</code></a>
+			&mdash; <span class="desc">jonesforth clone in GNU C using labels as values</span></summary>
+		<p>2023-02-24 &middot; <a href="https://bur.gy/2023/02/24/what-forth-again.html">What, Forth, Again?</a></p>
+		<div class="repl">
+			<div data-role="terminal"></div>
+		</div>
+	</details>
+
+	<script type="module">
+		import { startRepl } from './wasi-repl.mjs';
+
+		// Each <details> mounts its demo at most once, the first time it's
+		// opened -- nine live demos (six of them a Worker + WebAssembly
+		// REPL apiece) booting unconditionally on page load would be wasteful.
+		for (const details of document.querySelectorAll('details[data-wasm]')) {
+			details.addEventListener('toggle', () => {
+				if (!details.open || details.dataset.started) return;
+				details.dataset.started = '1';
+				const { wasm, preamble } = details.dataset;
+				const container = details.querySelector('[data-role="terminal"]');
+				startRepl(wasm, preamble === 'none' ? null : preamble, container);
+			});
+		}
+
+		for (const details of document.querySelectorAll('details[data-module]')) {
+			details.addEventListener('toggle', async () => {
+				if (!details.open || details.dataset.started) return;
+				details.dataset.started = '1';
+				const { createPanel, attach } = await import(details.dataset.module);
+				const panel = createPanel(document);
+				details.querySelector('[data-role="panel"]').append(panel);
+				const controller = await attach(panel);
+
+				if (details.dataset.demo === 'regexp') {
+					const { run, input } = controller;
+					input.value = 'l(a|o)b';
+					run();
+					for (const button of details.querySelectorAll('.examples button')) {
+						button.addEventListener('click', () => {
+							input.value = button.textContent;
+							run();
+						});
+					}
+				}
+			});
+		}
+	</script>
+</body>
+
+</html>

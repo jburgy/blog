@@ -63,6 +63,7 @@ what is checked in is the recipe:
 | [`assets/Makefile`](assets/Makefile) | the whole build. `VPATH = ../forth`, so it reaches back into sibling folders rather than duplicating their sources: wasi-sdk/`uvx`+`python-zig` for the C and Zig interpreters' `.wasm` builds, `wat2wasm` for the hand-written wasm, `asc` for the AssemblyScript ones, and plain `cp` for data files like `jonesforth.f` |
 | [`assets/package.json`](assets/package.json) | wraps the `asc` invocations for the AssemblyScript builds, run through `npx` so nothing needs installing |
 | [`assets/thug-life.js`](assets/thug-life.js), [`assets/regexp-snapshot.svg`](assets/regexp-snapshot.svg) | one-off assets embedded by a single post each |
+| [`assets/index.html`](assets/index.html) | the `/blog/` landing page: every demo below, latest first, inlined inside a `<details>` per demo and lazily mounted the first time it's opened |
 
 What comes out, and where it comes from:
 
@@ -77,6 +78,10 @@ What comes out, and where it comes from:
 | `/blog/lisp-wasi.wasm` | [`lisp/assembly/wasi.ts`](lisp/assembly/wasi.ts) (real WASI ABI, same `core.ts`) | [What do you mean, homoiconic?](https://bur.gy/2023/03/09/what-do-you-mean-homoiconic.html) |
 | `/blog/TinyBasic-wasi.wasm` | [`TinyBasic/assembly/wasi.ts`](TinyBasic/assembly/wasi.ts) (real WASI ABI, same `core.ts`) | [When did Basic become insulting?](https://bur.gy/2023/03/16/put-it-in-a-brandy-snifter.html) |
 | `/blog/jonesforth.f` | the [`jonesforth`](jonesforth/) submodule | every Forth terminal |
+
+Every row above is also embedded live in [`assets/index.html`](assets/index.html) itself
+(`/blog/`'s own landing page), one `<details>` per demo, alongside `ising/`'s and
+`fourt2py/web/`'s demos -- not just linked to its post.
 
 ## Folders
 

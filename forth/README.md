@@ -198,7 +198,11 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   not just the three `4th.32.fs`-dictionary interpreters: the how-many-roads
   post's tab strip calls `startRepl(wasmUrl, preambleUrl)` with whichever
   interpreter's own pair the visitor picked, `dispose()`-ing the previous
-  REPL (terminates its Worker, tears down its Terminal) first. Each
+  REPL (terminates its Worker, tears down its Terminal) first. A third,
+  optional `container` argument (element or id, defaulting to `"terminal"`)
+  lets a caller mount more than one REPL on the same page at once instead of
+  sharing a single div -- `assets/index.html`'s demos landing page is the one
+  consumer that needs this, one `<details>` per interpreter. Each
   html/*.html page also loads mocha from a CDN
   and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
   live REPL (`startRepl`'s return value, not simulated keystrokes) -- a human
