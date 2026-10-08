@@ -1,0 +1,14 @@
+{
+  "name": "resistor-network",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser demo: a random bond-percolation lattice reduced to its equivalent resistor by node elimination, accumulated into a Monte Carlo histogram",
+  "scripts": {
+    "test": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
+    "vitest": "^4.1.11"
+  }
+}

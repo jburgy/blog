@@ -3,8 +3,9 @@ VPATH = ../forth
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 ISING = $(addprefix ising/,index.html demo.mjs lattice.mjs)
+RESISTOR_NETWORK = $(addprefix resistor-network/,index.html demo.mjs lattice.mjs)
 
-all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising
+all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network
 
 %.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f worker.js wasi-worker.js
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
@@ -73,6 +74,12 @@ $(ISING) : ising/% : ../ising/%
 	@mkdir -p $(@D)
 	cp $< $@
 
+resistor-network : $(RESISTOR_NETWORK)
+
+$(RESISTOR_NETWORK) : resistor-network/% : ../resistor-network/%
+	@mkdir -p $(@D)
+	cp $< $@
+
 forth/4th.32.fs : ../forth/4th.32.fs
 	@mkdir -p $(@D)
 	cp $< $@
@@ -100,9 +107,9 @@ jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 # Depends only on the genuinely file-tracked targets (real output file, real
 # mtime comparison against real prerequisites) so a stale one rebuilds and a
 # fresh one no-ops -- what `make` is for. Deliberately excludes
-# regexp/fourt2py/ising: none of those are file-tracked here (fragile
-# directory-mtime tracking instead of a single output file matching the
-# target name), so depending on them would rerun their recipes on every
+# regexp/fourt2py/ising/resistor-network: none of those are file-tracked here
+# (fragile directory-mtime tracking instead of a single output file matching
+# the target name), so depending on them would rerun their recipes on every
 # invocation, defeating the fast "rebuild assets, reload" inner loop below.
 # `make <that target>` first if the demo you're testing needs one of those.
 # Skips (re)building the jburgy.github.io Jekyll site; run `node serve-e2e.mjs`
@@ -110,7 +117,7 @@ jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm
 	node serve-e2e.mjs --skip-jekyll-build
 
-.PHONY : regexp fourt2py ising serve-e2e
+.PHONY : regexp fourt2py ising resistor-network serve-e2e
 
 clean :
-	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth worker.js wasi-worker.js regexp forth fourt2py ising
+	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth worker.js wasi-worker.js regexp forth fourt2py ising resistor-network

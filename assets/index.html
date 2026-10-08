@@ -129,6 +129,90 @@
 			vertical-align: middle;
 		}
 
+		/* resistor-network/index.html's demo-specific rules, scoped under
+		   .demo--resistor-network. */
+		.demo--resistor-network svg[data-role="network"] {
+			display: block;
+			width: 100%;
+			max-width: 640px;
+			height: auto;
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+		}
+
+		.demo--resistor-network g[data-role="edge"] {
+			fill: none;
+			stroke: currentColor;
+			stroke-linejoin: round;
+			stroke-linecap: round;
+		}
+
+		.demo--resistor-network circle[data-role="interior"] {
+			fill: currentColor;
+			opacity: .6;
+		}
+
+		.demo--resistor-network circle[data-role="terminal"] {
+			fill: #457b9d;
+		}
+
+		.demo--resistor-network .histogram {
+			display: flex;
+			align-items: flex-end;
+			gap: 2px;
+			height: 6rem;
+			margin-top: .75rem;
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+			padding: .25rem;
+		}
+
+		.demo--resistor-network .histogram .bin {
+			flex: 1;
+			min-height: 1px;
+			background: #457b9d;
+		}
+
+		.demo--resistor-network .histogram .bin:last-child {
+			background: #e63946;
+		}
+
+		.demo--resistor-network .controls {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 1rem;
+			margin-top: .75rem;
+		}
+
+		.demo--resistor-network .probability {
+			display: inline-flex;
+			align-items: center;
+			gap: .4rem;
+		}
+
+		.demo--resistor-network .probability__track {
+			position: relative;
+			display: inline-block;
+		}
+
+		.demo--resistor-network .critical-tick {
+			position: absolute;
+			top: 50%;
+			width: 2px;
+			height: .6rem;
+			background: currentColor;
+			opacity: .5;
+			transform: translate(-50%, -50%);
+			pointer-events: none;
+		}
+
+		.demo--resistor-network input[type="range"] {
+			display: block;
+			width: 10rem;
+			vertical-align: middle;
+		}
+
 		/* fourt2py/web/index.html's demo-specific rules, scoped under
 		   .demo--fourt2py. */
 		.demo--fourt2py {
@@ -310,6 +394,16 @@
 		Demos built from <a href="https://github.com/jburgy/blog">jburgy/blog</a>, latest first. Each entry links
 		to the source it is built from; open it to run the demo in place.
 	</p>
+
+	<details data-module="./resistor-network/demo.mjs">
+		<summary><a
+				href="https://github.com/jburgy/blog/blob/main/resistor-network/lattice.mjs"><code>resistor-network/lattice.mjs</code></a>
+			&mdash; <span class="desc">Monte Carlo bond-percolation conductance: a random square-lattice
+				resistor network reduced to a single equivalent resistor by star-mesh node elimination, one
+				histogram sample at a time</span></summary>
+		<p>No post yet.</p>
+		<div class="demo demo--resistor-network" data-role="panel"></div>
+	</details>
 
 	<details data-module="./ising/demo.mjs">
 		<summary><a href="https://github.com/jburgy/blog/blob/main/ising/lattice.mjs"><code>ising/lattice.mjs</code></a>

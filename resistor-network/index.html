@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Resistor Network &mdash; Monte Carlo Conductance by Node Elimination</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+		}
+
+		body {
+			margin: 0 auto;
+			max-width: 46rem;
+			padding: 2rem 1rem 4rem;
+			font: 16px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+		}
+
+		h1 {
+			font-size: 1.6rem;
+			margin-bottom: .25rem;
+		}
+
+		.blurb {
+			margin-top: 0;
+			opacity: .75;
+		}
+
+		svg[data-role="network"] {
+			display: block;
+			width: 100%;
+			max-width: 640px;
+			height: auto;
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+		}
+
+		/* Resistors: an open zig-zag plus two plain leads, not filled shapes. */
+		g[data-role="edge"] {
+			fill: none;
+			stroke: currentColor;
+			/* Round, not the default miter: miter joins turn into long spikes
+			   at the zig-zag's sharp turn angles once the stroke has any real
+			   width. */
+			stroke-linejoin: round;
+			stroke-linecap: round;
+		}
+
+		circle[data-role="interior"] {
+			fill: currentColor;
+			opacity: .6;
+		}
+
+		/* Bus bars (TERMINAL_X/TERMINAL_Y): bigger and in the same accent
+		   color scheme as ising's spins, so the two electrodes read clearly
+		   against either light or dark mode. */
+		circle[data-role="terminal"] {
+			fill: #457b9d;
+		}
+
+		.histogram {
+			display: flex;
+			align-items: flex-end;
+			gap: 2px;
+			height: 6rem;
+			margin-top: .75rem;
+			border: 1px solid rgba(128, 128, 128, .4);
+			border-radius: .25rem;
+			padding: .25rem;
+		}
+
+		.histogram .bin {
+			flex: 1;
+			min-height: 1px;
+			background: #457b9d;
+		}
+
+		/* The overflow bin (>= R_MAX, or disconnected entirely) stands apart
+		   from the regular resistance-value bins beside it. */
+		.histogram .bin:last-child {
+			background: #e63946;
+		}
+
+		.controls {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 1rem;
+			margin-top: .75rem;
+		}
+
+		.probability {
+			display: inline-flex;
+			align-items: center;
+			gap: .4rem;
+		}
+
+		.probability__track {
+			position: relative;
+			display: inline-block;
+		}
+
+		.critical-tick {
+			position: absolute;
+			top: 50%;
+			width: 2px;
+			height: .6rem;
+			background: currentColor;
+			opacity: .5;
+			transform: translate(-50%, -50%);
+			pointer-events: none;
+		}
+
+		input[type="range"] {
+			display: block;
+			width: 10rem;
+			vertical-align: middle;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Resistor Network</h1>
+	<p class="blurb">
+		A random bond-percolation sample on a finite square lattice (size and bond probability p in the heading
+		below): every bond is a 1-ohm resistor, present independently with probability p. Check Run to
+		continuously generate a fresh random sample, reduce it one node elimination at a time to its single
+		equivalent resistor, and drop that value into the histogram before starting over. The lone tick mark on
+		the p slider is the lattice's exact bond-percolation threshold (p<sub>c</sub> = 1&#8260;2, by
+		self-duality); the rightmost, red histogram bar counts samples that never connected the two sides at
+		all. Node elimination follows the general star-mesh (Y-&Delta;) transform that D. J. Frank and C. J.
+		Lobb specialized into a single basic operation for the square lattice in
+		<a href="https://doi.org/10.1103/PhysRevB.37.302">"Highly efficient algorithm for percolative transport
+			studies in two dimensions"</a> (Phys. Rev. B 37, 302, 1988).
+	</p>
+
+	<div id="demo"></div>
+
+	<script type="module">
+		import { createPanel, attach } from './demo.mjs';
+
+		const panel = createPanel(document);
+		document.getElementById('demo').append(panel);
+		attach(panel);
+	</script>
+</body>
+
+</html>
