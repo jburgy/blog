@@ -7,9 +7,9 @@ pub fn build(b: *Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     if (target.result.os.tag == .wasi) {
-        try buildWasi(b, target, optimize);
+        buildWasi(b, target, optimize);
     } else {
-        try buildNative(b, target, optimize);
+        buildNative(b, target, optimize);
     }
 }
 
@@ -26,7 +26,7 @@ pub fn build(b: *Build) void {
 ///
 /// Installs under `web/wasi/`, not `web/`: keeps the layout consistent with
 /// a possible future wasm target sharing the `6th.wasm` basename.
-fn buildWasi(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
+fn buildWasi(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) void {
     const exe = b.addExecutable(.{
         .name = "6th",
         .root_module = b.createModule(.{
@@ -43,7 +43,7 @@ fn buildWasi(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !v
     b.getInstallStep().dependOn(&install.step);
 }
 
-fn buildNative(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) !void {
+fn buildNative(b: *Build, target: Build.ResolvedTarget, optimize: OptimizeMode) void {
     const test_step = b.step("test", "Run 6th.zig/jansforth.zig/labeled.zig/hybrid.zig tests");
 
     // (executable name, root source file, test description)
