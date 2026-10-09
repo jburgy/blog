@@ -49,7 +49,7 @@ function noSeek() {
 // the *previous* fd_read). Hand-roll fd_read instead, short reads and all;
 // useStdio still covers fd_write/fd_fdstat_get/etc., which never have this
 // problem (writev() just writes whatever it's given, no retry loop).
-function blockingRead(channel) {
+function blockingRead(channel, onIdle) {
     // ponytail: a 0ms Atomics.wait that can never actually wait (nothing else
     // ever touches index 0 of this buffer). Its only job is the documented
     // engine side effect of Atomics.wait pumping the agent cluster's pending
@@ -84,6 +84,8 @@ function blockingRead(channel) {
                 view.setUint32(nreadPtr, 0, true);
                 return 0; // WASI_ESUCCESS
             }
+            // Buffer's drained: the guest is about to genuinely block, waiting on new input.
+            if (channel.bytesReadable() === 0) onIdle();
             channel.waitForInput(null);
             Atomics.wait(yieldBuffer, 0, 0, 0);
             const bytes = channel.consume(capacity);
@@ -106,9 +108,11 @@ function blockingRead(channel) {
  * @param {BufferSource | WebAssembly.Module} wasm compiled WASI command (`_start`)
  * @param {SharedArrayBuffer} sharedBuffer a host-created `SharedInputChannel`'s buffer
  * @param {(fd: 1 | 2, chunk: string) => void} onOutput stdout (1) / stderr (2), already UTF-8 decoded
+ * @param {() => void} [onIdle] called once the guest is genuinely blocked on
+ *   `fd_read` waiting for new input; defaults to a no-op.
  * @returns {Promise<number>} the WASI exit code
  */
-export async function runWasiCommand(wasm, sharedBuffer, onOutput) {
+export async function runWasiCommand(wasm, sharedBuffer, onOutput, onIdle = () => { }) {
     const channel = new SharedInputChannel(sharedBuffer);
     const wasi = new WASI({
         features: [
@@ -127,7 +131,7 @@ export async function runWasiCommand(wasm, sharedBuffer, onOutput) {
                 stderr: (chunk) => onOutput(2, chunk),
             }),
             // After useStdio, so this fd_read overrides its fill-the-buffer one.
-            blockingRead(channel),
+            blockingRead(channel, onIdle),
         ],
     });
 
