@@ -36,7 +36,7 @@ jobs:
       # build:6th:wasi and wasi-worker.test.ts both spawn a bare `zig`.
       - uses: astral-sh/setup-uv@v7
       - run: |
-          printf '#!/bin/sh\nexec uvx --from ziglang==0.15.2 python-zig "$@"\n' > "$RUNNER_TEMP/zig"
+          printf '#!/bin/sh\nexec uvx --from ziglang==0.17.0 python-zig "$@"\n' > "$RUNNER_TEMP/zig"
           chmod +x "$RUNNER_TEMP/zig"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - run: zig build test

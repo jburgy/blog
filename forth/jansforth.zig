@@ -441,18 +441,17 @@ pub const Forth = struct {
             },
             SysNum.WRITE => blk: {
                 const buf = self.memory.items[@intCast(b)..][0..@intCast(c)];
-                const got = std.posix.write(@intCast(a), buf) catch break :blk -1;
-                break :blk @intCast(got);
+                break :blk @intCast(std.c.write(@intCast(a), buf.ptr, buf.len));
             },
             SysNum.OPEN => blk: { // (path, flags|O_CREAT, mode) -- SYSCALL3
                 const path = std.mem.sliceTo(self.memory.items[@intCast(a)..], 0);
-                const fd = std.posix.open(path, openFlags(b), @intCast(c)) catch break :blk -1;
+                const fd = std.posix.openat(std.posix.AT.FDCWD, path, openFlags(b), @intCast(c)) catch break :blk -1;
                 break :blk @intCast(fd);
             },
             SysNum.CREAT => blk: {
                 const path = std.mem.sliceTo(self.memory.items[@intCast(a)..], 0);
                 const flags: std.c.O = .{ .ACCMODE = .WRONLY, .CREAT = true, .TRUNC = true };
-                const fd = std.posix.open(path, flags, @intCast(b)) catch break :blk -1;
+                const fd = std.posix.openat(std.posix.AT.FDCWD, path, flags, @intCast(b)) catch break :blk -1;
                 break :blk @intCast(fd);
             },
             else => -1,
@@ -463,7 +462,7 @@ pub const Forth = struct {
         return switch (n) {
             SysNum.OPEN => blk: { // (path, flags) -- SYSCALL2, no mode
                 const path = std.mem.sliceTo(self.memory.items[@intCast(a)..], 0);
-                const fd = std.posix.open(path, openFlags(b), 0o644) catch break :blk -1;
+                const fd = std.posix.openat(std.posix.AT.FDCWD, path, openFlags(b), 0o644) catch break :blk -1;
                 break :blk @intCast(fd);
             },
             else => -1,
@@ -477,7 +476,7 @@ pub const Forth = struct {
             // instead of panicking on the common `-1 SYS_EXIT SYSCALL1` idiom.
             SysNum.EXIT => std.process.exit(@truncate(@as(u32, @bitCast(a)))),
             SysNum.CLOSE => {
-                std.posix.close(@intCast(a));
+                _ = std.c.close(@intCast(a));
                 return 0;
             },
             SysNum.BRK => {
@@ -915,9 +914,7 @@ pub const Forth = struct {
                     } else {
                         const num = self.number(a, WORD_BUFFER);
                         if (num.remaining != 0) {
-                            try std.fs.File.stderr().writeAll("PARSE ERROR: ");
-                            try std.fs.File.stderr().writeAll(self.memory.items[WORD_BUFFER..][0..@intCast(a)]);
-                            try std.fs.File.stderr().writeAll("\n");
+                            std.debug.print("PARSE ERROR: {s}\n", .{self.memory.items[WORD_BUFFER..][0..@intCast(a)]});
                         } else if (self.readI32(STATE_ADDR) != 0) {
                             var here = self.readI32(HERE_ADDR);
                             self.writeI32(@intCast(here >> 2), LIT_CFA << 2);
@@ -970,14 +967,13 @@ pub const Forth = struct {
     }
 };
 
-pub fn main() !void {
-    const gpa = std.heap.c_allocator;
+pub fn main(init: std.process.Init) !void {
     var stdin_buffer: [4096]u8 = undefined;
     var stdout_buffer: [4096]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buffer);
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdin_reader = std.Io.File.stdin().reader(init.io, &stdin_buffer);
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
 
-    var forth = try Forth.init(gpa, &stdin_reader.interface, &stdout_writer.interface);
+    var forth = try Forth.init(init.gpa, &stdin_reader.interface, &stdout_writer.interface);
     defer forth.deinit();
 
     // Running out of input is jonesforth.S's _KEY hitting eax <= 0 and
@@ -1154,8 +1150,8 @@ test "interp" {
     var input_lines = std.mem.splitScalar(u8, input, '\n');
     while (input_lines.next()) |line| {
         const marker = std.mem.indexOf(u8, line, " \\ ") orelse continue;
-        const expected = std.mem.trimRight(u8, line[marker + 3 ..], " ");
-        const got = std.mem.trimRight(u8, actual_lines.next() orelse "", " \r");
+        const expected = std.mem.trimEnd(u8, line[marker + 3 ..], " ");
+        const got = std.mem.trimEnd(u8, actual_lines.next() orelse "", " \r");
         try testing.expectEqualStrings(expected, got);
     }
 }

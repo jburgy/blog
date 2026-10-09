@@ -46,7 +46,7 @@ The Zig implementation is [6th.zig](6th.zig), built by [build.zig](build.zig) an
 - **`getppid` calls Linux directly.** The `getppid` branch invokes `os.linux.getppid()` for non-WASM targets ([6th.zig](6th.zig#L768-L779)). Use the platform-neutral Zig API or gate the word by OS.
 - **The calling-convention switch is architecture-specific.** Only x86-64 selects `.winapi`; all other architectures fall through to `.auto` ([6th.zig](6th.zig#L21-L27)). This should be reviewed together with the syscall handlers before claiming arm64 support. Do not assume that selecting a different convention alone makes Linux syscall numbers or register layouts portable.
 - **The build script has no test step.** [build.zig](build.zig) installs a native executable and the WASM artifact but does not define `zig build test`. The source tests can be run directly with `zig test 6th.zig`; integrating that into the build would make macOS verification repeatable.
-- **Zig is pinned through an external tool invocation.** The Makefile uses `uvx --from ziglang==0.15.2 python-zig build` ([Makefile](Makefile#L55-L57)). A macOS setup needs Python/`uvx`, network access, and a compatible Zig release, or a documented system Zig alternative.
+- **Zig is pinned through an external tool invocation.** The Makefile uses `uvx --from ziglang==0.17.0 python-zig build` ([Makefile](Makefile#L55-L57)). A macOS setup needs Python/`uvx`, network access, and a compatible Zig release, or a documented system Zig alternative.
 
 Suggested focused checks after the source changes are:
 
