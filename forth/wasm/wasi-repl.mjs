@@ -53,34 +53,29 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
     xterm.loadAddon(rl);
     xterm.open(typeof container === "string" ? document.getElementById(container) : container);
 
+    // Cyan input vs. default-colored output, via xterm-readline's Highlighter hook.
+    rl.setHighlighter({
+        highlight: (line) => `\x1b[36m${line}\x1b[0m`,
+        highlightPrompt: (prompt) => prompt,
+        // Must be true, or xterm-readline skips highlight() on its fast per-keystroke path.
+        highlightChar: () => true,
+    });
+
     // Sized well past 4th.32.fs (~58 KiB).
     const channel = new SharedInputChannel(128 * 1024);
     const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
 
     let output = "";
     let disposed = false;
+    // Skip "ok" after the first idle: WELCOME's own one-time "OK " already covers it.
+    let first = true;
 
-    // Re-arms by calling itself from its own `rl.read().then()`, not
-    // reactively from 'output' messages (the previous design: re-arm once a
-    // chunk ends in '\n', or after a 100ms fallback timeout for one that
-    // doesn't). That heuristic assumed every submitted line eventually
-    // produces *some* output to react to, which is false: jonesforth.f's
-    // "OK " prompt (WELCOME) is a one-time startup banner, not reprinted
-    // per line (see jonesforth.f), so a blank/no-op input line can -- and
-    // does -- yield zero bytes back from the guest. With nothing to react
-    // to, the old code never called rl.read() again, and xterm-readline
-    // silently drops all further keystrokes while no read is pending --
-    // the terminal looked dead after the first no-op line (confirmed live
-    // with instrumented logging: readLine() simply never fired again).
-    // Calling itself unconditionally after every resolved read guarantees
-    // exactly one pending read at a time with no output-shaped guesswork:
-    // the next read only ever starts once the current one resolves.
+    // Empty prompt always: "ok" (see 'idle' below) is output glued after the
+    // interpreter's own text, not a read() prompt -- raw output written
+    // after an armed prompt gets erased on that read's next refresh.
     function readLine() {
         if (disposed) return;
-        rl.read("").then((text) => {
-            processLine(text);
-            readLine();
-        });
+        rl.read("").then(processLine);
     }
 
     function processLine(text) {
@@ -99,7 +94,7 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
                     const response = await fetch(preambleUrl);
                     channel.push(new Uint8Array(await response.arrayBuffer()));
                 }
-                readLine();
+                // No readLine() here -- the guest's own first fd_read fires 'idle' below, which arms it.
                 break;
             }
             case "output":
@@ -107,6 +102,15 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
                     output += data;
                     rl.write(data);
                 }
+                break;
+            case "idle":
+                // This line is done printing -- append dim "ok" (no leading
+                // space: jonesforth's own output usually ends in one), then
+                // "\n" so the next read starts on a row with nothing to erase.
+                if (!first) rl.write("\x1b[2mok\x1b[0m");
+                first = false;
+                rl.write("\n");
+                readLine();
                 break;
             case "exit":
                 rl.println(`[Process exited with code ${code}]`);

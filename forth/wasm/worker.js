@@ -14,9 +14,16 @@ self.addEventListener('message', async ({ data: { sharedBuffer, wasmUrl = '/blog
     try {
         const bytes = await fetch(wasmUrl).then((response) => response.arrayBuffer());
         self.postMessage({ type: 'ready' });
-        const code = await runWasiCommand(bytes, sharedBuffer, (fd, chunk) => {
-            self.postMessage({ type: 'output', fd, data: chunk });
-        });
+        const code = await runWasiCommand(
+            bytes,
+            sharedBuffer,
+            (fd, chunk) => {
+                self.postMessage({ type: 'output', fd, data: chunk });
+            },
+            () => {
+                self.postMessage({ type: 'idle' });
+            },
+        );
         self.postMessage({ type: 'exit', code });
     } catch (error) {
         self.postMessage({ type: 'error', message: error.message, stack: error.stack });
