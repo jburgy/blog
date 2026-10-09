@@ -308,4 +308,4 @@ class Graph(dict):
 
 if __name__ == "__main__":
     # print(Graph("a*b")("aaaaaaaaaaaaaaaaaaaaaaaaaab"))
-    print(Graph("a(b|c)*d"))  # pragma: no cover
+    print(Graph("a(b|c)*d"))

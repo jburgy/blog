@@ -47,6 +47,7 @@ exclude_also = [
     # A "# pragma: exclude file" comment opts a whole module out of
     # coverage, instead of listing it in [tool.coverage.run] omit below.
     '\A(?s:.*# pragma: exclude file.*)\Z',
+    "if __name__ == .__main__.:",
 ]
 
 [tool.coverage.run]
