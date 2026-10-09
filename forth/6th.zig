@@ -1165,15 +1165,12 @@ fn cold_start(self: *Interp, sp: usize, rsp: usize, ip: usize, target: usize) ca
     self.next(sp, rsp, ip, target);
 }
 
-pub fn main() !void {
-    const gpa = std.heap.c_allocator;
-    var memory: std.array_list.AlignedManaged(u8, .of(u32)) = try .initCapacity(gpa, 0x20_000);
+pub fn main(init: std.process.Init) !void {
+    var memory: std.array_list.AlignedManaged(u8, .of(u32)) = try .initCapacity(init.gpa, 0x20_000);
     try memory.appendSlice(comptime defwords()[0..]);
     var header: *Header = @ptrCast(memory.items.ptr);
-    // var stdin_reader = std.Io.File.stdin().reader(init.io, header.input_buffer[0..]);
-    // var stdout_writer = std.Io.File.stdout().writer(init.io, header.output_buffer[0..]);
-    var stdin_reader = std.fs.File.stdin().reader(header.input_buffer[0..]);
-    var stdout_writer = std.fs.File.stdout().writer(header.output_buffer[0..]);
+    var stdin_reader = std.Io.File.stdin().reader(init.io, header.input_buffer[0..]);
+    var stdout_writer = std.Io.File.stdout().writer(init.io, header.output_buffer[0..]);
     var env: Interp = .init(memory, &stdin_reader.interface, &stdout_writer.interface);
     defer env.memory.deinit();
 
@@ -1184,14 +1181,4 @@ pub fn main() !void {
         @offsetOf(Header, "cold_start"),
         0,
     );
-}
-
-fn mainWithoutEnv(c_argc: c_int, c_argv: [*][*:0]c_char) callconv(.c) c_int {
-    _ = @as([*][*:0]u8, @ptrCast(c_argv))[0..@as(usize, @intCast(c_argc))];
-    @call(.always_inline, main, .{}) catch std.debug.panic("main failed", .{});
-    return 0;
-}
-
-comptime {
-    @export(&mainWithoutEnv, .{ .name = "__main_argc_argv" });
 }

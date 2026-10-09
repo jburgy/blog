@@ -14,7 +14,7 @@ all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm 
 # build.zig's buildWasi. Named <name>-wasi.wasm, not <name>.wasm, to match
 # 4th-wasi.wasm/5th-wasi.wasm below.
 6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
-	cd ../forth && uvx --from ziglang==0.15.2 python-zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call
+	cd ../forth && uvx --from ziglang==0.17.0 python-zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call
 	cp ../forth/zig-out/web/wasi/6th.wasm $@
 
 # wasi-sdk clang (deploy.yml: bytecodealliance/setup-wasi-sdk-action).
