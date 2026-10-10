@@ -1,11 +1,14 @@
-VPATH = ../forth
 # matcher.mjs fetches ../regexp.f and ../../jonesforth/jonesforth.f, so keep the repo layout
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 ISING = $(addprefix ising/,index.html demo.mjs lattice.mjs)
 RESISTOR_NETWORK = $(addprefix resistor-network/,index.html demo.mjs lattice.mjs)
 
-all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network
+all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network mini-coi.js
+
+# index.html loads this for cross-origin isolation (SharedArrayBuffer) without custom server headers.
+mini-coi.js :
+	curl -LO https://raw.githubusercontent.com/WebReflection/mini-coi/main/mini-coi.js
 
 %.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f worker.js wasi-worker.js
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
@@ -87,37 +90,18 @@ forth/4th.32.fs : ../forth/4th.32.fs
 %.js: ../forth/wasm/%.js
 	cp $< $@
 
-# The one copy of jonesforth.f in the deployed site: the how-many-roads
-# post's data-preamble attributes (jburgy/jburgy.github.io) point at this
-# exact deployed path. matcher.mjs resolves the identical
-# '../../jonesforth/jonesforth.f' relative to its own repo-layout
-# location, mirroring the real jonesforth submodule path so it also
-# works unmodified straight from the source tree (no copy needed in dev)
-# -- same reasoning as forth/4th.32.fs above. regexp.f never touches
-# ARGC/ARGV/ENVIRON, so the real jonesforth.f preamble works fine on
-# tabulate.wast (regexp/web/forth.wasm's source), which never defines
-# 4th.32.fs's (ARGC) primitive.
+# The deployed jonesforth.f: how-many-roads' preamble (jburgy/jburgy.github.io)
+# hardcodes this path; matcher.mjs resolves the identical relative path from the source tree.
 jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 	@mkdir -p $(@D)
 	cp $< $@
 
-# Local stand-in for GitHub Pages' split-origin, cross-origin-isolated setup
-# (see serve-e2e.mjs's own docstring): needed to actually see a wasi-worker.js
-# demo run in a browser, since that needs real SharedArrayBuffer/Atomics.wait.
-# Depends only on the genuinely file-tracked targets (real output file, real
-# mtime comparison against real prerequisites) so a stale one rebuilds and a
-# fresh one no-ops -- what `make` is for. Deliberately excludes
-# regexp/fourt2py/ising/resistor-network: none of those are file-tracked here
-# (fragile directory-mtime tracking instead of a single output file matching
-# the target name), so depending on them would rerun their recipes on every
-# invocation, defeating the fast "rebuild assets, reload" inner loop below.
-# `make <that target>` first if the demo you're testing needs one of those.
-# Skips (re)building the jburgy.github.io Jekyll site; run `node serve-e2e.mjs`
-# directly the first time, to build that site too.
-serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm
+# Local stand-in for GitHub Pages' cross-origin-isolated setup (see serve-e2e.mjs).
+# Excludes regexp/fourt2py/ising/resistor-network (not file-tracked); `make` those first if needed.
+serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm mini-coi.js
 	node serve-e2e.mjs --skip-jekyll-build
 
 .PHONY : regexp fourt2py ising resistor-network serve-e2e
 
 clean :
-	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth worker.js wasi-worker.js regexp forth fourt2py ising resistor-network
+	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth worker.js wasi-worker.js regexp forth fourt2py ising resistor-network mini-coi.js
