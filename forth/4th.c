@@ -105,6 +105,12 @@ int syscall(int sysno, ...)
 #endif
 
 enum Flags {F_IMMED=0x80, F_HIDDEN=0x20, F_LENMASK=0x1f};
+
+/* One threaded-code cell: a dispatch label, inline data, or an xt_t. */
+typedef void *cell_t;
+/* Execution token: pointer to a word's code[] array (what NEXT jumps through). */
+typedef cell_t *xt_t;
+
 struct word_t {
     struct word_t *link;
     unsigned char flags;
@@ -113,7 +119,7 @@ struct word_t {
     __attribute__((nonstring))
 #endif
     ;  /* big enough for builtins, forth words might overflow  */
-    void *code[];
+    cell_t code[];
 };
 
 static char word_buffer[0x20];
@@ -192,7 +198,7 @@ int main(int argc __attribute__((unused)), char *argv[])
     void *return_stack[STACK_SIZE]; /* Return stack */
     intptr_t *sp = &stack[STACK_SIZE];  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
     void **rsp = &return_stack[STACK_SIZE];  /* Initialize the return stack. (%ebp) */
-    register void ***ip, **target;
+    register xt_t *ip, target;
     register intptr_t a, b, c, d, *p;
     char *r;
     register char *s, **t;
@@ -205,12 +211,12 @@ goto _start;
 
 DOCOL:
     *--rsp = ip;
-    ip = (void ***)target + 1;
+    ip = (xt_t *)target + 1;
     NEXT;
 
 DODOES:  /* http://www.lisphacker.com/temp/fixes.f */
     *--rsp = ip;
-    ip = (void ***)target[1];
+    ip = (xt_t *)target[1];
     push((intptr_t)&target[2]);
     NEXT;
 
@@ -366,7 +372,7 @@ DEFCODE(XOR, 0, "INVERT", INVERT):
     sp[0] = ~sp[0];
     NEXT;
 DEFCODE(INVERT, 0, "EXIT", EXIT):
-    ip = (void ***)*rsp++;
+    ip = (xt_t *)*rsp++;
     NEXT;
 DEFCONST(EXIT, 0, "LIT", LIT, *ip++);
 DEFCODE(LIT, 0, "!", STORE):
@@ -548,7 +554,7 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
     c = word();
     created = find(latest, word_buffer, (size_t)c);
     if (created) {
-        target = (void **)code_field_address(created);
+        target = (xt_t)code_field_address(created);
         if ((created->flags & F_IMMED) || !state)
             goto **target;
         *p++ = (intptr_t)target;
@@ -576,7 +582,7 @@ DEFCODE(QUIT, 0, "CHAR", CHAR):
     push((intptr_t)*word_buffer);
     NEXT;
 DEFCODE(CHAR, 0, "EXECUTE", EXECUTE):
-    target = (void **)pop();
+    target = (xt_t)pop();
     goto **target;
 DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3):
     a = pop();
@@ -608,7 +614,7 @@ _start:
     latest = &name_SYSCALL0;
     s0 = stack + STACK_SIZE;
     base = 10;
-    ip = (void ***)cold_start;
+    ip = (xt_t *)cold_start;
     NEXT;  /* Run interpreter! */
 }
 #undef push
