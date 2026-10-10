@@ -36,6 +36,10 @@ pub fn build(b: *Build) void {
                 .optimize = optimize,
                 .link_libc = true,
             }),
+            // stage2_x86_64 can't guarantee @call(.always_tail, ...) (used
+            // throughout the dispatch loop); aarch64 can, but CI runs on
+            // ubuntu-latest (x86_64), so force LLVM for every native target.
+            .use_llvm = true,
         });
         // Installs under `web/wasi/`, not `web/`: keeps the layout consistent
         // with a possible future wasm target sharing the `.wasm` basenames.
@@ -52,6 +56,7 @@ pub fn build(b: *Build) void {
                 .optimize = optimize,
                 .link_libc = true,
             }),
+            .use_llvm = true,
         });
         const run_tests = b.addRunArtifact(tests);
         test_step.dependOn(&run_tests.step);
