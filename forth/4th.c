@@ -197,7 +197,7 @@ int main(int argc __attribute__((unused)), char *argv[])
     intptr_t stack[STACK_SIZE];  /* Parameter stack */
     void *return_stack[STACK_SIZE]; /* Return stack */
     intptr_t *sp = &stack[STACK_SIZE];  /* Save the initial data stack pointer in FORTH variable S0 (%esp) */
-    void **rsp = &return_stack[STACK_SIZE];  /* Initialize the return stack. (%ebp) */
+    xt_t rsp = &return_stack[STACK_SIZE];  /* Initialize the return stack. (%ebp) */
     register xt_t *ip, target;
     register intptr_t a, b, c, d, *p;
     char *r;
@@ -456,7 +456,7 @@ DEFCODE(__O_NONBLOCK, 0, ">R", TOR):
 DEFCONST(TOR, 0, "R>", FROMR, *rsp++);
 DEFCONST(FROMR, 0, "RSP@", RSPFETCH, rsp);
 DEFCODE(RSPFETCH, 0, "RSP!", RSPSTORE):
-    rsp = (void **)pop();
+    rsp = (xt_t)pop();
     NEXT;
 DEFCODE(RSPSTORE, 0, "RDROP", RDROP):
     ++rsp;
@@ -576,7 +576,7 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
     here = (char *)p;
     NEXT;
 DEFWORD(INTERPRET, 0, "QUIT", QUIT, CODE(RZ), CODE(RSPSTORE), CODE(INTERPRET),
-    CODE(BRANCH), (void **)(-2 * __SIZEOF_POINTER__), CODE(EXIT));
+    CODE(BRANCH), (cell_t)(-2 * __SIZEOF_POINTER__), CODE(EXIT));
 DEFCODE(QUIT, 0, "CHAR", CHAR):
     word();
     push((intptr_t)*word_buffer);
