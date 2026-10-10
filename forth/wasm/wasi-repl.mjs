@@ -104,6 +104,13 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
                 }
                 break;
             case "idle":
+                // Guest's first fd_read can fire this before any preamble has
+                // been pushed/read (two independent fetches racing) -- not a
+                // real prompt yet.
+                if (preambleUrl && !output) {
+                    readLine();
+                    break;
+                }
                 // This line is done printing -- append dim "ok" (no leading
                 // space: jonesforth's own output usually ends in one), then
                 // "\n" so the next read starts on a row with nothing to erase.
