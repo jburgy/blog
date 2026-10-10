@@ -442,7 +442,7 @@
 		</div>
 	</details>
 
-	<details data-wasm="jonesforth.wasm" data-preamble="jonesforth/jonesforth.f">
+	<details data-wasm="jonesforth.wasm">
 		<summary><a
 				href="https://github.com/jburgy/blog/blob/main/forth/wasm/jonesforth.wast"><code>forth/wasm/jonesforth.wast</code></a>
 			&mdash; <span class="desc">jonesforth ported to hand-written WebAssembly, using
@@ -515,9 +515,9 @@
 		import { waitFor } from './wasi-repl-mocha.mjs';
 
 		// Every REPL demo's startup output: the four jonesforth clones (fed
-		// jonesforth.f/4th.32.fs) print the "JONESFORTH VERSION" welcome
-		// banner; TinyBasic/lisp (data-preamble="none", no FORTH dictionary
-		// to load) instead print a single ':'/'*' ready prompt.
+		// jonesforth.f) print the "JONESFORTH VERSION" welcome banner;
+		// TinyBasic/lisp (data-preamble="none", no FORTH dictionary to load)
+		// instead print a single ':'/'*' ready prompt.
 		const replReady = {
 			'jonesforth.wasm': 'JONESFORTH VERSION',
 			'6th-wasi.wasm': 'JONESFORTH VERSION',
@@ -568,7 +568,7 @@
 				details.dataset.started = '1';
 				const { wasm, preamble } = details.dataset;
 				const container = details.querySelector('[data-role="terminal"]');
-				const repl = startRepl(wasm, preamble === 'none' ? null : preamble, container);
+				const repl = startRepl(wasm, preamble !== 'none', container);
 				const expected = replReady[wasm];
 				smokeTest(details, `prints ${JSON.stringify(expected)}`, () => waitFor(() => repl.getOutput().includes(expected)), 60000);
 			});

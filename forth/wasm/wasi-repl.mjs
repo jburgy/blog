@@ -1,9 +1,9 @@
 // Main-thread bootstrap for the no-pty wasi-worker.js browser demos
 // (html/4th.html, html/5th.html, html/6th.html, and bur.gy's how-many-roads
 // post's tabbed jonesforth.wasm/4th/5th/6th switcher): mounts xterm.js, feeds
-// a preamble (4th.32.fs by default, or jonesforth.f for jonesforth.wasm) to a
-// Worker (see worker.js) over a uwasi SharedInputChannel, and uses
-// xterm-readline for line editing -- the same addon main.js (jonesforth.
+// jonesforth.f's classic dictionary to a Worker (see worker.js) over a uwasi
+// SharedInputChannel, and uses xterm-readline for line editing -- the same
+// addon main.js (jonesforth.
 // wasm's original, since-retired published demo) already used against this
 // exact worker/channel protocol, rather than hand-rolling a second, weaker
 // line editor. Still no real pty, unlike the old xterm-pty-based demos
@@ -16,17 +16,14 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
 
 /**
  * @param {string} wasmUrl
- * @param {string | URL | null} [preambleUrl] defaults to the shared 4th.32.fs
- *   dictionary (4th.c/5th.c/6th.zig); pass jonesforth.wasm's own
- *   `jonesforth.f` (a different address width, not a different protocol)
- *   to drive that interpreter instead, or explicit `null` for a WASI
- *   command with no use for either (e.g. lisp-wasi.wasm/TinyBasic-wasi.wasm,
- *   see jburgy.github.io's lisp/TinyBasic posts) -- omitting the argument
- *   still gets the 4th.32.fs default, so every existing caller is
- *   unaffected; only `null` explicitly opts all the way out. Verified
- *   against real builds of both: feeding either the FORTH preamble as
- *   typed input produces thousands of lines of garbage (parse errors /
- *   IL-dump spam) before the interpreter ever reaches its own prompt.
+ * @param {boolean} [preamble] feeds jonesforth.f's classic dictionary before
+ *   handing the terminal to the user (default); pass `false` for a WASI
+ *   command with no use for it (e.g. lisp-wasi.wasm/TinyBasic-wasi.wasm, see
+ *   jburgy.github.io's lisp/TinyBasic posts). One file for every FORTH here
+ *   (4th.c/5th.c/6th.zig and jonesforth.wasm alike): jonesforth.f's own
+ *   ARGC/ARGV/ENVIRON read S0-relative, the original x86 stack layout, which
+ *   compiles fine under WASI but answers wrong instead of real argv (see
+ *   wasi-worker.test.ts) -- harmless, since nothing here ever calls them.
  * @param {string | HTMLElement} [container] defaults to `#terminal`, same as
  *   every existing caller (a single demo per page). Pass an element (or a
  *   different id) to mount more than one REPL on the same page at once --
@@ -47,7 +44,8 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
  *   same `#terminal` div without the old Worker's `fd_read` wait loop or its
  *   stray `postMessage`s outliving it.
  */
-export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", import.meta.url), container = "terminal") {
+export function startRepl(wasmUrl, preamble = true, container = "terminal") {
+    const preambleUrl = new URL("./jonesforth/jonesforth.f", import.meta.url);
     const xterm = new Terminal();
     const rl = new Readline();
     xterm.loadAddon(rl);
@@ -61,7 +59,7 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
         highlightChar: () => true,
     });
 
-    // Sized well past 4th.32.fs (~58 KiB).
+    // Sized well past jonesforth.f (~58 KiB).
     const channel = new SharedInputChannel(128 * 1024);
     const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
 
@@ -90,7 +88,7 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
         if (disposed) return;
         switch (type) {
             case "ready": {
-                if (preambleUrl) {
+                if (preamble) {
                     const response = await fetch(preambleUrl);
                     channel.push(new Uint8Array(await response.arrayBuffer()));
                 }
@@ -104,6 +102,13 @@ export function startRepl(wasmUrl, preambleUrl = new URL("./forth/4th.32.fs", im
                 }
                 break;
             case "idle":
+                // Guest's first fd_read can fire this before any preamble has
+                // been pushed/read (two independent fetches racing) -- not a
+                // real prompt yet.
+                if (preamble && !output) {
+                    readLine();
+                    break;
+                }
                 // This line is done printing -- append dim "ok" (no leading
                 // space: jonesforth's own output usually ends in one), then
                 // "\n" so the next read starts on a row with nothing to erase.
