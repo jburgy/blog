@@ -16,18 +16,18 @@ mini-coi.js :
 # uvx/python-zig, not a bare `zig build`: deploy.yml has no system zig. See
 # build.zig's buildWasi. Named <name>-wasi.wasm, not <name>.wasm, to match
 # 4th-wasi.wasm/5th-wasi.wasm below.
-6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
+6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	cd ../forth && uvx --from ziglang==0.17.0 python-zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call
 	cp ../forth/zig-out/web/wasi/6th.wasm $@
 
 # wasi-sdk clang (deploy.yml: bytecodealliance/setup-wasi-sdk-action).
-4th-wasi.wasm : ../forth/4th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
+4th-wasi.wasm : ../forth/4th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -o $@ $<
 
-5th-wasi.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
+5th-wasi.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DNO_LIBC_SYSCALL_NUMS -mtail-call -o $@ $<
 
-4th-rs-wasi.wasm : ../forth/4th.rs ../forth/Cargo.toml worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
+4th-rs-wasi.wasm : ../forth/4th.rs ../forth/Cargo.toml worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	cd ../forth && CARGO_TARGET_DIR=target/wasi-repl rustup run nightly cargo build --release --target wasm32-wasip1 --bin 4th -Zbuild-std=std,panic_unwind
 	cp ../forth/target/wasi-repl/wasm32-wasip1/release/4th.wasm $@
 
@@ -83,15 +83,13 @@ $(RESISTOR_NETWORK) : resistor-network/% : ../resistor-network/%
 	@mkdir -p $(@D)
 	cp $< $@
 
-forth/4th.32.fs : ../forth/4th.32.fs
-	@mkdir -p $(@D)
-	cp $< $@
-
 %.js: ../forth/wasm/%.js
 	cp $< $@
 
-# The deployed jonesforth.f: how-many-roads' preamble (jburgy/jburgy.github.io)
-# hardcodes this path; matcher.mjs resolves the identical relative path from the source tree.
+# The deployed jonesforth.f: wasi-repl.mjs's one shared preamble for every
+# FORTH demo (4th/5th/6th-wasi.wasm, 4th-rs-wasi.wasm, jonesforth.wasm), and
+# how-many-roads' own preamble (jburgy/jburgy.github.io) hardcodes this same
+# path; matcher.mjs resolves the identical relative path from the source tree.
 jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 	@mkdir -p $(@D)
 	cp $< $@

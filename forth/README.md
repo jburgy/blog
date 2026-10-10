@@ -193,16 +193,19 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   `html/5th.html`, and `html/6th.html`, and published standalone via
   `assets/Makefile`'s own `wasi-repl.mjs` target -- not just a side effect of
   building `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm` -- so a post can
-  hardcode `/blog/wasi-repl.mjs` directly. `startRepl`'s optional second
-  argument (`preambleUrl`) is what makes that work for `jonesforth.wasm` too,
-  not just the three `4th.32.fs`-dictionary interpreters: the how-many-roads
-  post's tab strip calls `startRepl(wasmUrl, preambleUrl)` with whichever
-  interpreter's own pair the visitor picked, `dispose()`-ing the previous
-  REPL (terminates its Worker, tears down its Terminal) first. A third,
-  optional `container` argument (element or id, defaulting to `"terminal"`)
-  lets a caller mount more than one REPL on the same page at once instead of
-  sharing a single div -- `assets/index.html`'s demos landing page is the one
-  consumer that needs this, one `<details>` per interpreter. Each
+  hardcode `/blog/wasi-repl.mjs` directly. `jonesforth.wasm` shares that same
+  `jonesforth.f` dictionary too (its own `ARGC`/`ARGV`/`ENVIRON` just answer
+  wrong instead of real argv under WASI, harmlessly, since nothing here calls
+  them), so `startRepl`'s optional second argument is now a plain `preamble`
+  boolean (default `true`), not a URL: `false` opts all the way out for a
+  WASI command with no use for it (`lisp-wasi.wasm`/`TinyBasic-wasi.wasm`).
+  A third, optional `container` argument (element or id, defaulting to
+  `"terminal"`) lets a caller mount more than one REPL on the same page at
+  once instead of sharing a single div -- `assets/index.html`'s demos
+  landing page is the one consumer that needs this, one `<details>` per
+  interpreter; the how-many-roads post's tab strip is the one that switches
+  `wasmUrl` in place instead, `dispose()`-ing the previous REPL (terminates
+  its Worker, tears down its Terminal) first. Each
   html/*.html page also loads mocha from a CDN
   and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
   live REPL (`startRepl`'s return value, not simulated keystrokes) -- a human

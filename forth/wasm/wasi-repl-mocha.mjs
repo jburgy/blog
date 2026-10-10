@@ -31,7 +31,7 @@ export function waitFor(predicate, timeout = 60000, interval = 100) {
  * @param {string} options.name e.g. "6th" -- used for the suite's own description
  * @param {string} options.wasmUrl e.g. "/assets/6th.wasm"
  * @param {string} [options.expected] text that must appear in the output after `command`;
- *   defaults to QUIT's decompile, since 4th.c/5th.c/6th.zig all share the same 4th.32.fs dictionary
+ *   defaults to QUIT's decompile, since 4th.c/5th.c/6th.zig all share the same jonesforth.f dictionary
  * @param {string} [options.command] defaults to "SEE QUIT"
  */
 export function registerWasiReplSpec({
