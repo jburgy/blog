@@ -81,14 +81,19 @@ inline fn openFlags(flags: usize) std.c.O {
             .APPEND = (flags & O_APPEND) != 0,
             .NONBLOCK = (flags & O_NONBLOCK) != 0,
         },
-        .wasi => .{
-            .read = (flags & O_WRONLY) == 0,
-            .write = (flags & O_RDONLY) == 0,
-            .CREAT = (flags & O_CREAT) != 0,
-            .EXCL = (flags & O_EXCL) != 0,
-            .TRUNC = (flags & O_TRUNC) != 0,
-            .APPEND = (flags & O_APPEND) != 0,
-            .NONBLOCK = (flags & O_NONBLOCK) != 0,
+        .wasi => blk: {
+            // O_RDONLY is 0, so masking with it alone is a no-op: derive
+            // read/write from the same two-bit ACCMODE field as above.
+            const mode = flags & (O_WRONLY | O_RDWR);
+            break :blk .{
+                .read = mode != O_WRONLY,
+                .write = mode != O_RDONLY,
+                .CREAT = (flags & O_CREAT) != 0,
+                .EXCL = (flags & O_EXCL) != 0,
+                .TRUNC = (flags & O_TRUNC) != 0,
+                .APPEND = (flags & O_APPEND) != 0,
+                .NONBLOCK = (flags & O_NONBLOCK) != 0,
+            };
         },
         else => unreachable,
     };
@@ -1007,16 +1012,29 @@ test defwords {
 
 test "openFlags preserves access mode bits" {
     const wronly = openFlags(O_WRONLY | O_CREAT | O_TRUNC);
-    try testing.expectEqual(@as(@TypeOf(wronly.ACCMODE), .WRONLY), wronly.ACCMODE);
-    try testing.expect(wronly.CREAT);
-    try testing.expect(wronly.TRUNC);
-
     const rdonly = openFlags(O_RDONLY);
-    try testing.expectEqual(@as(@TypeOf(rdonly.ACCMODE), .RDONLY), rdonly.ACCMODE);
-
     const rdwr = openFlags(O_RDWR | O_APPEND);
-    try testing.expectEqual(@as(@TypeOf(rdwr.ACCMODE), .RDWR), rdwr.ACCMODE);
-    try testing.expect(rdwr.APPEND);
+
+    // wasi's std.c.O has no ACCMODE enum; it spells read/write as two bools.
+    if (builtin.os.tag == .wasi) {
+        try testing.expect(!wronly.read and wronly.write);
+        try testing.expect(wronly.CREAT);
+        try testing.expect(wronly.TRUNC);
+
+        try testing.expect(rdonly.read and !rdonly.write);
+
+        try testing.expect(rdwr.read and rdwr.write);
+        try testing.expect(rdwr.APPEND);
+    } else {
+        try testing.expectEqual(@as(@TypeOf(wronly.ACCMODE), .WRONLY), wronly.ACCMODE);
+        try testing.expect(wronly.CREAT);
+        try testing.expect(wronly.TRUNC);
+
+        try testing.expectEqual(@as(@TypeOf(rdonly.ACCMODE), .RDONLY), rdonly.ACCMODE);
+
+        try testing.expectEqual(@as(@TypeOf(rdwr.ACCMODE), .RDWR), rdwr.ACCMODE);
+        try testing.expect(rdwr.APPEND);
+    }
 }
 
 test Interp {

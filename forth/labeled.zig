@@ -55,6 +55,20 @@ fn openFlags(flags: i32) std.c.O {
             .APPEND = (f & O_APPEND) != 0,
             .NONBLOCK = (f & O_NONBLOCK) != 0,
         },
+        .wasi => blk: {
+            // O_RDONLY is 0, so masking with it alone is a no-op: derive
+            // read/write from the same two-bit ACCMODE field as above.
+            const mode = f & (O_WRONLY | O_RDWR);
+            break :blk .{
+                .read = mode != O_WRONLY,
+                .write = mode != O_RDONLY,
+                .CREAT = (f & O_CREAT) != 0,
+                .EXCL = (f & O_EXCL) != 0,
+                .TRUNC = (f & O_TRUNC) != 0,
+                .APPEND = (f & O_APPEND) != 0,
+                .NONBLOCK = (f & O_NONBLOCK) != 0,
+            };
+        },
         else => @panic("unsupported OS"),
     };
 }
@@ -444,8 +458,7 @@ pub const Forth = struct {
         return switch (n) {
             SysNum.READ => blk: {
                 const buf = self.memory.items[@intCast(b)..][0..@intCast(c)];
-                const got = std.posix.read(@intCast(a), buf) catch break :blk -1;
-                break :blk @intCast(got);
+                break :blk @intCast(std.c.read(@intCast(a), buf.ptr, buf.len));
             },
             SysNum.WRITE => blk: {
                 const buf = self.memory.items[@intCast(b)..][0..@intCast(c)];
@@ -458,7 +471,7 @@ pub const Forth = struct {
             },
             SysNum.CREAT => blk: {
                 const path = std.mem.sliceTo(self.memory.items[@intCast(a)..], 0);
-                const flags: std.c.O = .{ .ACCMODE = .WRONLY, .CREAT = true, .TRUNC = true };
+                const flags = openFlags(O_WRONLY | O_CREAT | O_TRUNC);
                 const fd = std.posix.openat(std.posix.AT.FDCWD, path, flags, @intCast(b)) catch break :blk -1;
                 break :blk @intCast(fd);
             },
