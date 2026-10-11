@@ -11,6 +11,7 @@ that without trying to fix the unrelated bug here.
 """
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -35,5 +36,28 @@ def test_c_at_c_store(target: str) -> None:
             # TimeoutExpired.stdout comes back as bytes even with text=True.
             stdout = (timeout.stdout or b"").decode()
         assert stdout == "@"
+    finally:
+        subprocess.run(["rm", "-f", target], cwd="forth", check=True)
+
+
+@pytest.mark.parametrize("target", TARGETS)
+def test_mandel(target: str) -> None:
+    """4th.fs's MANDEL easter egg only uses words jonesforth actually has
+    (no DO/LOOP/2*/shifts), but nothing else loads 4th.fs itself -- a PARSE
+    ERROR means it regressed; '*' in the output means it actually rendered.
+    """
+    subprocess.run(["make", target], cwd="forth", check=True)
+    try:
+        preamble = Path("forth/4th.fs").read_text()
+        cp = subprocess.run(
+            [f"./{target}"],
+            cwd="forth/",
+            capture_output=True,
+            input=preamble + "MANDEL\nBYE\n",
+            text=True,
+            timeout=10,
+        )
+        assert "PARSE ERROR" not in cp.stdout
+        assert "*" in cp.stdout
     finally:
         subprocess.run(["rm", "-f", target], cwd="forth", check=True)

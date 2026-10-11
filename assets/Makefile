@@ -27,7 +27,7 @@ mini-coi.js :
 5th-wasi.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DNO_LIBC_SYSCALL_NUMS -mtail-call -o $@ $<
 
-4th-rs-wasi.wasm : ../forth/4th.rs ../forth/Cargo.toml worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
+4th-rs-wasi.wasm : ../forth/4th.rs ../forth/Cargo.toml worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	cd ../forth && CARGO_TARGET_DIR=target/wasi-repl rustup run nightly cargo build --release --target wasm32-wasip1 --bin 4th -Zbuild-std=std,panic_unwind
 	cp ../forth/target/wasi-repl/wasm32-wasip1/release/4th.wasm $@
 
@@ -87,10 +87,17 @@ $(RESISTOR_NETWORK) : resistor-network/% : ../resistor-network/%
 	cp $< $@
 
 # The deployed jonesforth.f: wasi-repl.mjs's one shared preamble for every
-# FORTH demo (4th/5th/6th-wasi.wasm, 4th-rs-wasi.wasm, jonesforth.wasm), and
-# how-many-roads' own preamble (jburgy/jburgy.github.io) hardcodes this same
+# FORTH demo that doesn't bring its own (4th/5th/6th-wasi.wasm, jonesforth.wasm),
+# and how-many-roads' own preamble (jburgy/jburgy.github.io) hardcodes this same
 # path; matcher.mjs resolves the identical relative path from the source tree.
 jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
+	@mkdir -p $(@D)
+	cp $< $@
+
+# The deployed 4th.32.fs: 4th-rs-wasi.wasm's own preamble (see
+# assets/index.html's data-preamble), same "copy into a same-named
+# subdirectory next to wasi-repl.mjs" convention as lisp/eliza.lisp.
+forth/4th.32.fs : ../forth/4th.32.fs
 	@mkdir -p $(@D)
 	cp $< $@
 

@@ -422,6 +422,16 @@
 		<div class="demo demo--fourt2py" data-role="panel"></div>
 	</details>
 
+	<details data-wasm="4th-rs-wasi.wasm" data-preamble="forth/4th.32.fs">
+		<summary><a href="https://github.com/jburgy/blog/blob/main/forth/4th.rs"><code>forth/4th.rs</code></a>
+			&mdash; <span class="desc">jonesforth ported to Rust using nightly's <code>become</code> for guaranteed
+				tail calls, compiled to <code>wasm32-wasip1</code></span></summary>
+		<p>No post yet.</p>
+		<div class="repl">
+			<div data-role="terminal"></div>
+		</div>
+	</details>
+
 	<details data-module="./regexp/web/demo.mjs" data-demo="regexp">
 		<summary><a href="https://github.com/jburgy/blog/blob/main/regexp/regexp.f"><code>regexp/regexp.f</code></a>
 			&mdash; <span class="desc">Thompson's 1968 regular-expression construction, implemented in FORTH and run
@@ -517,8 +527,9 @@
 		import { startRepl } from './wasi-repl.mjs';
 		import { waitFor } from './wasi-repl-mocha.mjs';
 
-		// Every REPL demo's startup output: the four jonesforth clones (fed
-		// jonesforth.f) print the "JONESFORTH VERSION" welcome banner;
+		// Every REPL demo's startup output: the five jonesforth clones (four
+		// fed jonesforth.f, 4th-rs-wasi.wasm fed its own forth/4th.32.fs, see
+		// its data-preamble) print the "JONESFORTH VERSION" welcome banner;
 		// TinyBasic-wasi.wasm's own preamble (TinyBasic/tictactoe.bas, see
 		// its data-preamble) runs Tom Pittman's Tic-Tac-Toe and stops at its
 		// first "YOUR PLAY" prompt; lisp-wasi.wasm's own preamble
@@ -530,6 +541,7 @@
 			'6th-wasi.wasm': 'JONESFORTH VERSION',
 			'5th-wasi.wasm': 'JONESFORTH VERSION',
 			'4th-wasi.wasm': 'JONESFORTH VERSION',
+			'4th-rs-wasi.wasm': 'JONESFORTH VERSION',
 			'TinyBasic-wasi.wasm': 'YOUR PLAY',
 			'lisp-wasi.wasm': 'PROBLEM',
 		};
