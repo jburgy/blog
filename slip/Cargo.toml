@@ -1,0 +1,11 @@
+[package]
+name = "slip"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# Embeds the link fields directly in the record, the closest safe-Rust
+# equivalent of a FORTRAN array of fixed-size cells with built-in NEXT/PREV
+# fields -- see README.md.
+intrusive-collections = "0.9"
