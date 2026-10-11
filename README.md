@@ -103,7 +103,7 @@ Folders that feed a demo are marked ▶.
 | [`fun/`](fun/) | | The scratch drawer: n-body, bytecode assemblers, Prechelt's benchmark, Zig toys |
 | [`aoc2024/`](aoc2024/), [`aoc2025/`](aoc2025/), [`foo/`](foo/) | | Advent of Code and puzzle solutions; excluded from pytest collection (see [`CODE_REVIEW.md`](CODE_REVIEW.md)) |
 | [`notebooks/`](notebooks/) | | Jupyter notebooks, reachable through the Binder badge above |
-| [`jonesforth/`](jonesforth/), [`xterm-pty/`](xterm-pty/) | ▶ | Submodules, not ours. `deploy.yml` needs `submodules: true` for both |
+| [`jonesforth/`](jonesforth/) | ▶ | Submodule, not ours. `deploy.yml` needs `submodules: true` |
 
 ## The other workflows
 
