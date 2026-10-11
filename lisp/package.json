@@ -4,10 +4,10 @@
   "description": "https://justine.lol/sectorlisp/ in https://www.assemblyscript.org/",
   "main": "index.js",
   "scripts": {
-    "test": "npm run asbuild:wasi && node tests/wasi.mjs && node tests/eliza.mjs",
-    "asbuild:debug": "asc assembly/index.ts --target debug --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
-    "asbuild:release": "asc assembly/index.ts --target release --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
-    "asbuild:wasi": "asc assembly/wasi.ts --target wasi --use getchar=assembly/wasiHost/getchar --use putchar=assembly/wasiHost/putchar",
+    "test": "npm run asbuild:wasi && npx -y node@^22.19.0 tests/wasi.mjs && npx -y node@^22.19.0 tests/eliza.mjs",
+    "asbuild:debug": "npx -y --package assemblyscript asc assembly/index.ts --target debug --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
+    "asbuild:release": "npx -y --package assemblyscript asc assembly/index.ts --target release --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
+    "asbuild:wasi": "npx -y --package assemblyscript asc assembly/wasi.ts --target wasi --use getchar=assembly/wasiHost/getchar --use putchar=assembly/wasiHost/putchar",
     "asbuild": "npm run asbuild:debug && npm run asbuild:release && npm run asbuild:wasi",
     "start": "npx serve ../assets"
   },
@@ -27,7 +27,6 @@
   },
   "homepage": "https://github.com/jburgy/blog#readme",
   "devDependencies": {
-    "assemblyscript": "^0.27.37",
     "uwasi": "^1.6.0"
   },
   "type": "module",
@@ -36,8 +35,5 @@
       "import": "./build/release.js",
       "types": "./build/release.d.ts"
     }
-  },
-  "dependencies": {
-    "node": "^22.19.0"
   }
 }
