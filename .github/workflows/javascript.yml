@@ -44,6 +44,20 @@ jobs:
           printf '#!/bin/sh\nexec uvx --from ziglang==0.17.0 python-zig "$@"\n' > "$RUNNER_TEMP/zig"
           chmod +x "$RUNNER_TEMP/zig"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      # `.use_llvm = true` (build.zig) makes every `zig build test` run pay
+      # LLVM's codegen cost from scratch -- stage2_x86_64 still can't do the
+      # guaranteed tail calls 6th.zig's dispatch loop relies on, so it isn't
+      # optional. Caching both of zig's caches turns that cost into a no-op
+      # whenever forth/*.zig is unchanged, which is most pushes since this
+      # job has no path filter (see top-of-file comment).
+      - uses: actions/cache@v6
+        with:
+          path: |
+            forth/.zig-cache
+            ~/.cache/zig
+          key: zig-cache-${{ hashFiles('forth/*.zig') }}
+          restore-keys: zig-cache-
       - run: zig build test
       - uses: bytecodealliance/setup-wasi-sdk-action@main
       - uses: dtolnay/rust-toolchain@nightly
