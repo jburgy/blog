@@ -30,7 +30,6 @@ collect_ignore = [
     "node_modules",
     "notebooks",
     "TinyBasic",
-    "xterm-pty",
 ]
 
 
