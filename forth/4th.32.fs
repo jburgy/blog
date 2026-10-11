@@ -1623,6 +1623,72 @@
 ;
 
 (
+	MANDEL ----------------------------------------------------------------------
+
+	A Q14 fixed-point ASCII-art Mandelbrot set.  Jonesforth has no DO/LOOP,
+	no I/J/K, and no shift words, so the three nested loops are BEGIN/WHILE/
+	REPEAT with the loop bounds on the stack, and ZR/ZI/CRE/CIM stand in for
+	the I/J/K a DO loop would otherwise give for free.  Try MANDEL.
+)
+
+HEX	( the constants below are hex; DECIMAL below restores the file's norm )
+
+: 2/ ( n -- n2 ) DUP 0< IF 1- THEN 2 / ;	( standard ANS word; unprefixed is fine )
+: Q14* ( a b -- c )	\ Q14 fixed-point multiply: rescale the product by 2^14
+	* 2/ 2/ 2/ 2/ 2/ 2/ 2/ 2/ 2/ 2/ 2/ 2/ 2/ 2/
+;
+: MANDEL-SQ ( n -- n2 ) DUP Q14* ;
+
+VARIABLE ZR
+VARIABLE ZI
+VARIABLE CRE
+VARIABLE CIM
+
+: MANDEL-POINT ( c.re c.im -- char )
+	CIM ! CRE !
+	CRE @ ZR !  CIM @ ZI !
+	1E					( iteration cap: 30 )
+	BEGIN
+		DUP 0>
+	WHILE
+		1-
+		ZR @ MANDEL-SQ  ZI @ MANDEL-SQ  2DUP + 10000 >	( escape when |z|^2 > 4.0 )
+		IF
+			2DROP DROP
+			BL EXIT		( escaped: outside the set )
+		THEN
+		-  CRE @ +			( new_zr = zr^2 - zi^2 + cre )
+		ZR @ ZI @ Q14* DUP + CIM @ +	( new_zi = 2*zr*zi + cim )
+		ZI ! ZR !
+	REPEAT
+	DROP BL A +			( survived: inside the set )
+;
+
+: MANDEL-ROW ( y -- )
+	-8000				( real axis: -2.0, step 616 == 0.0376 )
+	BEGIN
+		DUP 4000 <		( real axis:  1.0 )
+	WHILE
+		2DUP SWAP MANDEL-POINT EMIT
+		268 +
+	REPEAT
+	2DROP CR
+;
+
+: MANDEL ( -- )
+	4666 NEGATE			( imaginary axis: -1.1, step 5DE == 0.0917 )
+	BEGIN
+		DUP 4666 <		( imaginary axis:  1.1 )
+	WHILE
+		DUP MANDEL-ROW
+		5DE +
+	REPEAT
+	DROP
+;
+
+DECIMAL
+
+(
 	ASSEMBLER CODE ----------------------------------------------------------------------
 
 	This is just the outline of a simple assembler, allowing you to write FORTH primitives
