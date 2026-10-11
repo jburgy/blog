@@ -3,8 +3,9 @@
 // `5th.wasm`/`6th.wasm` wasi builds can drive a browser REPL the same way.
 import { execFile, spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, expect, test as vitestTest } from 'vitest';
@@ -13,6 +14,9 @@ import { runWasiCommand } from './wasi-worker.js';
 import { test } from '../wasm-test.ts';
 
 const execFileAsync = promisify(execFile);
+// wabt's install location varies with npm workspace hoisting, so resolve it
+// instead of assuming it's a sibling of this file's own node_modules.
+const wat2wasm = join(dirname(createRequire(import.meta.url).resolve('wabt/package.json')), 'bin', 'wat2wasm');
 
 test('5th.wasm: a scripted session exits cleanly on EOF', async ({ wasm }) => {
     const channel = new SharedInputChannel();
@@ -55,7 +59,7 @@ let tmpDir: string;
 beforeAll(async () => {
     tmpDir = await mkdtemp(join(tmpdir(), 'wasi-worker-'));
     jonesforthWasmPath = join(tmpDir, 'jonesforth.wasm');
-    await execFileAsync(join(import.meta.dirname, '../node_modules/.bin/wat2wasm'), [
+    await execFileAsync(wat2wasm, [
         '--enable-tail-call',
         '--debug-names',
         '-o', jonesforthWasmPath,
@@ -66,7 +70,7 @@ beforeAll(async () => {
     // as parameters instead of globals) -- same hand-rolled WASI surface as
     // jonesforth.wast, checked alongside it below.
     localizeWasmPath = join(tmpDir, 'localize.wasm');
-    await execFileAsync(join(import.meta.dirname, '../node_modules/.bin/wat2wasm'), [
+    await execFileAsync(wat2wasm, [
         '--enable-tail-call',
         '--debug-names',
         '-o', localizeWasmPath,
