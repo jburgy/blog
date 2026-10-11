@@ -19,6 +19,9 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          # v7 defaults to true, which discards the downloaded wheel cache
+          # (ziglang is 93MiB) before saving, forcing a re-download every run
+          prune-cache: false
           python-version: ${{ matrix.python-version }}
       # progress/ (zig build, ~1 min) is not needed by any test
       - run: uv sync -C setup-args=-Dprogress=false
