@@ -196,9 +196,16 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   hardcode `/blog/wasi-repl.mjs` directly. `jonesforth.wasm` shares that same
   `jonesforth.f` dictionary too (its own `ARGC`/`ARGV`/`ENVIRON` just answer
   wrong instead of real argv under WASI, harmlessly, since nothing here calls
-  them), so `startRepl`'s optional second argument is now a plain `preamble`
-  boolean (default `true`), not a URL: `false` opts all the way out for a
-  WASI command with no use for it (`lisp-wasi.wasm`/`TinyBasic-wasi.wasm`).
+  them), so `startRepl`'s optional second argument is a plain `preamble`
+  boolean (default `true`) or a path string, not always a full URL: `false`
+  opts all the way out for a WASI command with no use for it
+  (`TinyBasic-wasi.wasm`). A string instead feeds a *different* command its
+  own preamble file (resolved relative to `wasi-repl.mjs` the same way the
+  `jonesforth.f` default is) -- e.g. `lisp-wasi.wasm`'s
+  `"./lisp/eliza.lisp"` (see `assets/index.html`'s `data-preamble`): one
+  single self-recursive expression (`core.ts` itself is untouched) that
+  prints a greeting, then keeps `(READ)`ing and pattern-matching plain
+  sentences forever, so the terminal never goes back to a bare `*` prompt.
   A third, optional `container` argument (element or id, defaulting to
   `"terminal"`) lets a caller mount more than one REPL on the same page at
   once instead of sharing a single div -- `assets/index.html`'s demos

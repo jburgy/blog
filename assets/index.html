@@ -488,10 +488,12 @@
 		</div>
 	</details>
 
-	<details data-wasm="lisp-wasi.wasm" data-preamble="none">
+	<details data-wasm="lisp-wasi.wasm" data-preamble="lisp/eliza.lisp">
 		<summary><a
 				href="https://github.com/jburgy/blog/blob/main/lisp/assembly/core.ts"><code>lisp/assembly/core.ts</code></a>
-			&mdash; <span class="desc">justine.lol's sectorlisp interpreter, rewritten in AssemblyScript</span>
+			&mdash; <span class="desc">justine.lol's sectorlisp interpreter, rewritten in AssemblyScript, talk to
+				<a href="https://github.com/jburgy/blog/blob/main/lisp/eliza.lisp"><code>ELIZA</code></a>
+				the Lisp therapist</span>
 		</summary>
 		<p>2023-03-09 &middot;
 			<a href="https://bur.gy/2023/03/09/what-do-you-mean-homoiconic.html">What do you mean,
@@ -516,15 +518,18 @@
 
 		// Every REPL demo's startup output: the four jonesforth clones (fed
 		// jonesforth.f) print the "JONESFORTH VERSION" welcome banner;
-		// TinyBasic/lisp (data-preamble="none", no FORTH dictionary to load)
-		// instead print a single ':'/'*' ready prompt.
+		// TinyBasic (data-preamble="none", no FORTH dictionary to load)
+		// prints a single ':' ready prompt; lisp-wasi.wasm's own preamble
+		// (lisp/eliza.lisp, see its data-preamble) greets the user as soon
+		// as it loads, ending in "PROBLEM", then keeps reading and replying
+		// to plain sentences without ever returning to a bare prompt.
 		const replReady = {
 			'jonesforth.wasm': 'JONESFORTH VERSION',
 			'6th-wasi.wasm': 'JONESFORTH VERSION',
 			'5th-wasi.wasm': 'JONESFORTH VERSION',
 			'4th-wasi.wasm': 'JONESFORTH VERSION',
 			'TinyBasic-wasi.wasm': ':',
-			'lisp-wasi.wasm': '*',
+			'lisp-wasi.wasm': 'PROBLEM',
 		};
 
 		// Loaded once, the first time any demo runs a smoke test -- not on
@@ -568,7 +573,11 @@
 				details.dataset.started = '1';
 				const { wasm, preamble } = details.dataset;
 				const container = details.querySelector('[data-role="terminal"]');
-				const repl = startRepl(wasm, preamble !== 'none', container);
+				// data-preamble: absent -> jonesforth.f (startRepl's own default);
+				// "none" -> no preamble (TinyBasic-wasi.wasm); any other value is a
+				// path to a different command's own preamble, e.g. lisp-wasi.wasm's
+				// "lisp/eliza.lisp".
+				const repl = startRepl(wasm, preamble === 'none' ? false : (preamble ?? true), container);
 				const expected = replReady[wasm];
 				smokeTest(details, `prints ${JSON.stringify(expected)}`, () => waitFor(() => repl.getOutput().includes(expected)), 60000);
 			});

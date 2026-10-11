@@ -4,7 +4,7 @@
   "description": "https://justine.lol/sectorlisp/ in https://www.assemblyscript.org/",
   "main": "index.js",
   "scripts": {
-    "test": "npm run asbuild:wasi && node tests/wasi.mjs",
+    "test": "npm run asbuild:wasi && node tests/wasi.mjs && node tests/eliza.mjs",
     "asbuild:debug": "asc assembly/index.ts --target debug --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
     "asbuild:release": "asc assembly/index.ts --target release --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
     "asbuild:wasi": "asc assembly/wasi.ts --target wasi --use getchar=assembly/wasiHost/getchar --use putchar=assembly/wasiHost/putchar",

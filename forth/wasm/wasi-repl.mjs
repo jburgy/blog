@@ -16,14 +16,20 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
 
 /**
  * @param {string} wasmUrl
- * @param {boolean} [preamble] feeds jonesforth.f's classic dictionary before
- *   handing the terminal to the user (default); pass `false` for a WASI
- *   command with no use for it (e.g. lisp-wasi.wasm/TinyBasic-wasi.wasm, see
- *   jburgy.github.io's lisp/TinyBasic posts). One file for every FORTH here
+ * @param {boolean | string} [preamble] feeds jonesforth.f's classic
+ *   dictionary before handing the terminal to the user (default); pass
+ *   `false` for a WASI command with no use for it (e.g. TinyBasic-wasi.wasm,
+ *   see jburgy.github.io's TinyBasic post). One file for every FORTH here
  *   (4th.c/5th.c/6th.zig and jonesforth.wasm alike): jonesforth.f's own
  *   ARGC/ARGV/ENVIRON read S0-relative, the original x86 stack layout, which
  *   compiles fine under WASI but answers wrong instead of real argv (see
  *   wasi-worker.test.ts) -- harmless, since nothing here ever calls them.
+ *   Pass a string instead (resolved relative to this module, same as the
+ *   jonesforth.f default) to feed a different command its own preamble --
+ *   e.g. lisp-wasi.wasm's `"./lisp/eliza.lisp"`, a single self-recursive
+ *   expression (no interpreter changes needed) that greets the user, then
+ *   keeps `(READ)`ing plain sentences and replying to them forever instead
+ *   of ever handing control back to a bare `*` prompt.
  * @param {string | HTMLElement} [container] defaults to `#terminal`, same as
  *   every existing caller (a single demo per page). Pass an element (or a
  *   different id) to mount more than one REPL on the same page at once --
@@ -45,7 +51,7 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
  *   stray `postMessage`s outliving it.
  */
 export function startRepl(wasmUrl, preamble = true, container = "terminal") {
-    const preambleUrl = new URL("./jonesforth/jonesforth.f", import.meta.url);
+    const preambleUrl = new URL(typeof preamble === "string" ? preamble : "./jonesforth/jonesforth.f", import.meta.url);
     const xterm = new Terminal();
     const rl = new Readline();
     xterm.loadAddon(rl);
