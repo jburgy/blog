@@ -5,14 +5,12 @@
 use intrusive_collections::linked_list::Cursor;
 use intrusive_collections::{LinkedList, LinkedListLink, intrusive_adapter};
 
-/// A cell's payload: either a leaf value or a nested sublist (SLIP's
-/// "sublist indicator" cell, e.g. the `*` in `(A, B, *, C)`).
 pub enum Payload {
     Atom(i64),
-    // ponytail: embedded (single-owner) sublist, not shared. Real SLIP let
-    // several parent cells point at the *same* header via its refcount. To
-    // share one, wrap it in `Rc<RefCell<List>>` and hand out `Ref::leak`'d
-    // cursors (or an arena) when that's actually needed.
+    // ponytail: embedded single-owner sublist; real SLIP shared a header
+    // across several parent cells via its refcount instead. Upgrade path if
+    // sharing is ever needed: Rc<RefCell<List>>, with Ref::leak'd cursors
+    // (or an arena) to work around the borrowed-Cursor lifetime.
     Sublist(List),
 }
 
@@ -23,9 +21,9 @@ pub struct Cell {
 
 intrusive_adapter!(pub CellAdapter = Box<Cell>: Cell { link: LinkedListLink });
 
-/// A SLIP list: fixed-size cells linked in place, no separate container
-/// allocation -- the Rust analogue of a FORTRAN array of records with
-/// embedded NEXT/PREV fields instead of a `Vec`/`Rc`-of-cons-cells.
+/// Embeds each cell's link fields in place instead of Vec/Rc-of-cons: the
+/// closest safe-Rust match to FORTRAN's array of records with built-in
+/// NEXT/PREV fields.
 pub type List = LinkedList<CellAdapter>;
 
 pub fn cell(data: Payload) -> Box<Cell> {
@@ -35,7 +33,6 @@ pub fn cell(data: Payload) -> Box<Cell> {
     })
 }
 
-/// Builds a flat list of atoms, e.g. for a sentence or a literal fragment.
 pub fn list_of(atoms: impl IntoIterator<Item = i64>) -> List {
     let mut list = List::new(CellAdapter::new());
     for atom in atoms {
@@ -44,12 +41,10 @@ pub fn list_of(atoms: impl IntoIterator<Item = i64>) -> List {
     list
 }
 
-/// One cursor per nesting level: the "state history stack" the Wikipedia
-/// SLIP article describes -- a memento per level, recording the list being
-/// read, the position within it, and (via `depth`) the level itself.
-/// Entering a sublist pushes a frame; exhausting one pops back to resume
-/// the parent exactly where it left off. Several `Reader`s can scan the
-/// same list independently since each only holds `&'a` borrows.
+/// Wikipedia's SLIP article describes the reader as "a state history stack
+/// -- a good example of a memento pattern" -- hence one cursor per nesting
+/// level rather than a single flat position. Each Reader only holds `&'a`
+/// borrows, so several can scan the same list independently.
 pub struct Reader<'a> {
     stack: Vec<Cursor<'a, CellAdapter>>,
 }
@@ -61,9 +56,8 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// Current nesting depth -- "the level ... of the history stack".
-    /// A fresh `Reader` reports `1` (one frame, not yet probed) even on an
-    /// empty list; it only drops to `0` once the first `next()` call pops it.
+    /// A fresh Reader reports 1 even on an empty list (the unprobed null
+    /// cursor from `new`); it drops to 0 only once `next()` pops it.
     pub fn depth(&self) -> usize {
         self.stack.len()
     }

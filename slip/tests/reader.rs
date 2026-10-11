@@ -26,7 +26,6 @@ fn independent_readers_track_separate_history_stacks() {
     // r1 is unaffected by r2's descent -- independent cursors over the same list.
     assert!(matches!(r1.next(), Some(Payload::Atom(97))));
 
-    // Drain r2 and confirm it pops back out to the parent's Atom(2).
     assert!(matches!(r2.next(), Some(Payload::Atom(98))));
     assert_eq!(r2.depth(), 2); // sublist exhausted but the frame isn't popped until probed
     assert!(matches!(r2.next(), Some(Payload::Atom(2))));
