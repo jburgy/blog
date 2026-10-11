@@ -134,9 +134,9 @@ def _dagify(
     # cache_info/cache_clear are C-level descriptors on the lru_cache
     # wrapper, not entries in its __dict__, so wraps() above can't copy
     # them: bind them onto epilogue explicitly.
-    epilogue.cache_info = cached_function.cache_info
-    epilogue.cache_clear = cached_function.cache_clear
-    epilogue.cache_parameters = cached_function.cache_parameters
+    epilogue.cache_info = cached_function.cache_info  # pyright: ignore[reportFunctionMemberAccess]  # ty: ignore[unresolved-attribute]
+    epilogue.cache_clear = cached_function.cache_clear  # pyright: ignore[reportFunctionMemberAccess]  # ty: ignore[unresolved-attribute]
+    epilogue.cache_parameters = cached_function.cache_parameters  # pyright: ignore[reportFunctionMemberAccess]  # ty: ignore[unresolved-attribute]
 
     return epilogue
 
