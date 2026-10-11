@@ -58,21 +58,17 @@ class Vectorizer(ast.NodeTransformer):
 
 
 def numpify(func):
+    """Rewrite a list comprehension into numpy vector operations.
+
+    >>> def f(x):
+    ...     return [t * 2 for t in x]
+    >>> numpify(f)([1, 2, 3])
+    array([2, 4, 6])
+    """
     source = getsource(func)
     node = ast.parse(dedent(source))
     new_node = ast.fix_missing_locations(Vectorizer().visit(node))
     code = compile(new_node, "<string>", "exec")
     namespace = {"np": np}
     exec(code, namespace)
-    return namespace[f.__name__]
-
-
-if __name__ == "__main__":
-
-    def f(x):
-        s = [t * 2 for t in x]
-        return s
-
-    print(f([1, 2, 3]))
-    g = numpify(f)
-    print(g([1, 2, 3]))  # pyright: ignore[reportCallIssue]
+    return namespace[func.__name__]

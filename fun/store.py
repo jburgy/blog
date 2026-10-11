@@ -25,14 +25,22 @@ select = """WITH RECURSIVE assemble_patches(id, object) AS (
 )
     SELECT * FROM assemble_patches ORDER BY id DESC LIMIT 1;"""
 
-if __name__ == "__main__":
+
+def rollup(patches: list[tuple[int, str]]) -> tuple[int, str]:
+    """Apply a chain of JSON patches and return the resulting (id, object).
+
+    >>> rollup([(0, '{"a": 1}'), (1, '{"b": 2}'), (2, '{"a": 3}'), (3, '{"a": null}')])
+    (4, '{"b":2}')
+    """
     with connect(":memory:") as conn:
         cursor = conn.cursor()
         cursor.execute(create)
-        cursor.executemany(
-            insert,
-            [(0, '{"a": 1}'), (1, '{"b": 2}'), (2, '{"a": 3}'), (3, '{"a": null}')],
-        )
+        cursor.executemany(insert, patches)
         res = cursor.execute(select)
+        return next(res)
 
-    print(next(res))
+
+if __name__ == "__main__":
+    print(
+        rollup([(0, '{"a": 1}'), (1, '{"b": 2}'), (2, '{"a": 3}'), (3, '{"a": null}')])
+    )

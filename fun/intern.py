@@ -27,13 +27,21 @@ BEGIN
 END;
 """.split("\n" * 2)
 
-if __name__ == "__main__":
-    records = [(k, x) for k in list("abcdef") for x in range(17)]
 
+def sum_by_dimension(records: list[tuple[str, float]]) -> list[tuple[str, float]]:
+    """Insert (dimension, value) facts and return the sum of value per dimension.
+
+    >>> sum_by_dimension([(k, x) for k in "ab" for x in range(3)])
+    [('a', 3.0), ('b', 3.0)]
+    """
     with connect(":memory:") as conn:
         c = conn.cursor()
         for statement in statements:
             c.execute(statement)
         c.executemany("INSERT INTO facts(dimension, value) VALUES(?, ?)", records)
         c.execute("SELECT dimension, SUM(value) AS value FROM facts GROUP BY dimension")
-        print(c.fetchall())
+        return c.fetchall()
+
+
+if __name__ == "__main__":
+    print(sum_by_dimension([(k, x) for k in list("abcdef") for x in range(17)]))

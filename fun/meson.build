@@ -16,6 +16,7 @@ py.install_sources([
     'store_sa.py',
     'store.py',
     'test_interpreters.py',
+    'test_serve.py',
     'vectorize.py',
     ],
     pure : true,

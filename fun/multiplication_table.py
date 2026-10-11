@@ -4,9 +4,14 @@ cell = (
     " size=1 pattern={}></td>".format
 )
 
-if __name__ == "__main__":
-    print(
-        """<html lang="en">
+
+def table() -> str:
+    """Render a 1-12 multiplication table as an HTML page.
+
+    >>> "pattern=60" in table()
+    True
+    """
+    return """<html lang="en">
     <head>
       <title>Multiplication Table</title>
     </head>
@@ -28,10 +33,12 @@ if __name__ == "__main__":
     </body>
   </html>
   """.format(
-            "\n".join(f"<th>{i}</th>" for i in range(1, 13)),
-            "\n".join(
-                row(i, "\n".join(cell(i * j) for j in range(1, 13)))
-                for i in range(1, 13)
-            ),
-        )
+        "\n".join(f"<th>{i}</th>" for i in range(1, 13)),
+        "\n".join(
+            row(i, "\n".join(cell(i * j) for j in range(1, 13))) for i in range(1, 13)
+        ),
     )
+
+
+if __name__ == "__main__":
+    print(table())

@@ -114,20 +114,36 @@ def dagify(maxsize: int = 128, typed: bool = False, Entry: type = WeakSetEntry):
 
 @dagify(Entry=WeakSetEntry)
 def fibw(n):
+    """
+    >>> fibw(10)
+    55
+    """
     return n if n < 2 else fibw(n - 1) + fibw(n - 2)
 
 
 @dagify(Entry=PartialEntry)
 def fibp(n):
+    """
+    >>> fibp(10)
+    55
+    """
     return n if n < 2 else fibp(n - 1) + fibp(n - 2)
 
 
 @dagify(Entry=DelegateEntry)
 def fibd(n):
+    """
+    >>> fibd(10)
+    55
+    """
     return n if n < 2 else fibd(n - 1) + fibd(n - 2)
 
 
 def fib(n):
+    """
+    >>> fib(10)
+    89
+    """
     a = 1
     b = 0
     while n:
