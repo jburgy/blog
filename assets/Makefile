@@ -122,4 +122,4 @@ serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi
 .PHONY : regexp fourt2py ising resistor-network serve-e2e
 
 clean :
-	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth lisp worker.js wasi-worker.js regexp forth fourt2py ising resistor-network mini-coi.js
+	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth lisp TinyBasic worker.js wasi-worker.js regexp forth fourt2py ising resistor-network mini-coi.js
