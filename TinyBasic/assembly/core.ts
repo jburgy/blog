@@ -58,7 +58,10 @@ export function Poke2(loc: i32, valu: i32): void {
 }
 
 function Peek2(loc: i32): T {
-    return bswap<T>(load<T>(loc));
+    // Masking is required here: bswap<T>()'s shift-and-or result can carry
+    // bits past T's 16-bit width, which escapes uncleared when returned
+    // directly (seen as e.g. PRINT 5 outputting 327685 instead of 5).
+    return bswap<T>(load<T>(loc)) & 0xFFFF;
 }
 
 @inline
@@ -263,7 +266,7 @@ export function ColdStart(ILend_: T): void {    /* initialize program to empty *
         ILend = ILend_;
     if (Peek2(ILfront) != ILfront + 2)
         ILend = Peek2(ILfront) + 0x800;
-    Poke2(UserProg, (ILend + 0xFF) & 0xF0);   /* start Basic after IL */
+    Poke2(UserProg, (ILend + 0xFF) & 0xFF00);   /* start Basic after IL */
     if (CoreTop > 0xFFFF) {
         Poke2(EndUser, 0xFFFE);
         Poke2(0xFFFE, 0xDEAD);
@@ -625,7 +628,7 @@ export function Interp(): void {
                 /*                 Add the two numbers represented by the top four    */
                 /* bytes of the expression stack, and replace them with the two-byte  */
                 /* sum. Stack underflow results in an error stop.                     */
-                case 0x1B:
+                case 0x18:
                     ix = PopExInt();
                     op = PopExInt();
                     if (ILPC != 0) PushExInt(op + ix);
@@ -691,8 +694,11 @@ export function Interp(): void {
                     op = PopExBy();
                     ix = PopExInt() - ix;                           /* <0 or =0 or >0 */
                     if (ILPC == 0) return;                             /* underflow.. */
-                    if (ix < 0) ix = 1;
-                    else if (ix > 0) ix = 4;                /* choose the bit to test */
+                    // ix is T (u16): compare its bit pattern as signed i16, or an
+                    // unsigned read would never see "<0" and misclassify every
+                    // negative difference as "greater" (e.g. 3<5 skipped, not taken).
+                    if (i16(ix) < 0) ix = 1;
+                    else if (i16(ix) > 0) ix = 4;            /* choose the bit to test */
                     else ix = 2;
                     if ((ix & op) > 0) ILPC++;           /* skip next IL op if bit =1 */
                     if (Debugging > 0) ShowExSt();
@@ -771,7 +777,7 @@ export function Interp(): void {
                 case 0x21:
                     while (true) {
                         ch = load<u8>(BP++);
-                        if (ch == 0x20) break;                 /* done on final quote */
+                        if (ch == 0x22) break;                 /* done on final quote */
                         if (ch < 0x20) {     /* error if return or other control char */
                             TBerror();
                             break;
@@ -1131,7 +1137,7 @@ export function Interp(): void {
             case 0x05:
                 while (load<u8>(BP) == 0x20) BP++;                /* skip over spaces */
                 ch = load<u8>(BP);
-                if (ch > 0x30 && ch <= 0x5A || ch > 0x60 && ch <= 0x7A)
+                if (ch > 0x40 && ch <= 0x5A || ch > 0x60 && ch <= 0x7A)
                     PushExBy((load<u8>(BP++) & 0x5F) * 2);
                 else if (op == 0xA0) TBerror();           /* error if not letter */
                 else ILPC = ILPC + op - 0xA0;

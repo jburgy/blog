@@ -4,9 +4,14 @@
 // Asserts on "Tiny Basic error #...at line ..." specifically because that
 // message only reaches stdout through OutStr's embedded string table (see
 // wasiHost.ts) -- the one piece of this build with no equivalent in
-// lisp/wasm-test.mjs. Runs the scripted session in a child process, killed
-// once it has produced the expected output rather than awaited to
-// completion -- see wasi-fixture.mjs for why.
+// lisp/wasm-test.mjs. A divide-by-zero (not "running off the end of a
+// too-short program", this test's original trigger) is used on purpose: it's
+// a genuine runtime error raised while a line number is still current, so
+// "at line" is guaranteed -- running off the end instead sets Lino back to 0
+// first (see core.ts's NX, case 0x1D), so that error never names a line.
+// Runs the scripted session in a child process, killed once it has produced
+// the expected output rather than awaited to completion -- see
+// wasi-fixture.mjs for why.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
@@ -21,7 +26,7 @@ const registerLoader = `data:text/javascript,
 const fixture = join(import.meta.dirname, "wasi-fixture.mjs");
 const wasmPath = join(import.meta.dirname, "../build/TinyBasic-wasi.wasm");
 
-const child = spawn(process.execPath, ["--import", registerLoader, fixture, wasmPath, "10 PRINT 1+2", "RUN"]);
+const child = spawn(process.execPath, ["--import", registerLoader, fixture, wasmPath, "10 PRINT 1/0", "RUN"]);
 
 let out = "";
 let errOut = "";
