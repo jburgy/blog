@@ -13,6 +13,8 @@ import { runWasiCommand } from './wasi-worker.js';
 import { test } from '../wasm-test.ts';
 
 const execFileAsync = promisify(execFile);
+// wabt isn't an installed dependency; fetch it on demand instead.
+const wat2wasm = (args: string[]) => execFileAsync('npx', ['-y', '--package', 'wabt', 'wat2wasm', ...args]);
 
 test('5th.wasm: a scripted session exits cleanly on EOF', async ({ wasm }) => {
     const channel = new SharedInputChannel();
@@ -55,7 +57,7 @@ let tmpDir: string;
 beforeAll(async () => {
     tmpDir = await mkdtemp(join(tmpdir(), 'wasi-worker-'));
     jonesforthWasmPath = join(tmpDir, 'jonesforth.wasm');
-    await execFileAsync(join(import.meta.dirname, '../node_modules/.bin/wat2wasm'), [
+    await wat2wasm([
         '--enable-tail-call',
         '--debug-names',
         '-o', jonesforthWasmPath,
@@ -66,7 +68,7 @@ beforeAll(async () => {
     // as parameters instead of globals) -- same hand-rolled WASI surface as
     // jonesforth.wast, checked alongside it below.
     localizeWasmPath = join(tmpDir, 'localize.wasm');
-    await execFileAsync(join(import.meta.dirname, '../node_modules/.bin/wat2wasm'), [
+    await wat2wasm([
         '--enable-tail-call',
         '--debug-names',
         '-o', localizeWasmPath,

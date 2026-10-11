@@ -33,7 +33,9 @@ let errOut = "";
 await new Promise((resolve, reject) => {
     child.stdout.on("data", (chunk) => {
         out += chunk;
-        if (out.includes("at line")) resolve();
+        // wait for the full message, not just the "at line" substring: a
+        // chunk boundary can land before the trailing line number.
+        if (/at line \d+/.test(out)) resolve();
     });
     child.stderr.on("data", (chunk) => { errOut += chunk; });
     child.once("error", reject);

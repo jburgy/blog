@@ -67,7 +67,6 @@ cosmopolitan.h
 *.c.gcov
 
 node_modules
-package-lock.json
 
 forth/web/4th.wasm
 regexp/web/forth.wasm

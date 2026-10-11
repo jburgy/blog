@@ -9,7 +9,7 @@ on: [push]
 
 jobs:
   forth:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: forth
@@ -79,7 +79,7 @@ jobs:
           flags: forth
 
   regexp:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: regexp/web
@@ -111,7 +111,7 @@ jobs:
           flags: regexp-web
 
   fourt2py:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: fourt2py

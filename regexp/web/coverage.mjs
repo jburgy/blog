@@ -14,16 +14,20 @@
 // fetches to still resolve.
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const skip = ['node_modules', 'coverage', '.nyc_output'].map((name) => join(root, name));
 const copy = mkdtempSync(join(root, '..', '.coverage-'));
+// mocha's install location varies with npm workspace hoisting, so resolve
+// the node_modules that actually contains it instead of assuming it's local.
+const nodeModules = dirname(dirname(createRequire(import.meta.url).resolve('mocha/package.json')));
 
 try {
     cpSync(root, copy, { recursive: true, filter: (src) => !skip.some((dir) => src === dir || src.startsWith(`${dir}/`)) });
-    symlinkSync(join(root, 'node_modules'), join(copy, 'node_modules'));
+    symlinkSync(nodeModules, join(copy, 'node_modules'));
 
     // cwd: copy, so nyc resolves its project root (package.json) to the copy
     // itself -- it refuses to touch files outside whatever root it picks.
