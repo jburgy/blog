@@ -4,7 +4,7 @@ FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs we
 ISING = $(addprefix ising/,index.html demo.mjs lattice.mjs)
 RESISTOR_NETWORK = $(addprefix resistor-network/,index.html demo.mjs lattice.mjs)
 
-all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network mini-coi.js
+all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network mini-coi.js lisp/eliza.lisp
 
 # index.html loads this for cross-origin isolation (SharedArrayBuffer) without custom server headers.
 mini-coi.js :
@@ -42,7 +42,7 @@ TinyBasic-wasi.wasm : ../TinyBasic/assembly/wasi.ts ../TinyBasic/assembly/core.t
 
 # Published standalone (not just a side effect of 4th.wasm/5th.wasm/6th.wasm
 # above): the how-many-roads post's tab strip hardcodes /blog/wasi-repl.mjs
-# directly (jburgy/jburgy.github.io) -- startRepl(wasmUrl, preambleUrl) takes
+# directly (jburgy/jburgy.github.io) -- startRepl(wasmUrl, preamble) takes
 # the two things that differ per interpreter as plain arguments, so there's
 # no per-post copy to keep in sync.
 wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs
@@ -94,12 +94,19 @@ jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 	@mkdir -p $(@D)
 	cp $< $@
 
+# The deployed eliza.lisp: lisp-wasi.wasm's own preamble (see
+# assets/index.html's data-preamble), same "copy into a same-named
+# subdirectory next to wasi-repl.mjs" convention as jonesforth/jonesforth.f.
+lisp/eliza.lisp : ../lisp/eliza.lisp
+	@mkdir -p $(@D)
+	cp $< $@
+
 # Local stand-in for GitHub Pages' cross-origin-isolated setup (see serve-e2e.mjs).
 # Excludes regexp/fourt2py/ising/resistor-network (not file-tracked); `make` those first if needed.
-serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm mini-coi.js
+serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm mini-coi.js lisp/eliza.lisp
 	node serve-e2e.mjs --skip-jekyll-build
 
 .PHONY : regexp fourt2py ising resistor-network serve-e2e
 
 clean :
-	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth worker.js wasi-worker.js regexp forth fourt2py ising resistor-network mini-coi.js
+	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth lisp worker.js wasi-worker.js regexp forth fourt2py ising resistor-network mini-coi.js
