@@ -1,14 +1,11 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = [
-#     "interpreters-pep-734",
-# ]
 # ///
 
 try:
-    import _xxsubinterpreters as interpreters  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
-except ModuleNotFoundError:
-    from interpreters_backport import interpreters
+    from concurrent import interpreters  # ty: ignore[unresolved-import]
+except ImportError:
+    import _interpreters as interpreters  # pyright: ignore[reportMissingImports]
 
 from contextlib import closing
 
@@ -18,5 +15,5 @@ if run_string := getattr(interpreters, "run_string", None):
     run_string(interpreter, script)
     interpreters.destroy(interpreter)
 else:
-    with closing(interpreters.create()) as interpreter:
+    with closing(interpreters.create()) as interpreter:  # ty: ignore[invalid-argument-type]
         interpreter.exec(script)
