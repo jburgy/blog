@@ -1,0 +1,16 @@
+{
+  "private": true,
+  "workspaces": [
+    "TinyBasic",
+    "assets",
+    "forth",
+    "fourt2py",
+    "ising",
+    "lisp",
+    "regexp/*",
+    "resistor-network"
+  ],
+  "allowScripts": {
+    "puppeteer@24.43.1": true
+  }
+}
