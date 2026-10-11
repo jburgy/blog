@@ -475,11 +475,12 @@
 		</div>
 	</details>
 
-	<details data-wasm="TinyBasic-wasi.wasm" data-preamble="none">
+	<details data-wasm="TinyBasic-wasi.wasm" data-preamble="TinyBasic/tictactoe.bas">
 		<summary><a
 				href="https://github.com/jburgy/blog/blob/main/TinyBasic/assembly/core.ts"><code>TinyBasic/assembly/core.ts</code></a>
 			&mdash; <span class="desc">Tiny BASIC's original IL virtual machine, reimplemented in
-				AssemblyScript</span></summary>
+				AssemblyScript, play Tom Pittman's own
+				<a href="https://github.com/jburgy/blog/blob/main/TinyBasic/tictactoe.bas"><code>tic-tac-toe</code></a></span></summary>
 		<p>2023-03-16 &middot;
 			<a href="https://bur.gy/2023/03/16/put-it-in-a-brandy-snifter.html">When did Basic become
 				insulting?</a></p>
@@ -518,8 +519,9 @@
 
 		// Every REPL demo's startup output: the four jonesforth clones (fed
 		// jonesforth.f) print the "JONESFORTH VERSION" welcome banner;
-		// TinyBasic (data-preamble="none", no FORTH dictionary to load)
-		// prints a single ':' ready prompt; lisp-wasi.wasm's own preamble
+		// TinyBasic-wasi.wasm's own preamble (TinyBasic/tictactoe.bas, see
+		// its data-preamble) runs Tom Pittman's Tic-Tac-Toe and stops at its
+		// first "YOUR PLAY" prompt; lisp-wasi.wasm's own preamble
 		// (lisp/eliza.lisp, see its data-preamble) greets the user as soon
 		// as it loads, ending in "PROBLEM", then keeps reading and replying
 		// to plain sentences without ever returning to a bare prompt.
@@ -528,7 +530,7 @@
 			'6th-wasi.wasm': 'JONESFORTH VERSION',
 			'5th-wasi.wasm': 'JONESFORTH VERSION',
 			'4th-wasi.wasm': 'JONESFORTH VERSION',
-			'TinyBasic-wasi.wasm': ':',
+			'TinyBasic-wasi.wasm': 'YOUR PLAY',
 			'lisp-wasi.wasm': 'PROBLEM',
 		};
 
@@ -574,9 +576,9 @@
 				const { wasm, preamble } = details.dataset;
 				const container = details.querySelector('[data-role="terminal"]');
 				// data-preamble: absent -> jonesforth.f (startRepl's own default);
-				// "none" -> no preamble (TinyBasic-wasi.wasm); any other value is a
-				// path to a different command's own preamble, e.g. lisp-wasi.wasm's
-				// "lisp/eliza.lisp".
+				// "none" -> no preamble, for a WASI command with no use for one;
+				// any other value is a path to a different command's own
+				// preamble, e.g. "TinyBasic/tictactoe.bas" or "lisp/eliza.lisp".
 				const repl = startRepl(wasm, preamble === 'none' ? false : (preamble ?? true), container);
 				const expected = replReady[wasm];
 				smokeTest(details, `prints ${JSON.stringify(expected)}`, () => waitFor(() => repl.getOutput().includes(expected)), 60000);
