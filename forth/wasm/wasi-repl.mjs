@@ -73,6 +73,9 @@ export function startRepl(wasmUrl, preamble = true, container = "terminal") {
     let disposed = false;
     // Skip "ok" after the first idle: WELCOME's own one-time "OK " already covers it.
     let first = true;
+    // Set once an "output" chunk is a lone ":" with nothing else -- see its
+    // use below.
+    let lastWasBarePrompt = false;
 
     // Empty prompt always: "ok" (see 'idle' below) is output glued after the
     // interpreter's own text, not a read() prompt -- raw output written
@@ -104,7 +107,19 @@ export function startRepl(wasmUrl, preamble = true, container = "terminal") {
             case "output":
                 if (fd === 1 || fd === 2) {
                     output += data;
-                    rl.write(data);
+                    // A multi-line preamble (e.g. TinyBasic/tictactoe.bas,
+                    // ~70 stored lines) echoes its own bare ":" command
+                    // prompt once per line while loading -- faithful to the
+                    // real interpreter (it does this for every line it
+                    // reads, not just direct commands), but a wall of
+                    // identical prompts is pure noise with nothing else
+                    // interleaved. Collapse consecutive repeats down to the
+                    // single one a human typing one line at a time would
+                    // actually see; `output` above still keeps the true,
+                    // uncollapsed stream for getOutput() callers.
+                    const isBarePrompt = data === ":";
+                    if (!(isBarePrompt && lastWasBarePrompt)) rl.write(data);
+                    lastWasBarePrompt = isBarePrompt;
                 }
                 break;
             case "idle":

@@ -12,7 +12,7 @@
     "uwasi": "^1.6.0"
   },
   "scripts": {
-    "test": "npm run asbuild:wasi && node tests/wasi.mjs",
+    "test": "npm run asbuild:wasi && node tests/wasi.mjs && node tests/correctness.mjs",
     "asbuild:debug": "asc assembly/index.ts --target debug --use ScreenChar=assembly/host/ScreenChar --use KeyInChar=assembly/host/KeyInChar --use OutStr=assembly/host/OutStr",
     "asbuild:release": "asc assembly/index.ts --target release --use ScreenChar=assembly/host/ScreenChar --use KeyInChar=assembly/host/KeyInChar --use OutStr=assembly/host/OutStr",
     "asbuild:wasi": "asc assembly/wasi.ts --target wasi --use ScreenChar=assembly/wasiHost/ScreenChar --use KeyInChar=assembly/wasiHost/KeyInChar --use OutStr=assembly/wasiHost/OutStr",

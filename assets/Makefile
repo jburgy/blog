@@ -4,7 +4,7 @@ FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs we
 ISING = $(addprefix ising/,index.html demo.mjs lattice.mjs)
 RESISTOR_NETWORK = $(addprefix resistor-network/,index.html demo.mjs lattice.mjs)
 
-all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network mini-coi.js lisp/eliza.lisp
+all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network mini-coi.js lisp/eliza.lisp TinyBasic/tictactoe.bas
 
 # index.html loads this for cross-origin isolation (SharedArrayBuffer) without custom server headers.
 mini-coi.js :
@@ -101,9 +101,15 @@ lisp/eliza.lisp : ../lisp/eliza.lisp
 	@mkdir -p $(@D)
 	cp $< $@
 
+# The deployed tictactoe.bas: TinyBasic-wasi.wasm's own preamble (see
+# assets/index.html's data-preamble), same convention as lisp/eliza.lisp.
+TinyBasic/tictactoe.bas : ../TinyBasic/tictactoe.bas
+	@mkdir -p $(@D)
+	cp $< $@
+
 # Local stand-in for GitHub Pages' cross-origin-isolated setup (see serve-e2e.mjs).
 # Excludes regexp/fourt2py/ising/resistor-network (not file-tracked); `make` those first if needed.
-serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm mini-coi.js lisp/eliza.lisp
+serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm mini-coi.js lisp/eliza.lisp TinyBasic/tictactoe.bas
 	node serve-e2e.mjs --skip-jekyll-build
 
 .PHONY : regexp fourt2py ising resistor-network serve-e2e
