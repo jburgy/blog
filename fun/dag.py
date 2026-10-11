@@ -45,6 +45,19 @@ class _BaseEntry(ABC):
 
 
 class PartialEntry(partial, _BaseEntry):
+    """
+    >>> parent = PartialEntry(lambda: 1)
+    >>> child = PartialEntry(lambda: 2)
+    >>> parent.value, child.value
+    (1, 2)
+    >>> child.children.add(parent)
+    >>> child.valid, parent.valid
+    (True, True)
+    >>> child.invalidate()
+    >>> child.valid, parent.valid
+    (False, False)
+    """
+
     children: WeakSet
 
     def __new__(cls, func, *args, **keywords):
@@ -73,6 +86,19 @@ class WeakSetEntry(WeakSet, _BaseEntry):
 
 
 class DelegateEntry(_BaseEntry):
+    """
+    >>> parent = DelegateEntry(lambda: 1)
+    >>> child = DelegateEntry(lambda: 2)
+    >>> parent.value, child.value
+    (1, 2)
+    >>> child.children.add(parent)
+    >>> child.valid, parent.valid
+    (True, True)
+    >>> child.invalidate()
+    >>> child.valid, parent.valid
+    (False, False)
+    """
+
     def __init__(self, user_function, *args, **keywords):
         self.partial = partial(user_function, *args, **keywords)
         self.hashvalue = hash(self.partial)
@@ -100,10 +126,17 @@ def _dagify(
     def cached_function(*args, **kwds):
         return Entry(user_function, *args, **kwds)
 
-    @wraps(cached_function)
+    @wraps(user_function)
     def epilogue(*args, **kwds):
         with cached_function(*args, **kwds) as entry:
             return entry.value
+
+    # cache_info/cache_clear are C-level descriptors on the lru_cache
+    # wrapper, not entries in its __dict__, so wraps() above can't copy
+    # them: bind them onto epilogue explicitly.
+    epilogue.cache_info = cached_function.cache_info
+    epilogue.cache_clear = cached_function.cache_clear
+    epilogue.cache_parameters = cached_function.cache_parameters
 
     return epilogue
 
