@@ -5,16 +5,18 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>ELIZA &mdash; on SLIP, in Rust, in WebAssembly</title>
+	<link rel="stylesheet" href="./demo.css">
 	<style>
 		:root {
 			color-scheme: light dark;
-			--accent: #3b82f6;
 		}
 
 		body {
 			margin: 0 auto;
 			max-width: 46rem;
 			height: 100dvh;
+			padding-inline: 1rem;
+			box-sizing: border-box;
 			display: grid;
 			grid-template-rows: auto 1fr;
 			font: 16px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -22,65 +24,8 @@
 
 		h1 {
 			margin: 0;
-			padding: .75rem 1rem 0;
+			padding-top: .75rem;
 			font-size: 1.25rem;
-		}
-
-		/* The panel's own rules also live, scoped under .demo--slip, in assets/index.html. */
-		.slip {
-			display: grid;
-			grid-template-rows: auto 1fr auto;
-			min-height: 0;
-		}
-
-		.slip>p,
-		.slip form {
-			margin: 0;
-			padding: .75rem 1rem;
-		}
-
-		/* [1] [2] ... like an IPython session */
-		@counter-style bracketed {
-			system: extends decimal;
-			prefix: "[";
-			suffix: "] ";
-		}
-
-		.slip ol {
-			list-style: bracketed;
-			margin: 0;
-			padding: 0 1rem 0 4rem;
-			overflow-y: auto;
-		}
-
-		.slip li {
-			margin-block: .75rem;
-		}
-
-		.slip li::marker {
-			color: var(--accent);
-		}
-
-		.slip li p {
-			margin: 0;
-		}
-
-		/* the reply is set apart by a rule on its left */
-		.slip .eliza {
-			margin-top: .25rem;
-			padding-inline-start: .75rem;
-			border-inline-start: 3px solid var(--accent);
-		}
-
-		.slip form {
-			display: flex;
-			gap: .5rem;
-			border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-		}
-
-		.slip input {
-			flex: 1;
-			font: inherit;
 		}
 	</style>
 </head>

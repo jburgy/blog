@@ -88,7 +88,7 @@ cd slip && cargo run
 
 ### In the browser
 
-[`web/`](web) is a no-dependency HTML5 version of the same thing, styled like an IPython session. `src/web.rs` exports three C-ABI functions (no wasm-bindgen), [`web/worker.mjs`](web/worker.mjs) loads the module in a web worker, and [`web/demo.mjs`](web/demo.mjs) (mounted by both [`web/index.html`](web/index.html) and `assets/index.html`) is a plain `<form>` that appends one `<li>` per turn (statement plus reply) to an `<ol>` whose markers are `[1]`, `[2]`, ...
+[`web/`](web) is a no-dependency HTML5 version of the same thing, styled like an IPython session. `src/web.rs` exports three C-ABI functions (no wasm-bindgen), [`web/worker.mjs`](web/worker.mjs) loads the module in a web worker, and [`web/demo.mjs`](web/demo.mjs) and [`web/demo.css`](web/demo.css) (used by both [`web/index.html`](web/index.html) and `assets/index.html`) is a plain `<form>` that appends one `<li>` per turn (statement plus reply) to an `<ol>` whose markers are `[1]`, `[2]`, ...
 
 ```sh
 cd assets && make slip && python3 -m http.server   # then open /slip/

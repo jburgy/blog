@@ -3,7 +3,7 @@ REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/for
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 ISING = $(addprefix ising/,index.html demo.mjs lattice.mjs)
 RESISTOR_NETWORK = $(addprefix resistor-network/,index.html demo.mjs lattice.mjs)
-SLIP = $(addprefix slip/,index.html demo.mjs worker.mjs)
+SLIP = $(addprefix slip/,index.html demo.css demo.mjs worker.mjs)
 
 .DEFAULT_GOAL := all
 all :
