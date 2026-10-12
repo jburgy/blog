@@ -10,6 +10,12 @@
     "regexp/*",
     "resistor-network"
   ],
+  "overrides": {
+    "@puppeteer/browsers": "^3.0.0",
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "^5.0.0"
+    }
+  },
   "allowScripts": {
     "puppeteer@24.43.1": true
   }

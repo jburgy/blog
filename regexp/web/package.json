@@ -14,10 +14,6 @@
     "mocha-headless-chrome": "^5.1.0",
     "nyc": "^18.0.0"
   },
-  "overrides": {
-    "@puppeteer/browsers": "^3.0.0",
-    "js-yaml": "^4.1.0"
-  },
   "allowScripts": {
     "puppeteer@24.43.1": true
   }

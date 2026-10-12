@@ -16,9 +16,6 @@
     "test:node": "vitest run --coverage",
     "test:web": "vitest run web/"
   },
-  "overrides": {
-    "@puppeteer/browsers": "^3.0.0"
-  },
   "allowScripts": {
     "puppeteer@24.43.1": true
   }
