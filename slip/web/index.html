@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ELIZA &mdash; on SLIP, in Rust, in WebAssembly</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+			--accent: #3b82f6;
+		}
+
+		body {
+			margin: 0 auto;
+			max-width: 46rem;
+			height: 100dvh;
+			display: grid;
+			grid-template-rows: auto 1fr auto;
+			font: 16px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+		}
+
+		header,
+		form {
+			padding: .75rem 1rem;
+		}
+
+		h1 {
+			margin: 0;
+			font-size: 1.25rem;
+		}
+
+		/* [1] [2] ... like an IPython session */
+		@counter-style bracketed {
+			system: extends decimal;
+			prefix: "[";
+			suffix: "] ";
+		}
+
+		ol {
+			list-style: bracketed;
+			margin: 0;
+			padding: 0 1rem 0 4rem;
+			overflow-y: auto;
+		}
+
+		li {
+			margin-block: .75rem;
+		}
+
+		li::marker {
+			color: var(--accent);
+		}
+
+		p {
+			margin: 0;
+		}
+
+		/* the reply is set apart by a rule on its left */
+		.eliza {
+			margin-top: .25rem;
+			padding-inline-start: .75rem;
+			border-inline-start: 3px solid var(--accent);
+		}
+
+		form {
+			display: flex;
+			gap: .5rem;
+			border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+		}
+
+		input {
+			flex: 1;
+			font: inherit;
+		}
+	</style>
+</head>
+
+<body>
+	<header>
+		<h1>ELIZA</h1>
+		<p>HOW DO YOU DO. PLEASE TELL ME YOUR PROBLEM</p>
+	</header>
+	<ol aria-label="Conversation" aria-live="polite"></ol>
+	<form>
+		<input name="say" aria-label="Say something" placeholder="Say something&hellip;" autocomplete="off" autofocus
+			required>
+		<button>Send</button>
+	</form>
+	<template>
+		<li>
+			<p class="you"></p>
+			<p class="eliza"></p>
+		</li>
+	</template>
+
+	<script type="module">
+		const log = document.querySelector("ol");
+		const form = document.querySelector("form");
+		const turn = document.querySelector("template");
+		const worker = new Worker("worker.mjs", { type: "module" });
+		const waiting = []; // replies arrive in the order statements were sent
+		worker.onmessage = ({ data }) => waiting.shift()(data);
+
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			const say = new FormData(form).get("say").trim();
+			if (!say) return;
+			const reply = await new Promise((resolve) => {
+				waiting.push(resolve);
+				worker.postMessage(say);
+			});
+			const li = turn.content.cloneNode(true).firstElementChild;
+			li.querySelector(".you").textContent = say;
+			li.querySelector(".eliza").textContent = reply;
+			log.append(li);
+			li.scrollIntoView();
+			form.reset();
+		});
+	</script>
+</body>
+
+</html>

@@ -3,6 +3,8 @@
 //! full write-up of what maps onto `std`/crates and what doesn't.
 
 pub mod eliza;
+#[cfg(target_arch = "wasm32")]
+mod web;
 
 use intrusive_collections::linked_list::Cursor;
 use intrusive_collections::{LinkedList, LinkedListLink, intrusive_adapter};

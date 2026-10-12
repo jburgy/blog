@@ -25,11 +25,13 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - uses: dtolnay/rust-toolchain@nightly
         with:
-          targets: wasm32-wasip1
+          targets: wasm32-wasip1, wasm32-unknown-unknown
           components: rust-src
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: forth
+          workspaces: |
+            forth
+            slip
       - run: make --jobs=4
       - uses: actions/upload-pages-artifact@v5
         with:

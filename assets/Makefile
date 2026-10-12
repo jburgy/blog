@@ -3,8 +3,9 @@ REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/for
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 ISING = $(addprefix ising/,index.html demo.mjs lattice.mjs)
 RESISTOR_NETWORK = $(addprefix resistor-network/,index.html demo.mjs lattice.mjs)
+SLIP = $(addprefix slip/,index.html worker.mjs)
 
-all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network mini-coi.js lisp/eliza.lisp TinyBasic/tictactoe.bas
+all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network slip mini-coi.js lisp/eliza.lisp TinyBasic/tictactoe.bas
 
 # index.html loads this for cross-origin isolation (SharedArrayBuffer) without custom server headers.
 mini-coi.js :
@@ -83,6 +84,18 @@ $(RESISTOR_NETWORK) : resistor-network/% : ../resistor-network/%
 	@mkdir -p $(@D)
 	cp $< $@
 
+slip : $(SLIP) slip/slip.wasm
+
+$(SLIP) : slip/% : ../slip/web/%
+	@mkdir -p $(@D)
+	cp $< $@
+
+# wasm32-unknown-unknown, not wasip1: slip/src/web.rs needs no imports at all.
+slip/slip.wasm : ../slip/Cargo.toml $(wildcard ../slip/src/*.rs)
+	@mkdir -p $(@D)
+	cd ../slip && cargo build --release --lib --target wasm32-unknown-unknown
+	cp ../slip/target/wasm32-unknown-unknown/release/slip.wasm $@
+
 %.js: ../forth/wasm/%.js
 	cp $< $@
 
@@ -119,7 +132,7 @@ TinyBasic/tictactoe.bas : ../TinyBasic/tictactoe.bas
 serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm mini-coi.js lisp/eliza.lisp TinyBasic/tictactoe.bas
 	node serve-e2e.mjs --skip-jekyll-build
 
-.PHONY : regexp fourt2py ising resistor-network serve-e2e
+.PHONY : regexp fourt2py ising resistor-network slip serve-e2e
 
 clean :
-	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth lisp TinyBasic worker.js wasi-worker.js regexp forth fourt2py ising resistor-network mini-coi.js
+	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth lisp TinyBasic worker.js wasi-worker.js regexp forth fourt2py ising resistor-network slip mini-coi.js

@@ -4,6 +4,15 @@ version = "0.0.0"
 edition = "2024"
 publish = false
 
+[lib]
+# cdylib is the wasm module web/worker.mjs loads; rlib keeps the tests and the REPL binary working.
+crate-type = ["rlib", "cdylib"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+
 [dependencies]
 # Embeds the link fields directly in the record, the closest safe-Rust
 # equivalent of a FORTRAN array of fixed-size cells with built-in NEXT/PREV
