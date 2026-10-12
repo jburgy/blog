@@ -156,8 +156,7 @@ TinyBasic/tictactoe.bas : ../TinyBasic/tictactoe.bas
 $(call part,TinyBasic/tictactoe.bas,TinyBasic)
 
 # Local stand-in for GitHub Pages' cross-origin-isolated setup (see serve-e2e.mjs).
-# Excludes regexp/fourt2py/ising/resistor-network (not file-tracked); `make` those first if needed.
-serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm jonesforth.wasm localize.wasm tabulate.wasm mini-coi.js lisp/eliza.lisp TinyBasic/tictactoe.bas
+serve-e2e : all
 	node serve-e2e.mjs --skip-jekyll-build
 
 .PHONY : regexp fourt2py ising resistor-network slip serve-e2e
