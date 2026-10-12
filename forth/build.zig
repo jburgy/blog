@@ -57,6 +57,8 @@ pub fn build(b: *Build) void {
             .dest_dir = .{ .override = .{ .custom = "web/wasi" } },
         } else .{});
         b.getInstallStep().dependOn(&install.step);
+        // `zig build install-6th` builds just one executable.
+        b.step(b.fmt("install-{s}", .{name}), b.fmt("Install {s} only", .{name})).dependOn(&install.step);
 
         const tests = b.addTest(.{
             .name = b.fmt("{s}-tests", .{name}),

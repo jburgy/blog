@@ -17,15 +17,15 @@ mini-coi.js :
 # build.zig's buildWasi. Named <name>-wasi.wasm, not <name>.wasm, to match
 # 4th-wasi.wasm/5th-wasi.wasm below.
 6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
-	cd ../forth && uvx --from ziglang==0.17.0 python-zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call
+	cd ../forth && uvx --from ziglang==0.17.0 python-zig build install-6th -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call -Doptimize=ReleaseSmall
 	cp ../forth/zig-out/web/wasi/6th.wasm $@
 
 # wasi-sdk clang (deploy.yml: bytecodealliance/setup-wasi-sdk-action).
 4th-wasi.wasm : ../forth/4th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
-	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -o $@ $<
+	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -Oz -s -o $@ $<
 
 5th-wasi.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
-	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DNO_LIBC_SYSCALL_NUMS -mtail-call -o $@ $<
+	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DNO_LIBC_SYSCALL_NUMS -mtail-call -Oz -s -o $@ $<
 
 4th-rs-wasi.wasm : ../forth/4th.rs ../forth/Cargo.toml worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	cd ../forth && CARGO_TARGET_DIR=target/wasi-repl rustup run nightly cargo build --release --target wasm32-wasip1 --bin 4th -Zbuild-std=std,panic_unwind

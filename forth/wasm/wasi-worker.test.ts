@@ -77,7 +77,7 @@ beforeAll(async () => {
 
     // zig build -Dtarget=wasm32-wasi (see build.zig's buildWasi)
     await execFileAsync('zig', [
-        'build',
+        'build', 'install-6th',
         '-Dtarget=wasm32-wasi', '-Dcpu=baseline+tail_call',
         '--prefix', tmpDir,
     ], { cwd: join(import.meta.dirname, '..') });
