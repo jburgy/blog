@@ -11,8 +11,9 @@ use std::collections::HashMap;
 
 use crate::{CellAdapter, List, Payload, Reader, cell, list_of};
 
-// (keywords, rank, [(decomposition, [reassembly])]); the last decomposition
-// of each rule must be the catch-all "0".
+// (keywords, rank, [(decomposition, [reassembly])]). Candidate rules are tried
+// by descending rank; a rule none of whose decompositions match falls through
+// to the next one. In a reassembly, `$` is the keyword that selected the rule.
 type Script = &'static [(
     &'static str,
     u8,
@@ -22,7 +23,7 @@ type Script = &'static [(
 const SCRIPT: Script = &[
     (
         "SORRY",
-        0,
+        80,
         &[(
             "0",
             &[
@@ -64,7 +65,7 @@ const SCRIPT: Script = &[
     ),
     (
         "DREAM DREAMS",
-        3,
+        70,
         &[(
             "0",
             &[
@@ -92,8 +93,8 @@ const SCRIPT: Script = &[
         )],
     ),
     (
-        "MOTHER FATHER SISTER BROTHER WIFE HUSBAND CHILDREN",
-        2,
+        "MOTHER FATHER SISTER BROTHER PARENTS FAMILY WIFE HUSBAND CHILDREN",
+        60,
         &[(
             "0",
             &[
@@ -164,7 +165,33 @@ const SCRIPT: Script = &[
     ),
     (
         "I",
-        0,
+        100,
+        &[
+            (
+                "0 I AM 0",
+                &[
+                    "IS IT BECAUSE YOU ARE 4 THAT YOU CAME TO ME",
+                    "HOW LONG HAVE YOU BEEN 4",
+                    "DO YOU BELIEVE IT IS NORMAL TO BE 4",
+                    "DO YOU ENJOY BEING 4",
+                    "PLEASE TELL ME WHY YOU THINK YOU ARE 4",
+                ],
+            ),
+            ("0 I HAVE 0", &["HOW LONG HAVE YOU HAD 4"]),
+            (
+                "0 I FEEL 0",
+                &[
+                    "TELL ME MORE ABOUT SUCH FEELINGS",
+                    "DO YOU OFTEN FEEL 4",
+                    "DO YOU ENJOY FEELING 4",
+                    "SOMETIMES I FEEL THE SAME WAY",
+                ],
+            ),
+        ],
+    ),
+    (
+        "I",
+        21,
         &[
             (
                 "0 I NEED 0",
@@ -183,23 +210,6 @@ const SCRIPT: Script = &[
                 ],
             ),
             (
-                "0 I AM 0",
-                &[
-                    "IS IT BECAUSE YOU ARE 4 THAT YOU CAME TO ME",
-                    "HOW LONG HAVE YOU BEEN 4",
-                    "DO YOU BELIEVE IT IS NORMAL TO BE 4",
-                    "DO YOU ENJOY BEING 4",
-                ],
-            ),
-            (
-                "0 I FEEL 0",
-                &[
-                    "TELL ME MORE ABOUT SUCH FEELINGS",
-                    "DO YOU OFTEN FEEL 4",
-                    "DO YOU ENJOY FEELING 4",
-                ],
-            ),
-            (
                 "0 I CAN'T 0",
                 &[
                     "HOW DO YOU KNOW YOU CAN'T 4",
@@ -207,19 +217,42 @@ const SCRIPT: Script = &[
                     "PERHAPS YOU COULD 4 NOW",
                 ],
             ),
-            (
-                "0",
-                &[
-                    "YOU SAY 1",
-                    "CAN YOU ELABORATE ON THAT",
-                    "DO YOU SAY 1 FOR SOME SPECIAL REASON",
-                ],
-            ),
         ],
     ),
     (
-        "BECAUSE",
+        "I",
         0,
+        &[(
+            "0",
+            &[
+                "YOU SAY 1",
+                "CAN YOU ELABORATE ON THAT",
+                "DO YOU SAY 1 FOR SOME SPECIAL REASON",
+            ],
+        )],
+    ),
+    ("BYE", 30, &[("0", &["GOODBYE AND TAKE CARE"])]),
+    (
+        "HOPE THINK WANT PREFER NEED WISH",
+        20,
+        &[("0", &["DO YOU REALLY $"])],
+    ),
+    (
+        "GO HAVE BE TRY EAT TAKE HELP MAKE GET JUMP WRITE TYPE FILL PUT TURN COMPUTE CRY KILL DRINK CRASH ADD",
+        15,
+        &[(
+            "0",
+            &["WHY HAVE YOU DECIDED THAT TO $ IS IMPORTANT FOR YOU"],
+        )],
+    ),
+    (
+        "WHY WHERE WHEN WHAT WHICH HOW",
+        10,
+        &[("0", &["I KEEP MY OPINION ON $ FOR MYSELF"])],
+    ),
+    (
+        "BECAUSE",
+        90,
         &[(
             "0",
             &[
@@ -231,7 +264,7 @@ const SCRIPT: Script = &[
     ),
     (
         "YES",
-        0,
+        40,
         &[(
             "0",
             &[
@@ -244,7 +277,7 @@ const SCRIPT: Script = &[
     ),
     (
         "NO",
-        0,
+        35,
         &[(
             "0",
             &[
@@ -299,6 +332,7 @@ const REFLECTIONS: &[(&str, &str)] = &[
 
 enum Part {
     Word(i64),
+    Key,
     Slot(usize),
 }
 
@@ -370,7 +404,7 @@ fn decompose(runs: &[Vec<i64>], mut words: Reader) -> Option<Vec<Vec<i64>>> {
 pub struct Eliza {
     vocab: Vocab,
     rules: Vec<Rule>,
-    keywords: HashMap<i64, usize>,
+    keywords: HashMap<i64, Vec<usize>>,
     none: usize,
     reflect: HashMap<i64, i64>,
 }
@@ -385,7 +419,7 @@ impl Eliza {
     pub fn new() -> Self {
         let mut vocab = Vocab::default();
         let mut rules = Vec::new();
-        let mut keywords = HashMap::new();
+        let mut keywords: HashMap<i64, Vec<usize>> = HashMap::new();
         let mut none = 0;
         for (keys, rank, decomps) in SCRIPT {
             let decomps = decomps
@@ -406,6 +440,7 @@ impl Eliza {
                             t.split_whitespace()
                                 .map(|w| match w.parse() {
                                     Ok(n) => Part::Slot(n),
+                                    Err(_) if w == "$" => Part::Key,
                                     Err(_) => Part::Word(vocab.code(w)),
                                 })
                                 .collect()
@@ -418,7 +453,10 @@ impl Eliza {
                 none = rules.len();
             } else {
                 for key in keys.split_whitespace() {
-                    keywords.insert(vocab.code(key), rules.len());
+                    keywords
+                        .entry(vocab.code(key))
+                        .or_default()
+                        .push(rules.len());
                 }
             }
             rules.push(Rule {
@@ -441,7 +479,7 @@ impl Eliza {
 
     pub fn reply(&mut self, line: &str) -> String {
         let upper = line.to_uppercase();
-        // Like Weizenbaum's ELIZA, only the first clause containing a keyword is used.
+        // Like Weizenbaum's ELIZA, only the first clause some rule applies to is used.
         for clause in upper.split([',', '.', ';', '?', '!']) {
             let sentence = list_of(
                 clause
@@ -449,19 +487,30 @@ impl Eliza {
                     .split_whitespace()
                     .map(|w| self.vocab.code(w)),
             );
-            // min_by_key keeps the first minimum, so the earliest keyword wins a rank tie.
-            let best = Reader::new(&sentence)
-                .filter_map(|p| self.keywords.get(&atom(p)).copied())
-                .min_by_key(|&r| Reverse(self.rules[r].rank));
-            if let Some(reply) = best.and_then(|r| self.apply(r, &sentence)) {
+            let mut candidates: Vec<(usize, i64)> = Reader::new(&sentence)
+                .flat_map(|p| {
+                    let key = atom(p);
+                    self.keywords
+                        .get(&key)
+                        .into_iter()
+                        .flatten()
+                        .map(move |&r| (r, key))
+                })
+                .collect();
+            // The sort is stable, so the earliest keyword wins a rank tie.
+            candidates.sort_by_key(|&(r, _)| Reverse(self.rules[r].rank));
+            if let Some(reply) = candidates
+                .into_iter()
+                .find_map(|(r, key)| self.apply(r, key, &sentence))
+            {
                 return reply;
             }
         }
-        self.apply(self.none, &List::new(CellAdapter::new()))
+        self.apply(self.none, 0, &List::new(CellAdapter::new()))
             .expect("NONE has a catch-all")
     }
 
-    fn apply(&mut self, rule: usize, input: &List) -> Option<String> {
+    fn apply(&mut self, rule: usize, key: i64, input: &List) -> Option<String> {
         let (decomp, captured) = self.rules[rule]
             .decomps
             .iter_mut()
@@ -473,6 +522,7 @@ impl Eliza {
         for part in template {
             let payload = match part {
                 Part::Word(c) => Payload::Atom(*c),
+                Part::Key => Payload::Atom(key),
                 Part::Slot(n) => Payload::Sublist(list_of(
                     captured[n - 1]
                         .iter()
