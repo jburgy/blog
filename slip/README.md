@@ -74,3 +74,14 @@ auto-flattens it back into one sentence.
 ```sh
 cd slip && cargo test
 ```
+
+## Running ELIZA
+
+[`src/eliza.rs`](src/eliza.rs) is a complete (if trimmed-down) DOCTOR on top
+of these lists: keyword ranks, `0`-wildcard decomposition patterns, numbered
+reassembly slots that splice the reflected capture in as a `Sublist`, cycling
+templates, and a `NONE` fallback. Type `bye` to quit.
+
+```sh
+cd slip && cargo run
+```

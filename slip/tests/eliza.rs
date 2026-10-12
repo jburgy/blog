@@ -53,3 +53,30 @@ fn eliza_reassembly_flattens_a_captured_sublist() {
     );
     assert_eq!(reader.depth(), 0); // fully drained, popped back out of every level
 }
+
+#[test]
+fn full_eliza_session() {
+    let mut eliza = slip::eliza::Eliza::new();
+    assert_eq!(
+        eliza.reply("I need a vacation."),
+        "WHAT WOULD IT MEAN TO YOU IF YOU GOT A VACATION"
+    );
+    // Second hit on the same pattern cycles to the next template.
+    assert_eq!(
+        eliza.reply("I need a vacation"),
+        "WHY DO YOU NEED A VACATION"
+    );
+    // Captures are reflected (MY -> YOUR, ME -> YOU), highest rank wins.
+    assert_eq!(
+        eliza.reply("I'm sad, my mother hates me"),
+        "IS IT BECAUSE YOU ARE SAD THAT YOU CAME TO ME"
+    );
+    assert_eq!(
+        eliza.reply("My boss hates me"),
+        "WHY DO YOU SAY YOUR BOSS HATES YOU"
+    );
+    assert_eq!(
+        eliza.reply("What a day"),
+        "I'M NOT SURE I UNDERSTAND YOU FULLY"
+    );
+}
