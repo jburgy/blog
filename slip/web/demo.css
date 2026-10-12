@@ -1,0 +1,58 @@
+/* The panel built by demo.mjs's createPanel: a greeting, an IPython-style
+   numbered conversation and an input form. Sizing is left to the host page. */
+.slip {
+	--accent: #3b82f6;
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	min-height: 0;
+}
+
+.slip p {
+	margin: 0;
+	opacity: 1;
+}
+
+.slip>p,
+.slip form {
+	padding-block: .5rem;
+}
+
+/* [1] [2] ... */
+@counter-style bracketed {
+	system: extends decimal;
+	prefix: "[";
+	suffix: "] ";
+}
+
+.slip ol {
+	list-style: bracketed;
+	margin: 0;
+	padding: 0 0 0 3.5rem;
+	overflow-y: auto;
+}
+
+.slip li {
+	margin-block: .75rem;
+}
+
+.slip li::marker {
+	color: var(--accent);
+}
+
+/* the reply is set apart by a rule on its left */
+.slip .eliza {
+	margin-top: .25rem;
+	padding-inline-start: .75rem;
+	border-inline-start: 3px solid var(--accent);
+}
+
+.slip form {
+	display: flex;
+	gap: .5rem;
+	border-top: 1px solid rgba(128, 128, 128, .4);
+}
+
+.slip input {
+	flex: 1;
+	font: inherit;
+}

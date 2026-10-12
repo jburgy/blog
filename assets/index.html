@@ -9,6 +9,7 @@
 	<link rel="icon"
 		href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🫕</text></svg>">
 	<link rel="stylesheet" href="https://esm.sh/@xterm/xterm@5.5.0/css/xterm.css" crossorigin="anonymous">
+	<link rel="stylesheet" href="./slip/demo.css">
 	<style>
 		:root {
 			color-scheme: light dark;
@@ -306,6 +307,11 @@
 			opacity: .75;
 		}
 
+		/* The panel's own rules are in slip/demo.css; only its size is set here. */
+		.demo--slip .slip {
+			height: 24rem;
+		}
+
 		/* regexp/web/index.html's demo-specific rules, scoped under
 		   .demo--regexp. */
 		.demo--regexp {
@@ -395,6 +401,14 @@
 		Demos built from <a href="https://github.com/jburgy/blog">jburgy/blog</a>, latest first. Each entry links
 		to the source it is built from; open it to run the demo in place.
 	</p>
+
+	<details data-module="./slip/demo.mjs">
+		<summary><a href="https://github.com/jburgy/blog/blob/main/slip/src/eliza.rs"><code>slip/src/eliza.rs</code></a>
+			&mdash; <span class="desc">Weizenbaum's SLIP list library in Rust (intrusive linked lists) with ELIZA
+				built on it, compiled to <code>wasm32-unknown-unknown</code> and run in a web worker</span></summary>
+		<p>No post yet.</p>
+		<div class="demo demo--slip" data-role="panel"></div>
+	</details>
 
 	<details data-module="./resistor-network/demo.mjs">
 		<summary><a

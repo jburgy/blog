@@ -2,6 +2,10 @@
 //! the list-processing library ELIZA was written in. See README.md for the
 //! full write-up of what maps onto `std`/crates and what doesn't.
 
+pub mod eliza;
+#[cfg(target_arch = "wasm32")]
+mod web;
+
 use intrusive_collections::linked_list::Cursor;
 use intrusive_collections::{LinkedList, LinkedListLink, intrusive_adapter};
 
@@ -45,6 +49,7 @@ pub fn list_of(atoms: impl IntoIterator<Item = i64>) -> List {
 /// -- a good example of a memento pattern" -- hence one cursor per nesting
 /// level rather than a single flat position. Each Reader only holds `&'a`
 /// borrows, so several can scan the same list independently.
+#[derive(Clone)]
 pub struct Reader<'a> {
     stack: Vec<Cursor<'a, CellAdapter>>,
 }

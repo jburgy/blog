@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ELIZA &mdash; on SLIP, in Rust, in WebAssembly</title>
+	<link rel="stylesheet" href="./demo.css">
+	<style>
+		:root {
+			color-scheme: light dark;
+		}
+
+		body {
+			margin: 0 auto;
+			max-width: 46rem;
+			height: 100dvh;
+			padding-inline: 1rem;
+			box-sizing: border-box;
+			display: grid;
+			grid-template-rows: auto 1fr;
+			font: 16px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+		}
+
+		h1 {
+			margin: 0;
+			padding-top: .75rem;
+			font-size: 1.25rem;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>ELIZA</h1>
+
+	<script type="module">
+		import { createPanel, attach } from './demo.mjs';
+
+		const panel = createPanel(document);
+		document.body.append(panel);
+		attach(panel);
+		panel.querySelector('input').focus();
+	</script>
+</body>
+
+</html>

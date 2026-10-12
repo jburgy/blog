@@ -74,3 +74,22 @@ auto-flattens it back into one sentence.
 ```sh
 cd slip && cargo test
 ```
+
+## Running ELIZA
+
+[`src/eliza.rs`](src/eliza.rs) is a complete (if trimmed-down) DOCTOR on top
+of these lists: keyword ranks, `0`-wildcard decomposition patterns, numbered
+reassembly slots that splice the reflected capture in as a `Sublist`, cycling
+templates, and a `NONE` fallback. Type `bye` to quit.
+
+```sh
+cd slip && cargo run
+```
+
+### In the browser
+
+[`web/`](web) is a no-dependency HTML5 version of the same thing, styled like an IPython session. `src/web.rs` exports three C-ABI functions (no wasm-bindgen), [`web/worker.mjs`](web/worker.mjs) loads the module in a web worker, and [`web/demo.mjs`](web/demo.mjs) and [`web/demo.css`](web/demo.css) (used by both [`web/index.html`](web/index.html) and `assets/index.html`) is a plain `<form>` that appends one `<li>` per turn (statement plus reply) to an `<ol>` whose markers are `[1]`, `[2]`, ...
+
+```sh
+cd assets && make slip && python3 -m http.server   # then open /slip/
+```
