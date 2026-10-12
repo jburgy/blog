@@ -76,7 +76,31 @@ fn full_eliza_session() {
         "WHY DO YOU SAY YOUR BOSS HATES YOU"
     );
     assert_eq!(
-        eliza.reply("What a day"),
+        eliza.reply("Nice weather"),
         "I'M NOT SURE I UNDERSTAND YOU FULLY"
+    );
+}
+
+#[test]
+fn lisp_parity() {
+    let mut eliza = slip::eliza::Eliza::new();
+    // "I AM" outranks MY, as (YOU ARE) does in lisp/eliza.lisp.
+    assert_eq!(
+        eliza.reply("I am worried about my exams"),
+        "IS IT BECAUSE YOU ARE WORRIED ABOUT YOUR EXAMS THAT YOU CAME TO ME"
+    );
+    assert_eq!(
+        eliza.reply("I have a zebra in my garage"),
+        "HOW LONG HAVE YOU HAD A ZEBRA IN YOUR GARAGE"
+    );
+    assert_eq!(eliza.reply("OK bye"), "GOODBYE AND TAKE CARE");
+    assert_eq!(eliza.reply("I hope it rains"), "DO YOU REALLY HOPE");
+    assert_eq!(
+        eliza.reply("What a day"),
+        "I KEEP MY OPINION ON WHAT FOR MYSELF"
+    );
+    assert_eq!(
+        eliza.reply("They write letters"),
+        "WHY HAVE YOU DECIDED THAT TO WRITE IS IMPORTANT FOR YOU"
     );
 }
