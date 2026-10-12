@@ -5,11 +5,11 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 // Registered synchronously: messages sent while the module loads would be lost after a top-level await.
-onmessage = async ({ data }) => {
+self.addEventListener("message", async ({ data }) => {
 	const { memory, alloc, say, reply_len } = await ready;
 	const bytes = encoder.encode(data);
 	const input = alloc(bytes.length);
 	new Uint8Array(memory.buffer, input, bytes.length).set(bytes);
 	const reply = say(input, bytes.length);
-	postMessage(decoder.decode(new Uint8Array(memory.buffer, reply, reply_len())));
-};
+	self.postMessage(decoder.decode(new Uint8Array(memory.buffer, reply, reply_len())));
+});

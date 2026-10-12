@@ -306,6 +306,63 @@
 			opacity: .75;
 		}
 
+		/* slip/web/index.html's demo-specific rules, scoped under .demo--slip. */
+		.demo--slip {
+			--accent: #3b82f6;
+		}
+
+		.demo--slip>div {
+			display: grid;
+			grid-template-rows: auto 1fr auto;
+			height: 24rem;
+		}
+
+		.demo--slip p {
+			margin: 0;
+			opacity: 1;
+		}
+
+		/* [1] [2] ... like an IPython session */
+		@counter-style bracketed {
+			system: extends decimal;
+			prefix: "[";
+			suffix: "] ";
+		}
+
+		.demo--slip ol {
+			list-style: bracketed;
+			margin: 0;
+			padding: 0 .5rem 0 3rem;
+			overflow-y: auto;
+		}
+
+		.demo--slip li {
+			margin-block: .5rem;
+		}
+
+		.demo--slip li::marker {
+			color: var(--accent);
+		}
+
+		/* the reply is set apart by a rule on its left */
+		.demo--slip .eliza {
+			margin-top: .25rem;
+			padding-inline-start: .75rem;
+			border-inline-start: 3px solid var(--accent);
+		}
+
+		.demo--slip form {
+			display: flex;
+			gap: .5rem;
+			padding-top: .5rem;
+			border-top: 1px solid rgba(128, 128, 128, .4);
+		}
+
+		.demo--slip input {
+			flex: 1;
+			font: inherit;
+		}
+
 		/* regexp/web/index.html's demo-specific rules, scoped under
 		   .demo--regexp. */
 		.demo--regexp {
@@ -395,6 +452,14 @@
 		Demos built from <a href="https://github.com/jburgy/blog">jburgy/blog</a>, latest first. Each entry links
 		to the source it is built from; open it to run the demo in place.
 	</p>
+
+	<details data-module="./slip/demo.mjs">
+		<summary><a href="https://github.com/jburgy/blog/blob/main/slip/src/eliza.rs"><code>slip/src/eliza.rs</code></a>
+			&mdash; <span class="desc">Weizenbaum's SLIP list library in Rust (intrusive linked lists) with ELIZA
+				built on it, compiled to <code>wasm32-unknown-unknown</code> and run in a web worker</span></summary>
+		<p>No post yet.</p>
+		<div class="demo demo--slip" data-role="panel"></div>
+	</details>
 
 	<details data-module="./resistor-network/demo.mjs">
 		<summary><a

@@ -3,16 +3,23 @@ REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/for
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
 ISING = $(addprefix ising/,index.html demo.mjs lattice.mjs)
 RESISTOR_NETWORK = $(addprefix resistor-network/,index.html demo.mjs lattice.mjs)
-SLIP = $(addprefix slip/,index.html worker.mjs)
+SLIP = $(addprefix slip/,index.html demo.mjs worker.mjs)
 
-all : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi.wasm TinyBasic-wasi.wasm wasi-repl.mjs wasi-repl-mocha.mjs jonesforth.wasm localize.wasm tabulate.wasm regexp fourt2py ising resistor-network slip mini-coi.js lisp/eliza.lisp TinyBasic/tictactoe.bas
+.DEFAULT_GOAL := all
+all :
+
+# $(call part,TARGETS[,REMOVE]) puts TARGETS in `all` and REMOVE (default TARGETS)
+# in `clean`, so each rule declares its own place right where it is defined.
+part = $(eval all : $(1))$(eval CLEAN += $(or $(2),$(1)))
 
 # index.html loads this for cross-origin isolation (SharedArrayBuffer) without custom server headers.
 mini-coi.js :
 	curl -LO https://raw.githubusercontent.com/WebReflection/mini-coi/main/mini-coi.js
+$(call part,mini-coi.js)
 
 %.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f worker.js wasi-worker.js
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
+$(call part,jonesforth.wasm localize.wasm tabulate.wasm)
 
 # uvx/python-zig, not a bare `zig build`: deploy.yml has no system zig. See
 # build.zig's buildWasi. Named <name>-wasi.wasm, not <name>.wasm, to match
@@ -20,26 +27,35 @@ mini-coi.js :
 6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	cd ../forth && uvx --from ziglang==0.17.0 python-zig build install-6th -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call -Doptimize=ReleaseSmall
 	cp ../forth/zig-out/web/wasi/6th.wasm $@
+$(call part,6th-wasi.wasm)
 
 # wasi-sdk clang (deploy.yml: bytecodealliance/setup-wasi-sdk-action).
 4th-wasi.wasm : ../forth/4th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -Oz -s -o $@ $<
+$(call part,4th-wasi.wasm)
 
 5th-wasi.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DNO_LIBC_SYSCALL_NUMS -mtail-call -Oz -s -o $@ $<
+$(call part,5th-wasi.wasm)
 
 4th-rs-wasi.wasm : ../forth/4th.rs ../forth/Cargo.toml worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	cd ../forth && CARGO_TARGET_DIR=target/wasi-repl rustup run nightly cargo build --release --target wasm32-wasip1 --bin 4th -Zbuild-std=std,panic_unwind
 	cp ../forth/target/wasi-repl/wasm32-wasip1/release/4th.wasm $@
+$(call part,4th-rs-wasi.wasm)
 
 # AssemblyScript (asc), not wasi-sdk/zig: wasi.ts/wasiHost.ts implement
 # wasi_snapshot_preview1 fd_read/fd_write themselves, driven by the same
 # worker.js/wasi-worker.js/wasi-repl.mjs harness as the C/Zig builds above.
 lisp-wasi.wasm : ../lisp/assembly/wasi.ts ../lisp/assembly/core.ts ../lisp/assembly/wasiHost.ts worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs
 	npm run asbuild:lisp-wasi
+$(call part,lisp-wasi.wasm)
 
 TinyBasic-wasi.wasm : ../TinyBasic/assembly/wasi.ts ../TinyBasic/assembly/core.ts ../TinyBasic/assembly/wasiHost.ts worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs
 	npm run asbuild:TinyBasic-wasi
+$(call part,TinyBasic-wasi.wasm)
+
+# What asc leaves next to the .wasm files above.
+CLEAN += *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js
 
 # Published standalone (not just a side effect of 4th.wasm/5th.wasm/6th.wasm
 # above): the how-many-roads post's tab strip hardcodes /blog/wasi-repl.mjs
@@ -48,6 +64,7 @@ TinyBasic-wasi.wasm : ../TinyBasic/assembly/wasi.ts ../TinyBasic/assembly/core.t
 # no per-post copy to keep in sync.
 wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs
 	cp $< $@
+$(call part,wasi-repl.mjs)
 
 # html/4th.html/5th.html/6th.html each load this directly from /assets/ (not
 # just a side effect of 4th.wasm/5th.wasm/6th.wasm): the in-browser mocha
@@ -55,8 +72,10 @@ wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs
 # one CI drives headless (see forth/browser/wasi-demo.mjs).
 wasi-repl-mocha.mjs : ../forth/wasm/wasi-repl-mocha.mjs
 	cp $< $@
+$(call part,wasi-repl-mocha.mjs)
 
 regexp : $(REGEXP) regexp/web/forth.wasm jonesforth/jonesforth.f
+$(call part,regexp)
 
 $(REGEXP) : regexp/% : ../regexp/%
 	@mkdir -p $(@D)
@@ -67,24 +86,28 @@ regexp/web/forth.wasm : ../forth/wasm/tabulate.wast
 	npx -y --package wabt wat2wasm --enable-multi-memory -o $@ $<
 
 fourt2py : $(FOURT2PY)
+$(call part,fourt2py)
 
 $(FOURT2PY) : fourt2py/% : ../fourt2py/%
 	@mkdir -p $(@D)
 	cp $< $@
 
 ising : $(ISING)
+$(call part,ising)
 
 $(ISING) : ising/% : ../ising/%
 	@mkdir -p $(@D)
 	cp $< $@
 
 resistor-network : $(RESISTOR_NETWORK)
+$(call part,resistor-network)
 
 $(RESISTOR_NETWORK) : resistor-network/% : ../resistor-network/%
 	@mkdir -p $(@D)
 	cp $< $@
 
 slip : $(SLIP) slip/slip.wasm
+$(call part,slip)
 
 $(SLIP) : slip/% : ../slip/web/%
 	@mkdir -p $(@D)
@@ -98,6 +121,7 @@ slip/slip.wasm : ../slip/Cargo.toml $(wildcard ../slip/src/*.rs)
 
 %.js: ../forth/wasm/%.js
 	cp $< $@
+CLEAN += worker.js wasi-worker.js
 
 # The deployed jonesforth.f: wasi-repl.mjs's one shared preamble for every
 # FORTH demo that doesn't bring its own (4th/5th/6th-wasi.wasm, jonesforth.wasm),
@@ -106,6 +130,7 @@ slip/slip.wasm : ../slip/Cargo.toml $(wildcard ../slip/src/*.rs)
 jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 	@mkdir -p $(@D)
 	cp $< $@
+CLEAN += jonesforth
 
 # The deployed 4th.32.fs: 4th-rs-wasi.wasm's own preamble (see
 # assets/index.html's data-preamble), same "copy into a same-named
@@ -113,6 +138,7 @@ jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 forth/4th.32.fs : ../forth/4th.32.fs
 	@mkdir -p $(@D)
 	cp $< $@
+CLEAN += forth
 
 # The deployed eliza.lisp: lisp-wasi.wasm's own preamble (see
 # assets/index.html's data-preamble), same "copy into a same-named
@@ -120,12 +146,14 @@ forth/4th.32.fs : ../forth/4th.32.fs
 lisp/eliza.lisp : ../lisp/eliza.lisp
 	@mkdir -p $(@D)
 	cp $< $@
+$(call part,lisp/eliza.lisp,lisp)
 
 # The deployed tictactoe.bas: TinyBasic-wasi.wasm's own preamble (see
 # assets/index.html's data-preamble), same convention as lisp/eliza.lisp.
 TinyBasic/tictactoe.bas : ../TinyBasic/tictactoe.bas
 	@mkdir -p $(@D)
 	cp $< $@
+$(call part,TinyBasic/tictactoe.bas,TinyBasic)
 
 # Local stand-in for GitHub Pages' cross-origin-isolated setup (see serve-e2e.mjs).
 # Excludes regexp/fourt2py/ising/resistor-network (not file-tracked); `make` those first if needed.
@@ -135,4 +163,4 @@ serve-e2e : 4th-wasi.wasm 5th-wasi.wasm 6th-wasi.wasm 4th-rs-wasi.wasm lisp-wasi
 .PHONY : regexp fourt2py ising resistor-network slip serve-e2e
 
 clean :
-	rm -rf wasi-repl.mjs wasi-repl-mocha.mjs *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js jonesforth lisp TinyBasic worker.js wasi-worker.js regexp forth fourt2py ising resistor-network slip mini-coi.js
+	rm -rf $(CLEAN)
