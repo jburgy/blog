@@ -58,9 +58,12 @@ function streamRead(stdin) {
                     lastYield = performance.now();
                 }
             } else {
-                // `done` (EOF) leaves `pending` empty, which reads back as 0 bytes.
-                const { value, done } = await reader.read();
-                if (!done) pending = value;
+                // Only `done` is EOF (leaves `pending` empty: 0 bytes); an empty chunk isn't.
+                while (!pending.length) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    pending = value;
+                }
             }
             view = memoryView(); // the guest's memory may have grown while suspended
             const bytes = pending.subarray(0, capacity);
@@ -108,6 +111,7 @@ export async function runWasiCommand(source, { stdin = new Blob().stream(), stdo
         ],
     });
     const { instance } = await WebAssembly.instantiateStreaming(source, { wasi_snapshot_preview1: wasi.wasiImport });
+    if (typeof instance.exports._start !== 'function') throw new Error('not a WASI command: no _start export');
     // setInstance, not start(): start() calls `_start` synchronously, without awaiting its promise.
     wasi.setInstance(instance);
     try {

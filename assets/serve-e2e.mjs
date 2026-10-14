@@ -14,7 +14,7 @@
 //     jburgy.github.io/docs/_includes/terminal.html) -- this script collapses
 //     that two-repo split onto one local origin/port.
 //   - COOP/COEP headers go on *every* response, mirroring production's
-//     cross-origin isolation (coi-serviceworker.js / mini-coi.js fake them
+//     cross-origin isolation (coi-serviceworker.js fakes them
 //     client-side there). The WASI REPL demos no longer need them -- JSPI
 //     needs no SharedArrayBuffer -- but other pages might.
 //

@@ -26,10 +26,11 @@ async function runScript(wasm: Uint8Array, ...input: (string | Uint8Array)[]) {
     return { code, out };
 }
 
-const wasm5th = await readFile(join(import.meta.dirname, '../5th.wasm'));
+// Read per test, not at load: 5th.wasm needs wasi-sdk, and a missing one must only fail its own tests.
+const read5th = () => readFile(join(import.meta.dirname, '../5th.wasm'));
 
 test('5th.wasm: a scripted session exits cleanly on EOF', async () => {
-    const { code, out } = await runScript(wasm5th, '65 EMIT\n');
+    const { code, out } = await runScript(await read5th(), '65 EMIT\n');
     expect(code).toBe(0);
     expect(out).toBe('A');
 });
@@ -46,7 +47,7 @@ test('5th.wasm: a scripted session exits cleanly on EOF', async () => {
 test('5th.wasm: (ARGC) is not S0 + CELL, so jonesforth.f\'s raw-stack ARGC/ARGV/ENVIRON ' +
     'trick cannot be revived under WASI', async () => {
     const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
-    const { code, out } = await runScript(wasm5th, preamble, '(ARGC) S0 @ 4 + = .\n');
+    const { code, out } = await runScript(await read5th(), preamble, '(ARGC) S0 @ 4 + = .\n');
     expect(code).toBe(0);
     // `out` also carries the boot banner, so compare only `.`'s own answer.
     expect(out.trim().split(/\s+/).pop()).toBe('0'); // -1 (true) would mean the addresses coincide
@@ -118,6 +119,25 @@ test.for([
 test('6th.wasm (wasm32-wasi): a scripted session exits cleanly on EOF', async () => {
     const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
     const { code, out } = await runScript(await readFile(sixthWasmPath), preamble, ': SQUARE DUP * ; 7 SQUARE .\n');
+    expect(code).toBe(0);
+    expect(out).toContain('49');
+});
+
+test('6th.wasm: an empty stdin chunk is not EOF', async () => {
+    const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
+    const stdin = new ReadableStream<Uint8Array>({
+        start(controller) {
+            controller.enqueue(new Uint8Array(0));
+            controller.enqueue(preamble);
+            controller.enqueue(new TextEncoder().encode(': SQUARE DUP * ; 7 SQUARE .\n'));
+            controller.close();
+        },
+    });
+    let out = '';
+    const code = await runWasiCommand(wasmResponse(await readFile(sixthWasmPath)), {
+        stdin,
+        stdout: (chunk) => { out += chunk; },
+    });
     expect(code).toBe(0);
     expect(out).toContain('49');
 });

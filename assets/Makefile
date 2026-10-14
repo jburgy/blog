@@ -11,12 +11,6 @@ all :
 # Each rule below adds its output to `all` and to CLEAN, which `clean` removes.
 CLEAN =
 
-# index.html loads this for cross-origin isolation (SharedArrayBuffer) without custom server headers.
-mini-coi.js :
-	curl -LO https://raw.githubusercontent.com/WebReflection/mini-coi/main/mini-coi.js
-all : mini-coi.js
-CLEAN += mini-coi.js
-
 %.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f wasi-command.mjs
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
 all : jonesforth.wasm localize.wasm tabulate.wasm
