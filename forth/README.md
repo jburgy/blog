@@ -223,8 +223,8 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   export (Chrome 137+, Firefox 139+, no Safari), so there is no Worker,
   `SharedArrayBuffer`, or cross-origin isolation. Ceiling: a guest computing
   between reads blocks the page, which a Worker never did. Node needs
-  `--experimental-wasm-jspi` (set for vitest in `vitest.config.mts`, and for
-  the lisp/TinyBasic fixtures' child processes).
+  `--experimental-wasm-jspi` (set in `vitest.config.mts`, which lisp and
+  TinyBasic re-export so their tests share it).
 - **Rust `wasm32-wasip1`** — two profiles, because [4th.rs](4th.rs) halts by
   panicking: `make test-wasm` rebuilds `std` with `panic_unwind` for wasmtime,
   while `make web` swaps the panic for a host throw so the browser build in

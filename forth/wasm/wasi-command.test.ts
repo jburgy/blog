@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { runWasiCommand } from './wasi-command.js';
+import { runSession } from './wasi-command.test-helper.mjs';
 
 const execFileAsync = promisify(execFile);
 // wabt isn't an installed dependency; fetch it on demand instead.
@@ -122,25 +123,9 @@ test('6th.wasm (wasm32-wasi): a scripted session exits cleanly on EOF', async ()
 });
 
 test('jonesforth.wasm: KEY blocks on an open stdin and never treats EOF as a stop, so a scripted ' +
-    'session is abandoned once it has produced the expected output, rather than awaited to completion', async () => {
+    'session is abandoned once the guest is idle, rather than awaited to completion', async () => {
     const preamble = await readFile(join(import.meta.dirname, '../../jonesforth/jonesforth.f'));
-    // Never closed: once the script is consumed the guest suspends in fd_read and stays parked.
-    const stdin = new ReadableStream<Uint8Array>({
-        start(controller) {
-            controller.enqueue(preamble);
-            controller.enqueue(new TextEncoder().encode(': SQUARE DUP * ; 7 SQUARE . CR\n'));
-        },
-    });
-    const { promise, resolve, reject } = Promise.withResolvers<string>();
-    let out = '';
-    // An early exit (crash, missing WASI import, ...) is a real failure and rejects.
-    runWasiCommand(wasmResponse(await readFile(jonesforthWasmPath)), {
-        stdin,
-        stdout: (chunk) => {
-            out += chunk;
-            if (out.includes('JONESFORTH VERSION 47') && out.includes('49')) resolve(out);
-        },
-    }).then((code) => reject(new Error(`exited unexpectedly (code ${code}): ${out}`)), reject);
-
-    expect(await promise).toContain('49');
+    const out = await runSession(await readFile(jonesforthWasmPath), preamble, ': SQUARE DUP * ; 7 SQUARE . CR');
+    expect(out).toContain('JONESFORTH VERSION 47');
+    expect(out).toContain('49');
 }, 10_000);

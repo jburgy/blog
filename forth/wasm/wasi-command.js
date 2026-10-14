@@ -36,6 +36,7 @@ function noSeek() {
 function streamRead(stdin) {
     const reader = stdin.getReader();
     let pending = new Uint8Array(0);
+    let lastYield = performance.now();
     return (options, abi, memoryView) => ({
         fd_read: new WebAssembly.Suspending(async (fd, iovs, iovsLen, nreadPtr) => {
             if (fd !== 0) return 8; // WASI_ERRNO_BADF
@@ -50,7 +51,12 @@ function streamRead(stdin) {
             if (pending.length) {
                 // A resolved promise only yields to microtasks; yield a task too or the
                 // browser never repaints while buffered input (a preamble) is consumed.
-                await new Promise((resolve) => setTimeout(resolve));
+                // Once per frame, not per read: byte-at-a-time guests (lisp's getchar)
+                // would otherwise pay a timer tick (1-4ms) per byte.
+                if (performance.now() - lastYield > 16) {
+                    await new Promise((resolve) => setTimeout(resolve));
+                    lastYield = performance.now();
+                }
             } else {
                 // `done` (EOF) leaves `pending` empty, which reads back as 0 bytes.
                 const { value, done } = await reader.read();
