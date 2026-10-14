@@ -48,6 +48,22 @@ import { runWasiCommand } from "./wasi-command.mjs";
 export function startRepl(wasmUrl, preamble = true, container = "terminal") {
     const preambleUrl = new URL(typeof preamble === "string" ? preamble : "./jonesforth/jonesforth.f", import.meta.url);
     const xterm = new Terminal();
+    // xterm-readline redraws a line as many tiny write() calls (erase, text, "\r", cursor move);
+    // coalesce them per tick so xterm.js never renders the half-drawn "cursor at column 0" state.
+    // FIXME: drop once strtok/xterm-readline emits each redraw as one write (no upstream issue yet).
+    const write0 = xterm.write.bind(xterm);
+    let pending = "";
+    let callbacks = [];
+    xterm.write = (data, callback) => {
+        if (!pending) queueMicrotask(() => {
+            const [text, cbs] = [pending, callbacks];
+            pending = "";
+            callbacks = [];
+            write0(text, () => cbs.forEach((cb) => cb()));
+        });
+        pending += data;
+        if (callback) callbacks.push(callback);
+    };
     const rl = new Readline();
     xterm.loadAddon(rl);
     xterm.open(typeof container === "string" ? document.getElementById(container) : container);
