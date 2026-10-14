@@ -33,7 +33,7 @@ const preamble = await readFile(tictactoePath, "utf8");
 // which square the heuristic blocks first.
 const moves = ["1", "5", "2", "9", "3"];
 
-const child = spawn(process.execPath, ["--import", registerLoader, fixture, wasmPath, preamble, ...moves]);
+const child = spawn(process.execPath, ["--experimental-wasm-jspi", "--import", registerLoader, fixture, wasmPath, preamble, ...moves]);
 
 let out = "";
 let errOut = "";

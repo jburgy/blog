@@ -36,7 +36,7 @@ const fixture = join(import.meta.dirname, "wasi-fixture.mjs");
 const wasmPath = join(import.meta.dirname, "../build/TinyBasic-wasi.wasm");
 
 async function run(lines) {
-    const child = spawn(process.execPath, ["--import", registerLoader, fixture, wasmPath, ...lines]);
+    const child = spawn(process.execPath, ["--experimental-wasm-jspi", "--import", registerLoader, fixture, wasmPath, ...lines]);
     let out = "";
     await new Promise((resolve) => {
         child.stdout.on("data", (chunk) => { out += chunk; });

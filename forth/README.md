@@ -176,8 +176,9 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   [uwasi](https://github.com/kateinoigakukun/uwasi) both in
   [web/4th.test.ts](web/4th.test.ts) (a finite, scripted stdin, alongside the
   same primitive-wordset matrix run against the Rust `web/4th.wasm`) and in
-  the browser, where [wasm/wasi-worker.js](wasm/wasi-worker.js) backs stdin
-  with a `SharedInputChannel` so `read()` genuinely blocks instead of seeing
+  the browser, where [wasm/wasi-command.js](wasm/wasi-command.js) feeds stdin
+  from a `ReadableStream` and suspends `fd_read` with JSPI so `read()`
+  genuinely blocks instead of seeing
   EOF -- what [html/4th.html](html/4th.html) and [html/5th.html](html/5th.html)
   actually run. `4th.c`'s `brk(2)` shim (its `BRK`/`MORECORE` words pass an
   absolute address, but wasi-libc's `sbrk()` only does relative growth, and
@@ -186,7 +187,7 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   (unlike `4th.c`'s) isn't exercised by any test here, this change included.
 - **Zig `wasm32-wasi`** — `6th.zig`'s other wasm target (`build.zig`'s
   `buildWasi`): zig's own linker produces the standalone
-  command directly. Shares `wasi-worker.js` with `4th.wasm`/`5th.wasm` above,
+  command directly. Shares `wasi-command.js` with `4th.wasm`/`5th.wasm` above,
   and is what [html/6th.html](html/6th.html) actually runs -- no pty, no
   xterm-pty; [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs) (`startRepl(wasmUrl)`)
   does the line editing against `xterm.js`, shared by `html/4th.html`,
@@ -217,33 +218,39 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
   live REPL (`startRepl`'s return value, not simulated keystrokes) -- a human
   visiting the page gets the same pass/fail report CI reads headless (see
-  `npm run test:browser` above).
+  `npm run test:browser` above). The guest runs on the main thread: `fd_read`
+  is a `WebAssembly.Suspending` import and `_start` a `WebAssembly.promising`
+  export (Chrome 137+, Firefox 139+, no Safari), so there is no Worker,
+  `SharedArrayBuffer`, or cross-origin isolation. Ceiling: a guest computing
+  between reads blocks the page, which a Worker never did. Node needs
+  `--experimental-wasm-jspi` (set for vitest in `vitest.config.mts`, and for
+  the lisp/TinyBasic fixtures' child processes).
 - **Rust `wasm32-wasip1`** — two profiles, because [4th.rs](4th.rs) halts by
   panicking: `make test-wasm` rebuilds `std` with `panic_unwind` for wasmtime,
   while `make web` swaps the panic for a host throw so the browser build in
   [web/](web/) needs no exception-handling proposal. Its stdin problem is
   sidestepped rather than solved: [web/4th.js](web/4th.js) re-enters `eval()`
   one host-supplied line at a time instead of blocking inside the guest, so it
-  needs no Worker, no `SharedArrayBuffer`, and none of `wasi-worker.js`. A
+  needs no JSPI and none of `wasi-command.js`. A
   *third* profile, built the same `-Zbuild-std=std,panic_unwind` way but
   without `--features web` (`assets/Makefile`'s `4th-rs-wasi.wasm`), keeps
   4th.rs's ordinary blocking `main()` instead and needs none of that
-  sidestepping -- it's just another `wasi-worker.js` console, published
+  sidestepping -- it's just another `wasi-command.js` console, published
   alongside jonesforth.wasm/4th-wasi.wasm/5th-wasi.wasm/6th-wasi.wasm for
   how-many-roads.html's tab strip.
 - **wat2wasm** — the `.wast` files *are* the source, so the "toolkit" is only
   an assembler. `jonesforth.wast`'s `KEY` is a classic blocking `read()`, like
-  the wasi-sdk and Zig builds above, so its browser demo (originally
-  [wasm/worker.js](wasm/worker.js)/`main.js`, the subject of
+  the wasi-sdk and Zig builds above, so its browser demo (originally a
+  hand-rolled Worker, the subject of
   [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html),
   now that post's tab strip driving [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs)
-  like the other three interpreters -- `main.js` itself was unused and has
-  been removed; its hand-rolled protocol is what `wasi-repl.mjs` generalized)
-  also runs on `wasi-worker.js` rather than hand-written WASI imports.
-  [wasi-worker.test.ts](wasm/wasi-worker.test.ts) covers all three consumers,
-  including why the never-exits-on-EOF jonesforth session is driven as a
-  child process that's killed as soon as it has produced the expected
-  output, rather than awaited to completion in-process.
+  like the other three interpreters -- its hand-rolled protocol is what
+  `wasi-repl.mjs` generalized) also runs on `wasi-command.js` rather than
+  hand-written WASI imports.
+  [wasi-command.test.ts](wasm/wasi-command.test.ts) covers all three consumers,
+  including why the never-exits-on-EOF jonesforth session is left open and
+  abandoned as soon as it has produced the expected output, rather than
+  awaited to completion.
 
 ## Not interpreters
 

@@ -10,7 +10,7 @@
     "uwasi": "^1.6.0"
   },
   "scripts": {
-    "test": "npm run asbuild:wasi && npx -y node@^22.19.0 tests/wasi.mjs && npx -y node@^22.19.0 tests/correctness.mjs",
+    "test": "npm run asbuild:wasi && node tests/wasi.mjs && node tests/correctness.mjs",
     "asbuild:debug": "npx -y --package assemblyscript asc assembly/index.ts --target debug --use ScreenChar=assembly/host/ScreenChar --use KeyInChar=assembly/host/KeyInChar --use OutStr=assembly/host/OutStr",
     "asbuild:release": "npx -y --package assemblyscript asc assembly/index.ts --target release --use ScreenChar=assembly/host/ScreenChar --use KeyInChar=assembly/host/KeyInChar --use OutStr=assembly/host/OutStr",
     "asbuild:wasi": "npx -y --package assemblyscript asc assembly/wasi.ts --target wasi --use ScreenChar=assembly/wasiHost/ScreenChar --use KeyInChar=assembly/wasiHost/KeyInChar --use OutStr=assembly/wasiHost/OutStr",

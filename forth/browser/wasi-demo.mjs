@@ -1,6 +1,6 @@
-// Shared mocha-headless-chrome helper for the wasi-worker.js browser demos
-// (4th, 5th, 6th): serves html/<name>.html behind a local server (COOP/COEP
-// headers, see ../../assets/serve-e2e.mjs, which this shares its
+// Shared mocha-headless-chrome helper for the wasi-command.js browser demos
+// (4th, 5th, 6th): serves html/<name>.html behind a local server (see
+// ../../assets/serve-e2e.mjs, which this shares its
 // static-file-serving core with), then drives it headless. The actual
 // assertion lives in the page itself (wasm/wasi-repl-mocha.mjs's in-browser
 // mocha spec, loaded by every html/<name>.html -- a human visiting the page
@@ -27,8 +27,7 @@ function resolvePath({ name, wasmFilePath, htmlPath }, pathname) {
         return wasmFilePath;
     }
     if (
-        pathname === `${assetRoot}worker.js`
-        || pathname === `${assetRoot}wasi-worker.js`
+        pathname === `${assetRoot}wasi-command.js`
         || pathname === `${assetRoot}wasi-repl.mjs`
         || pathname === `${assetRoot}wasi-repl-mocha.mjs`
     ) {
@@ -57,7 +56,7 @@ export async function checkWasiDemo({ name, wasmFilePath }) {
             "mocha-headless-chrome",
             "-f", `${server.origin}${htmlPath}`,
             "-t", "90000",
-            ...(process.platform === "linux" ? ["-a", "no-sandbox", "-a", "enable-features=SharedArrayBuffer"] : []),
+            ...(process.platform === "linux" ? ["-a", "no-sandbox"] : []),
         ];
         // Nonzero exit (execFileAsync throws) is the failure signal; its own
         // stdout/stderr (surfaced via the thrown error) already has mocha's

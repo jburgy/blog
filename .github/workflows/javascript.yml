@@ -33,7 +33,7 @@ jobs:
       # A `zig` shim backed by the ziglang PyPI package (same one
       # assets/Makefile's uvx/python-zig already uses), not setup-zig (whose
       # node20 runtime GitHub now warns about): package.json's
-      # build:6th:wasi and wasi-worker.test.ts both spawn a bare `zig`.
+      # build:6th:wasi and wasi-command.test.ts both spawn a bare `zig`.
       - uses: astral-sh/setup-uv@v7
         with:
           # v7 defaults prune-cache to true, which discards the downloaded

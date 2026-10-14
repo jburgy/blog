@@ -17,7 +17,7 @@ mini-coi.js :
 all : mini-coi.js
 CLEAN += mini-coi.js
 
-%.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f worker.js wasi-worker.js
+%.wasm : ../forth/wasm/%.wast jonesforth/jonesforth.f wasi-command.js
 	npx -y --package wabt wat2wasm --enable-tail-call --debug-names -o $@ $<
 all : jonesforth.wasm localize.wasm tabulate.wasm
 CLEAN += jonesforth.wasm localize.wasm tabulate.wasm
@@ -25,24 +25,24 @@ CLEAN += jonesforth.wasm localize.wasm tabulate.wasm
 # uvx/python-zig, not a bare `zig build`: deploy.yml has no system zig. See
 # build.zig's buildWasi. Named <name>-wasi.wasm, not <name>.wasm, to match
 # 4th-wasi.wasm/5th-wasi.wasm below.
-6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
+6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig wasi-command.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	cd ../forth && uvx --from ziglang==0.17.0 python-zig build install-6th -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call -Doptimize=ReleaseSmall
 	cp ../forth/zig-out/web/wasi/6th.wasm $@
 all : 6th-wasi.wasm
 CLEAN += 6th-wasi.wasm
 
 # wasi-sdk clang (deploy.yml: bytecodealliance/setup-wasi-sdk-action).
-4th-wasi.wasm : ../forth/4th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
+4th-wasi.wasm : ../forth/4th.c wasi-command.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -Oz -s -o $@ $<
 all : 4th-wasi.wasm
 CLEAN += 4th-wasi.wasm
 
-5th-wasi.wasm : ../forth/5th.c worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
+5th-wasi.wasm : ../forth/5th.c wasi-command.js wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DNO_LIBC_SYSCALL_NUMS -mtail-call -Oz -s -o $@ $<
 all : 5th-wasi.wasm
 CLEAN += 5th-wasi.wasm
 
-4th-rs-wasi.wasm : ../forth/4th.rs ../forth/Cargo.toml worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
+4th-rs-wasi.wasm : ../forth/4th.rs ../forth/Cargo.toml wasi-command.js wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	cd ../forth && CARGO_TARGET_DIR=target/wasi-repl rustup run nightly cargo build --release --target wasm32-wasip1 --bin 4th -Zbuild-std=std,panic_unwind
 	cp ../forth/target/wasi-repl/wasm32-wasip1/release/4th.wasm $@
 all : 4th-rs-wasi.wasm
@@ -50,13 +50,13 @@ CLEAN += 4th-rs-wasi.wasm
 
 # AssemblyScript (asc), not wasi-sdk/zig: wasi.ts/wasiHost.ts implement
 # wasi_snapshot_preview1 fd_read/fd_write themselves, driven by the same
-# worker.js/wasi-worker.js/wasi-repl.mjs harness as the C/Zig builds above.
-lisp-wasi.wasm : ../lisp/assembly/wasi.ts ../lisp/assembly/core.ts ../lisp/assembly/wasiHost.ts worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs
+# wasi-command.js/wasi-repl.mjs harness as the C/Zig builds above.
+lisp-wasi.wasm : ../lisp/assembly/wasi.ts ../lisp/assembly/core.ts ../lisp/assembly/wasiHost.ts wasi-command.js wasi-repl.mjs wasi-repl-mocha.mjs
 	npm run asbuild:lisp-wasi
 all : lisp-wasi.wasm
 CLEAN += lisp-wasi.wasm
 
-TinyBasic-wasi.wasm : ../TinyBasic/assembly/wasi.ts ../TinyBasic/assembly/core.ts ../TinyBasic/assembly/wasiHost.ts worker.js wasi-worker.js wasi-repl.mjs wasi-repl-mocha.mjs
+TinyBasic-wasi.wasm : ../TinyBasic/assembly/wasi.ts ../TinyBasic/assembly/core.ts ../TinyBasic/assembly/wasiHost.ts wasi-command.js wasi-repl.mjs wasi-repl-mocha.mjs
 	npm run asbuild:TinyBasic-wasi
 all : TinyBasic-wasi.wasm
 CLEAN += TinyBasic-wasi.wasm
@@ -135,7 +135,7 @@ slip/slip.wasm : ../slip/Cargo.toml $(wildcard ../slip/src/*.rs)
 
 %.js: ../forth/wasm/%.js
 	cp $< $@
-CLEAN += worker.js wasi-worker.js
+CLEAN += wasi-command.js
 
 # The deployed jonesforth.f: wasi-repl.mjs's one shared preamble for every
 # FORTH demo that doesn't bring its own (4th/5th/6th-wasi.wasm, jonesforth.wasm),

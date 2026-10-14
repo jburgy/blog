@@ -33,14 +33,14 @@ const turns = [
     "(OK BYE)",
 ];
 
-const child = spawn(process.execPath, ["--import", registerLoader, fixture, wasmPath, preamble, ...turns]);
+const child = spawn(process.execPath, ["--experimental-wasm-jspi", "--import", registerLoader, fixture, wasmPath, preamble, ...turns]);
 
 let out = "";
 let errOut = "";
 await new Promise((resolve, reject) => {
     child.stdout.on("data", (chunk) => {
         out += chunk;
-        if (out.includes("GOODBYE")) resolve();
+        if (out.includes("GOODBYE AND TAKE CARE")) resolve();
     });
     child.stderr.on("data", (chunk) => { errOut += chunk; });
     child.once("error", reject);

@@ -1,5 +1,5 @@
 // Covers build/TinyBasic-wasi.wasm (see assembly/wasi.ts): a genuine WASI
-// command drivable by forth/wasm/wasi-worker.js's shared runWasiCommand, the
+// command drivable by forth/wasm/wasi-command.js's shared runWasiCommand, the
 // same harness 4th-wasi.wasm/5th-wasi.wasm/6th-wasi.wasm use (see #128).
 // Asserts on "Tiny Basic error #...at line ..." specifically because that
 // message only reaches stdout through OutStr's embedded string table (see
@@ -26,7 +26,7 @@ const registerLoader = `data:text/javascript,
 const fixture = join(import.meta.dirname, "wasi-fixture.mjs");
 const wasmPath = join(import.meta.dirname, "../build/TinyBasic-wasi.wasm");
 
-const child = spawn(process.execPath, ["--import", registerLoader, fixture, wasmPath, "10 PRINT 1/0", "RUN"]);
+const child = spawn(process.execPath, ["--experimental-wasm-jspi", "--import", registerLoader, fixture, wasmPath, "10 PRINT 1/0", "RUN"]);
 
 let out = "";
 let errOut = "";
