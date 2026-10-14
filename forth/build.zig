@@ -9,7 +9,7 @@ const OptimizeMode = std.builtin.OptimizeMode;
 /// are. Each source's `openFlags` has a `.wasi` branch and `key()` already
 /// exits cleanly on end-of-stream (see 6th.zig), so none needed source
 /// changes beyond that — only a build target. Drive the result with
-/// `runWasiCommand` (forth/wasm/wasi-worker.js), the same shared WASI/stdin
+/// `runWasiCommand` (forth/wasm/wasi-command.mjs), the same shared WASI/stdin
 /// plumbing 5th.wasm and jonesforth.wasm use.
 pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});

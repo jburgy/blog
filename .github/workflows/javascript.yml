@@ -3,7 +3,7 @@ name: JavaScript
 # `push` only, matching the Python workflow: adding `pull_request` as well runs
 # the whole thing twice on every PR branch. No path filter (unlike before):
 # Codecov's `after_n_builds: 5` in codecov.yml expects all 5 uploads (this
-# workflow's 3 jobs plus pythonpackage.yml's 2) on every commit, so forth/
+# workflow's 3 uploading jobs plus pythonpackage.yml's 2) on every commit, so forth/
 # regexp/fourt2py now build and upload coverage even when untouched.
 on: [push]
 
@@ -33,7 +33,7 @@ jobs:
       # A `zig` shim backed by the ziglang PyPI package (same one
       # assets/Makefile's uvx/python-zig already uses), not setup-zig (whose
       # node20 runtime GitHub now warns about): package.json's
-      # build:6th:wasi and wasi-worker.test.ts both spawn a bare `zig`.
+      # build:6th:wasi and wasi-command.test.ts both spawn a bare `zig`.
       - uses: astral-sh/setup-uv@v7
         with:
           # v7 defaults prune-cache to true, which discards the downloaded
@@ -77,6 +77,29 @@ jobs:
           slug: jburgy/blog
           directory: forth/coverage
           flags: forth
+
+  assemblyscript:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        package: [lisp, TinyBasic]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # 24: wasi-command.mjs needs JSPI, which vitest enables with
+      # --experimental-wasm-jspi (see forth/vitest.config.mts).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm ci
+
+      # `npm test` builds the wasi target first (asc is fetched by npx, not a
+      # dependency), then runs vitest. No Codecov upload, unlike the jobs
+      # above: after_n_builds in codecov.yml counts exactly 5 uploads.
+      - run: npm test
 
   regexp:
     runs-on: ubuntu-24.04

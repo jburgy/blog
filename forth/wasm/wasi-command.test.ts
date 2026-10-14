@@ -1,27 +1,36 @@
-// Covers `runWasiCommand` (see wasi-worker.js), the shared piece factored
+// Covers `runWasiCommand` (see wasi-command.mjs), the shared piece factored
 // out of the jonesforth.wasm post (bur.gy/2025/11/29/how-many-roads.html) so
 // `5th.wasm`/`6th.wasm` wasi builds can drive a browser REPL the same way.
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { afterAll, beforeAll, expect, test as vitestTest } from 'vitest';
-import { SharedInputChannel } from 'uwasi';
-import { runWasiCommand } from './wasi-worker.js';
-import { test } from '../wasm-test.ts';
+import { afterAll, beforeAll, expect, test } from 'vitest';
+import { runWasiCommand } from './wasi-command.mjs';
+import { runSession } from './wasi-command.test-helper.mjs';
 
 const execFileAsync = promisify(execFile);
 // wabt isn't an installed dependency; fetch it on demand instead.
 const wat2wasm = (args: string[]) => execFileAsync('npx', ['-y', '--package', 'wabt', 'wat2wasm', ...args]);
 
-test('5th.wasm: a scripted session exits cleanly on EOF', async ({ wasm }) => {
-    const channel = new SharedInputChannel();
+const wasmResponse = (bytes: Uint8Array) => new Response(bytes, { headers: { 'content-type': 'application/wasm' } });
+
+// A finite script: the stream closing is EOF, which `5th`/`6th` exit cleanly on.
+async function runScript(wasm: Uint8Array, ...input: (string | Uint8Array)[]) {
     let out = '';
-    channel.push(new TextEncoder().encode('65 EMIT\n'));
-    channel.close(); // a finite script, unlike jonesforth.wasm below: EOF is the right signal here
-    const code = await runWasiCommand(wasm, channel.sharedBuffer, (_fd, chunk) => { out += chunk; });
+    const code = await runWasiCommand(wasmResponse(wasm), {
+        stdin: new Blob(input).stream(),
+        stdout: (chunk) => { out += chunk; },
+    });
+    return { code, out };
+}
+
+// Read per test, not at load: 5th.wasm needs wasi-sdk, and a missing one must only fail its own tests.
+const read5th = () => readFile(join(import.meta.dirname, '../5th.wasm'));
+
+test('5th.wasm: a scripted session exits cleanly on EOF', async () => {
+    const { code, out } = await runScript(await read5th(), '65 EMIT\n');
     expect(code).toBe(0);
     expect(out).toBe('A');
 });
@@ -36,14 +45,9 @@ test('5th.wasm: a scripted session exits cleanly on EOF', async ({ wasm }) => {
 // argv. This test confirms that gap holds under wasm32-wasi too, so the
 // jonesforth.S trick can't be revived there and (ARGC) stays necessary.
 test('5th.wasm: (ARGC) is not S0 + CELL, so jonesforth.f\'s raw-stack ARGC/ARGV/ENVIRON ' +
-    'trick cannot be revived under WASI', async ({ wasm }) => {
+    'trick cannot be revived under WASI', async () => {
     const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
-    const channel = new SharedInputChannel(256 * 1024); // 4th.32.fs alone is ~55 KiB
-    let out = '';
-    channel.push(preamble);
-    channel.push(new TextEncoder().encode('(ARGC) S0 @ 4 + = .\n'));
-    channel.close();
-    const code = await runWasiCommand(wasm, channel.sharedBuffer, (_fd, chunk) => { out += chunk; });
+    const { code, out } = await runScript(await read5th(), preamble, '(ARGC) S0 @ 4 + = .\n');
     expect(code).toBe(0);
     // `out` also carries the boot banner, so compare only `.`'s own answer.
     expect(out.trim().split(/\s+/).pop()).toBe('0'); // -1 (true) would mean the addresses coincide
@@ -55,7 +59,7 @@ let sixthWasmPath: string;
 let tmpDir: string;
 
 beforeAll(async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'wasi-worker-'));
+    tmpDir = await mkdtemp(join(tmpdir(), 'wasi-command-'));
     jonesforthWasmPath = join(tmpDir, 'jonesforth.wasm');
     await wat2wasm([
         '--enable-tail-call',
@@ -99,7 +103,7 @@ afterAll(async () => {
 // jonesforth.f here would still compile ARGC/ARGV/ENVIRON; they just read
 // whatever garbage sits at S0's fixed data-segment address instead of real
 // argv, which is why none of the scripted demo sessions ever call them.
-vitestTest.for([
+test.for([
     ['jonesforth.wasm', () => jonesforthWasmPath],
     ['localize.wasm', () => localizeWasmPath],
 ])('%s never imports args_get/args_sizes_get, so it has no argv to expose and ' +
@@ -114,60 +118,34 @@ vitestTest.for([
 
 test('6th.wasm (wasm32-wasi): a scripted session exits cleanly on EOF', async () => {
     const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
-    const channel = new SharedInputChannel(256 * 1024); // 4th.32.fs alone is ~55 KiB
-    let out = '';
-    channel.push(preamble);
-    channel.push(new TextEncoder().encode(': SQUARE DUP * ; 7 SQUARE .\n'));
-    channel.close();
-    const bytes = await readFile(sixthWasmPath);
-    const code = await runWasiCommand(bytes, channel.sharedBuffer, (_fd, chunk) => { out += chunk; });
+    const { code, out } = await runScript(await readFile(sixthWasmPath), preamble, ': SQUARE DUP * ; 7 SQUARE .\n');
     expect(code).toBe(0);
     expect(out).toContain('49');
 });
 
-vitestTest('jonesforth.wasm: KEY blocks for real and never treats EOF as a stop, so a scripted ' +
-    'session is killed once it has produced the expected output, rather than awaited to completion', async () => {
-    const preamblePath = join(import.meta.dirname, '../../jonesforth/jonesforth.f');
-    const fixture = join(import.meta.dirname, 'wasi-worker.test-fixture.mjs');
-
-    // `--import` registers the loader that resolves wasi-worker.js's
-    // `https://esm.sh/uwasi@1.6.0` import to the local package; plain `node`
-    // has no import map to do that itself (see uwasi-cdn.loader.mjs).
-    const loader = pathToFileURL(join(import.meta.dirname, 'uwasi-cdn.loader.mjs')).href;
-    const registerLoader = `data:text/javascript,
-        import { register } from "node:module";
-        register(${JSON.stringify(loader)});
-    `;
-
-    const child = spawn(process.execPath, [
-        '--import', registerLoader, fixture, jonesforthWasmPath, preamblePath, ': SQUARE DUP * ; 7 SQUARE . CR',
-    ]);
-
-    let out = '';
-    let errOut = '';
-    // Resolves as soon as the expected output shows up, rather than racing a
-    // fixed timeout: an early `exit` (crash, missing WASI import, ...) is a
-    // real failure and rejects instead of silently reading an empty `out`.
-    await new Promise<void>((resolve, reject) => {
-        child.stdout.on('data', (chunk) => {
-            out += chunk;
-            if (out.includes('JONESFORTH VERSION 47') && out.includes('49')) resolve();
-        });
-        // Belt and suspenders alongside the fixture's own try/catch: a
-        // module-load error (a bad loader registration, say) would crash
-        // before that catch ever runs, so stderr is worth capturing too —
-        // exactly the gap that made an earlier ENOENT (the jonesforth
-        // submodule not checked out in CI) show up as a bare, unexplained
-        // "exited unexpectedly (code 1): " with no indication why.
-        child.stderr.on('data', (chunk) => { errOut += chunk; });
-        child.once('error', reject);
-        child.once('exit', (code) => reject(new Error(`fixture exited unexpectedly (code ${code}): ${out}${errOut}`)));
-    }).finally(() => {
-        // Expected teardown, not a failure: KEY never treats EOF as a stop,
-        // so the fixture never exits on its own once it has run out of input.
-        child.kill('SIGKILL');
+test('6th.wasm: an empty stdin chunk is not EOF', async () => {
+    const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
+    const stdin = new ReadableStream<Uint8Array>({
+        start(controller) {
+            controller.enqueue(new Uint8Array(0));
+            controller.enqueue(preamble);
+            controller.enqueue(new TextEncoder().encode(': SQUARE DUP * ; 7 SQUARE .\n'));
+            controller.close();
+        },
     });
+    let out = '';
+    const code = await runWasiCommand(wasmResponse(await readFile(sixthWasmPath)), {
+        stdin,
+        stdout: (chunk) => { out += chunk; },
+    });
+    expect(code).toBe(0);
+    expect(out).toContain('49');
+});
 
+test('jonesforth.wasm: KEY blocks on an open stdin and never treats EOF as a stop, so a scripted ' +
+    'session is abandoned once the guest is idle, rather than awaited to completion', async () => {
+    const preamble = await readFile(join(import.meta.dirname, '../../jonesforth/jonesforth.f'));
+    const out = await runSession(await readFile(jonesforthWasmPath), preamble, ': SQUARE DUP * ; 7 SQUARE . CR');
     expect(out).toContain('JONESFORTH VERSION 47');
     expect(out).toContain('49');
 }, 10_000);

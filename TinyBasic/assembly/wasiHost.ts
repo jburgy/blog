@@ -2,7 +2,7 @@
 // ScreenChar/KeyInChar/OutStr shape core.ts expects (see its own comment) in
 // terms of actual wasi_snapshot_preview1 fd_read/fd_write, so the compiled
 // TinyBasic-wasi.wasm is a genuine WASI command drivable by
-// forth/wasm/wasi-worker.js's `runWasiCommand` unchanged -- the same shared
+// forth/wasm/wasi-command.mjs's `runWasiCommand` unchanged -- the same shared
 // harness 4th-wasi.wasm/5th-wasi.wasm/6th-wasi.wasm already use (see #128).
 type T = u16;
 

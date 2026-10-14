@@ -9,9 +9,8 @@
 // `5th.wasm` hasn't been built (`npm run build`), so `npm run test:web`
 // still works with only `make web` done.
 import { readFile } from "node:fs/promises";
-import { SharedInputChannel } from "uwasi";
 import { describe, expect, test } from "vitest";
-import { runWasiCommand } from "../wasm/wasi-worker.js";
+import { runWasiCommand } from "../wasm/wasi-command.mjs";
 import { start } from "./4th.js";
 
 const wasm = await readFile(new URL("4th.wasm", import.meta.url));
@@ -107,11 +106,12 @@ async function run4th(source: string): Promise<string> {
 }
 
 async function run5th(source: string): Promise<string> {
-    const channel = new SharedInputChannel();
-    channel.push(new TextEncoder().encode(`${source}\n`));
-    channel.close();
     let out = "";
-    const exitCode = await runWasiCommand(wasm5th!, channel.sharedBuffer, (_fd, chunk) => { out += chunk; });
+    // A finite stdin: closing the stream is EOF, which 5th exits cleanly on.
+    const exitCode = await runWasiCommand(
+        new Response(wasm5th, { headers: { "content-type": "application/wasm" } }),
+        { stdin: new Blob([`${source}\n`]).stream(), stdout: (chunk) => { out += chunk; } },
+    );
     expect(exitCode).toBe(0);
     return out.trim();
 }

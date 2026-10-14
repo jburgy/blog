@@ -1,18 +1,14 @@
-// Main-thread bootstrap for the no-pty wasi-worker.js browser demos
+// Main-thread bootstrap for the no-pty WASI browser demos
 // (html/4th.html, html/5th.html, html/6th.html, and bur.gy's how-many-roads
-// post's tabbed jonesforth.wasm/4th/5th/6th switcher): mounts xterm.js, feeds
-// jonesforth.f's classic dictionary to a Worker (see worker.js) over a uwasi
-// SharedInputChannel, and uses xterm-readline for line editing -- the same
-// addon main.js (jonesforth.
-// wasm's original, since-retired published demo) already used against this
-// exact worker/channel protocol, rather than hand-rolling a second, weaker
-// line editor. Still no real pty, unlike the old xterm-pty-based demos
-// those posts used before migrating to this module (see
-// forth/README.md's "Toolkits, briefly" section). Named to pair with
-// wasi-worker.js: that's the Worker side, this is the main-thread side.
+// post's tabbed jonesforth.wasm/4th/5th/6th switcher): mounts xterm.js, runs
+// the guest with wasi-command.mjs's runWasiCommand (JSPI, so `read()` just
+// suspends it -- no Worker), and uses xterm-readline for line editing rather
+// than hand-rolling a weaker one. Still no real pty, unlike the old
+// xterm-pty-based demos those posts used before migrating to this module (see
+// forth/README.md's "Toolkits, briefly" section).
 import { Terminal } from "https://esm.sh/@xterm/xterm@5.5.0";
 import { Readline } from "https://esm.sh/xterm-readline@1.1.2";
-import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
+import { runWasiCommand } from "./wasi-command.mjs";
 
 /**
  * @param {string} wasmUrl
@@ -23,7 +19,7 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
  *   (4th.c/5th.c/6th.zig and jonesforth.wasm alike): jonesforth.f's own
  *   ARGC/ARGV/ENVIRON read S0-relative, the original x86 stack layout, which
  *   compiles fine under WASI but answers wrong instead of real argv (see
- *   wasi-worker.test.ts) -- harmless, since nothing here ever calls them.
+ *   wasi-command.test.ts) -- harmless, since nothing here ever calls them.
  *   Pass a string instead (resolved relative to this module, same as the
  *   jonesforth.f default) to feed a different command its own preamble --
  *   e.g. lisp-wasi.wasm's `"./lisp/eliza.lisp"`, a single self-recursive
@@ -44,11 +40,10 @@ import { SharedInputChannel } from "https://esm.sh/uwasi@1.6.0";
  *   (readline.js's readPaste) deliberately turns an Enter *inside* a
  *   multi-character paste into a literal "\n" (no accidental paste-and-run),
  *   so only a lone, single-character paste of "\r" takes the submit path.
- *   `dispose` terminates the Worker and tears down the Terminal so a caller
- *   that wants to switch wasmUrl mid-page (e.g. a tabbed demo picking
- *   between interpreters) can cleanly start a fresh `startRepl(...)` in the
- *   same `#terminal` div without the old Worker's `fd_read` wait loop or its
- *   stray `postMessage`s outliving it.
+ *   `dispose` tears down the Terminal and parks the guest on stdin forever
+ *   (not EOF: jonesforth's KEY spins on it), so a caller that wants to switch
+ *   wasmUrl mid-page (e.g. a tabbed demo picking between interpreters) can
+ *   cleanly start a fresh `startRepl(...)` in the same `#terminal` div.
  */
 export function startRepl(wasmUrl, preamble = true, container = "terminal") {
     const preambleUrl = new URL(typeof preamble === "string" ? preamble : "./jonesforth/jonesforth.f", import.meta.url);
@@ -65,87 +60,59 @@ export function startRepl(wasmUrl, preamble = true, container = "terminal") {
         highlightChar: () => true,
     });
 
-    // Sized well past jonesforth.f (~58 KiB).
-    const channel = new SharedInputChannel(128 * 1024);
-    const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
-
     let output = "";
     let disposed = false;
-    // Skip "ok" after the first idle: WELCOME's own one-time "OK " already covers it.
+    // Skip "ok" after the first prompt: WELCOME's own one-time "OK " already covers it.
     let first = true;
-    // Set once an "output" chunk is a lone ":" with nothing else -- see its
+    // Set once an output chunk is a lone ":" with nothing else -- see its
     // use below.
     let lastWasBarePrompt = false;
 
-    // Empty prompt always: "ok" (see 'idle' below) is output glued after the
-    // interpreter's own text, not a read() prompt -- raw output written
-    // after an armed prompt gets erased on that read's next refresh.
-    function readLine() {
+    // A pull-based stdin: `pull` only runs when the guest is genuinely blocked
+    // in read() with nothing buffered, which is exactly when to prompt. Chunks
+    // `start` enqueues (the preamble) are consumed first, so the guest never
+    // reads before it exists.
+    const stdin = new ReadableStream({
+        async start(controller) {
+            if (preamble) controller.enqueue(new Uint8Array(await (await fetch(preambleUrl)).arrayBuffer()));
+        },
+        async pull(controller) {
+            if (disposed) return new Promise(() => { });
+            // This line is done printing -- append dim "ok" (no leading
+            // space: jonesforth's own output usually ends in one), then
+            // "\n" so the next read starts on a row with nothing to erase.
+            if (!first) rl.write("\x1b[2mok\x1b[0m");
+            first = false;
+            rl.write("\n");
+            // Empty prompt always: "ok" above is output glued after the
+            // interpreter's own text, not a read() prompt -- raw output written
+            // after an armed prompt gets erased on that read's next refresh.
+            controller.enqueue(new TextEncoder().encode(`${await rl.read("")}\n`));
+        },
+    }, { highWaterMark: 0 });
+
+    function write(data) {
         if (disposed) return;
-        rl.read("").then(processLine);
+        output += data;
+        // A multi-line preamble (e.g. TinyBasic/tictactoe.bas,
+        // ~70 stored lines) echoes its own bare ":" command
+        // prompt once per line while loading -- faithful to the
+        // real interpreter (it does this for every line it
+        // reads, not just direct commands), but a wall of
+        // identical prompts is pure noise with nothing else
+        // interleaved. Collapse consecutive repeats down to the
+        // single one a human typing one line at a time would
+        // actually see; `output` above still keeps the true,
+        // uncollapsed stream for getOutput() callers.
+        const isBarePrompt = data === ":";
+        if (!(isBarePrompt && lastWasBarePrompt)) rl.write(data);
+        lastWasBarePrompt = isBarePrompt;
     }
 
-    function processLine(text) {
-        channel.push(new TextEncoder().encode(text + "\n"));
-    }
-
-    worker.addEventListener("message", async ({ data: { type, fd, data, code, message } }) => {
-        // A disposed REPL's Worker is terminate()d below, but a message it
-        // already posted before that lands here can still race the
-        // termination (same microtask queue) -- never touch `rl`/`xterm`
-        // past dispose(), both are themselves torn down by then.
-        if (disposed) return;
-        switch (type) {
-            case "ready": {
-                if (preamble) {
-                    const response = await fetch(preambleUrl);
-                    channel.push(new Uint8Array(await response.arrayBuffer()));
-                }
-                // No readLine() here -- the guest's own first fd_read fires 'idle' below, which arms it.
-                break;
-            }
-            case "output":
-                if (fd === 1 || fd === 2) {
-                    output += data;
-                    // A multi-line preamble (e.g. TinyBasic/tictactoe.bas,
-                    // ~70 stored lines) echoes its own bare ":" command
-                    // prompt once per line while loading -- faithful to the
-                    // real interpreter (it does this for every line it
-                    // reads, not just direct commands), but a wall of
-                    // identical prompts is pure noise with nothing else
-                    // interleaved. Collapse consecutive repeats down to the
-                    // single one a human typing one line at a time would
-                    // actually see; `output` above still keeps the true,
-                    // uncollapsed stream for getOutput() callers.
-                    const isBarePrompt = data === ":";
-                    if (!(isBarePrompt && lastWasBarePrompt)) rl.write(data);
-                    lastWasBarePrompt = isBarePrompt;
-                }
-                break;
-            case "idle":
-                // Guest's first fd_read can fire this before any preamble has
-                // been pushed/read (two independent fetches racing) -- not a
-                // real prompt yet.
-                if (preamble && !output) {
-                    readLine();
-                    break;
-                }
-                // This line is done printing -- append dim "ok" (no leading
-                // space: jonesforth's own output usually ends in one), then
-                // "\n" so the next read starts on a row with nothing to erase.
-                if (!first) rl.write("\x1b[2mok\x1b[0m");
-                first = false;
-                rl.write("\n");
-                readLine();
-                break;
-            case "exit":
-                rl.println(`[Process exited with code ${code}]`);
-                break;
-            case "error":
-                rl.println(`[Error: ${message}]`);
-                break;
-        }
-    });
+    runWasiCommand(fetch(wasmUrl), { stdin, stdout: write, stderr: write }).then(
+        (code) => { if (!disposed) rl.println(`[Process exited with code ${code}]`); },
+        (error) => { if (!disposed) rl.println(`[Error: ${error.message}]`); },
+    );
 
     function sendLine(text) {
         xterm.paste(text);
@@ -155,11 +122,8 @@ export function startRepl(wasmUrl, preamble = true, container = "terminal") {
     function dispose() {
         if (disposed) return;
         disposed = true;
-        worker.terminate();
         xterm.dispose();
     }
-
-    worker.postMessage({ sharedBuffer: channel.sharedBuffer, wasmUrl });
 
     return { term: xterm, sendLine, getOutput: () => output, dispose };
 }

@@ -6,18 +6,17 @@
 // both need the exact same COOP/COEP-header dance, just different routing.
 //
 // THE PROBLEM THIS SOLVES: these demos only render in a real browser (jsdom/
-// Node can't do it -- see forth/wasm/wasi-worker.test.ts's own comment on
+// Node can't do it -- see forth/wasm/wasi-command.test.ts's own comment on
 // that). Checking one out therefore means standing up the exact split-origin,
 // cross-origin-isolated setup GitHub Pages provides in production:
 //   - bur.gy (jburgy.github.io) and jburgy/blog's Pages deployment share one
 //     origin there, with blog's assets reachable under /blog/ (see
 //     jburgy.github.io/docs/_includes/terminal.html) -- this script collapses
 //     that two-repo split onto one local origin/port.
-//   - A worker-side blocking read (SharedInputChannel + Atomics.wait) needs
-//     SharedArrayBuffer, which needs COOP/COEP headers on *every* response,
-//     not just the demo's own page. This script just sends them; production
-//     fakes them client-side via coi-serviceworker.js's install + reload
-//     dance, which a local server doesn't need to bother with.
+//   - COOP/COEP headers go on *every* response, mirroring production's
+//     cross-origin isolation (coi-serviceworker.js fakes them
+//     client-side there). The WASI REPL demos no longer need them -- JSPI
+//     needs no SharedArrayBuffer -- but other pages might.
 //
 // WORKFLOW for an agent checking out a demo change:
 //     1. Make sure jburgy.github.io is checked out as a sibling directory of
@@ -77,10 +76,9 @@ export function safeJoin(base, pathname) {
 }
 
 /**
- * Generic static-file HTTP server with the COOP/COEP headers
- * SharedArrayBuffer/Atomics.wait needs on every response (what
- * coi-serviceworker.js fakes client-side in production; GitHub Pages sends
- * neither header itself). `resolvePath(pathname)` maps a request path to an
+ * Generic static-file HTTP server with COOP/COEP headers on every response
+ * (what coi-serviceworker.js fakes client-side in production; GitHub Pages
+ * sends neither header itself). `resolvePath(pathname)` maps a request path to an
  * absolute file path (or a falsy value for 404) -- the caller owns all
  * routing, this function only owns headers/content-type/error handling.
  * Streams the file (no buffering the whole thing into memory first): a

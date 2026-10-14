@@ -1,4 +1,4 @@
-// Shared in-browser mocha spec for the wasi-worker.js REPL demos
+// Shared in-browser mocha spec for the wasi-command.mjs REPL demos
 // (html/4th.html, html/5th.html, html/6th.html): drives startRepl()
 // (wasi-repl.mjs) directly -- no simulated keystrokes -- and asserts on its
 // accumulated output, the same assertion every demo needs, parametrized by
