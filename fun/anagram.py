@@ -1,7 +1,8 @@
 """Silly little CrossWord Jam cheat."""
 
-from sys import argv
 from itertools import permutations
+from pathlib import Path
+from sys import argv
 
 
 def find_anagrams(words: set[str], p: str):
@@ -18,9 +19,22 @@ def find_anagrams(words: set[str], p: str):
         )
 
 
-if __name__ == "__main__" and len(argv) > 1:
-    with open("fun/corncob_lowercase.txt", "rt") as lines:
+def main(p: str):
+    """Print the anagram groups of ``p`` found in the bundled word list.
+
+    >>> main("rate")
+    rate tear
+    are art ate ear eat era eta rat tar tea
+    at re
+    <BLANKLINE>
+    """
+    with Path(__file__).with_name("corncob_lowercase.txt").open() as lines:
         words = set(map(str.rstrip, lines))
 
-    for group in find_anagrams(words, argv[1]):
+    for group in find_anagrams(words, p):
         print(*group)
+
+
+if __name__ == "__main__":
+    if len(argv) > 1:
+        main(argv[1])
