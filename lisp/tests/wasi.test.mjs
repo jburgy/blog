@@ -1,5 +1,5 @@
 // Covers build/lisp-wasi.wasm (see assembly/wasi.ts): a genuine WASI command
-// drivable by forth/wasm/wasi-command.js's shared runWasiCommand, the same
+// drivable by forth/wasm/wasi-command.mjs's shared runWasiCommand, the same
 // harness 4th-wasi.wasm/5th-wasi.wasm/6th-wasi.wasm use (see #128). Its
 // getchar() never treats EOF as a stop (see wasiHost.ts: a closed, exhausted
 // channel wraps to 255, which core.ts's GetToken loop reads as "still inside

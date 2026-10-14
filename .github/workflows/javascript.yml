@@ -89,7 +89,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # 24: wasi-command.js needs JSPI, which vitest enables with
+      # 24: wasi-command.mjs needs JSPI, which vitest enables with
       # --experimental-wasm-jspi (see forth/vitest.config.mts).
       - uses: actions/setup-node@v7
         with:

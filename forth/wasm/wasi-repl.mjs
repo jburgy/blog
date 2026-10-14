@@ -1,14 +1,14 @@
 // Main-thread bootstrap for the no-pty WASI browser demos
 // (html/4th.html, html/5th.html, html/6th.html, and bur.gy's how-many-roads
 // post's tabbed jonesforth.wasm/4th/5th/6th switcher): mounts xterm.js, runs
-// the guest with wasi-command.js's runWasiCommand (JSPI, so `read()` just
+// the guest with wasi-command.mjs's runWasiCommand (JSPI, so `read()` just
 // suspends it -- no Worker), and uses xterm-readline for line editing rather
 // than hand-rolling a weaker one. Still no real pty, unlike the old
 // xterm-pty-based demos those posts used before migrating to this module (see
 // forth/README.md's "Toolkits, briefly" section).
 import { Terminal } from "https://esm.sh/@xterm/xterm@5.5.0";
 import { Readline } from "https://esm.sh/xterm-readline@1.1.2";
-import { runWasiCommand } from "./wasi-command.js";
+import { runWasiCommand } from "./wasi-command.mjs";
 
 /**
  * @param {string} wasmUrl

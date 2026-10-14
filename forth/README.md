@@ -176,7 +176,7 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   [uwasi](https://github.com/kateinoigakukun/uwasi) both in
   [web/4th.test.ts](web/4th.test.ts) (a finite, scripted stdin, alongside the
   same primitive-wordset matrix run against the Rust `web/4th.wasm`) and in
-  the browser, where [wasm/wasi-command.js](wasm/wasi-command.js) feeds stdin
+  the browser, where [wasm/wasi-command.mjs](wasm/wasi-command.mjs) feeds stdin
   from a `ReadableStream` and suspends `fd_read` with JSPI so `read()`
   genuinely blocks instead of seeing
   EOF -- what [html/4th.html](html/4th.html) and [html/5th.html](html/5th.html)
@@ -187,7 +187,7 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   (unlike `4th.c`'s) isn't exercised by any test here, this change included.
 - **Zig `wasm32-wasi`** — `6th.zig`'s other wasm target (`build.zig`'s
   `buildWasi`): zig's own linker produces the standalone
-  command directly. Shares `wasi-command.js` with `4th.wasm`/`5th.wasm` above,
+  command directly. Shares `wasi-command.mjs` with `4th.wasm`/`5th.wasm` above,
   and is what [html/6th.html](html/6th.html) actually runs -- no pty, no
   xterm-pty; [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs) (`startRepl(wasmUrl)`)
   does the line editing against `xterm.js`, shared by `html/4th.html`,
@@ -231,11 +231,11 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   [web/](web/) needs no exception-handling proposal. Its stdin problem is
   sidestepped rather than solved: [web/4th.js](web/4th.js) re-enters `eval()`
   one host-supplied line at a time instead of blocking inside the guest, so it
-  needs no JSPI and none of `wasi-command.js`. A
+  needs no JSPI and none of `wasi-command.mjs`. A
   *third* profile, built the same `-Zbuild-std=std,panic_unwind` way but
   without `--features web` (`assets/Makefile`'s `4th-rs-wasi.wasm`), keeps
   4th.rs's ordinary blocking `main()` instead and needs none of that
-  sidestepping -- it's just another `wasi-command.js` console, published
+  sidestepping -- it's just another `wasi-command.mjs` console, published
   alongside jonesforth.wasm/4th-wasi.wasm/5th-wasi.wasm/6th-wasi.wasm for
   how-many-roads.html's tab strip.
 - **wat2wasm** — the `.wast` files *are* the source, so the "toolkit" is only
@@ -245,7 +245,7 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   [How Many Roads Must a Man Walk Down?](https://bur.gy/2025/11/29/how-many-roads.html),
   now that post's tab strip driving [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs)
   like the other three interpreters -- its hand-rolled protocol is what
-  `wasi-repl.mjs` generalized) also runs on `wasi-command.js` rather than
+  `wasi-repl.mjs` generalized) also runs on `wasi-command.mjs` rather than
   hand-written WASI imports.
   [wasi-command.test.ts](wasm/wasi-command.test.ts) covers all three consumers,
   including why the never-exits-on-EOF jonesforth session is left open and

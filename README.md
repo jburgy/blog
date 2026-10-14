@@ -44,7 +44,7 @@ jburgy/blog       --Pages -->  https://bur.gy/blog/       (the demos)
 3. A post on bur.gy loads the result with an absolute path — `/blog/wasi-repl.mjs`,
    `/blog/jonesforth.wasm`, `/blog/regexp/web/demo.mjs`. Same origin, so no CORS,
    no CDN, and the demo version always matches whatever `main` last built.
-4. The WASI REPL demos need no COOP/COEP headers or service worker: `wasi-command.js`
+4. The WASI REPL demos need no COOP/COEP headers or service worker: `wasi-command.mjs`
    runs the guest on the main thread and suspends its blocking `read()` with JSPI
    (`WebAssembly.Suspending`/`promising`: Chrome 137+, Firefox 139+, not Safari).
 

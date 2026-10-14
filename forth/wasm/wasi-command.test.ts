@@ -1,4 +1,4 @@
-// Covers `runWasiCommand` (see wasi-command.js), the shared piece factored
+// Covers `runWasiCommand` (see wasi-command.mjs), the shared piece factored
 // out of the jonesforth.wasm post (bur.gy/2025/11/29/how-many-roads.html) so
 // `5th.wasm`/`6th.wasm` wasi builds can drive a browser REPL the same way.
 import { execFile } from 'node:child_process';
@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { runWasiCommand } from './wasi-command.js';
+import { runWasiCommand } from './wasi-command.mjs';
 import { runSession } from './wasi-command.test-helper.mjs';
 
 const execFileAsync = promisify(execFile);

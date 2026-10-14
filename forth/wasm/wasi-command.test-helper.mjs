@@ -5,7 +5,7 @@
 // closed: several guests (jonesforth's KEY, lisp's getchar, TinyBasic's
 // KeyInChar) don't treat EOF as a stop and would spin, whereas an open stdin
 // just parks them, which also means this can't wait on the guest exiting.
-import { runWasiCommand } from './wasi-command.js';
+import { runWasiCommand } from './wasi-command.mjs';
 
 /**
  * @param {Uint8Array} wasm

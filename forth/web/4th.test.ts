@@ -10,7 +10,7 @@
 // still works with only `make web` done.
 import { readFile } from "node:fs/promises";
 import { describe, expect, test } from "vitest";
-import { runWasiCommand } from "../wasm/wasi-command.js";
+import { runWasiCommand } from "../wasm/wasi-command.mjs";
 import { start } from "./4th.js";
 
 const wasm = await readFile(new URL("4th.wasm", import.meta.url));

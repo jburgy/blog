@@ -1,5 +1,5 @@
 // Covers build/TinyBasic-wasi.wasm (see assembly/wasi.ts): a genuine WASI
-// command drivable by forth/wasm/wasi-command.js's shared runWasiCommand, the
+// command drivable by forth/wasm/wasi-command.mjs's shared runWasiCommand, the
 // same harness 4th-wasi.wasm/5th-wasi.wasm/6th-wasi.wasm use (see #128).
 // Asserts on "Tiny Basic error #...at line ..." specifically because that
 // message only reaches stdout through OutStr's embedded string table (see

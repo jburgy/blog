@@ -1,4 +1,4 @@
-// Shared mocha-headless-chrome helper for the wasi-command.js browser demos
+// Shared mocha-headless-chrome helper for the wasi-command.mjs browser demos
 // (4th, 5th, 6th): serves html/<name>.html behind a local server (see
 // ../../assets/serve-e2e.mjs, which this shares its
 // static-file-serving core with), then drives it headless. The actual
@@ -27,7 +27,7 @@ function resolvePath({ name, wasmFilePath, htmlPath }, pathname) {
         return wasmFilePath;
     }
     if (
-        pathname === `${assetRoot}wasi-command.js`
+        pathname === `${assetRoot}wasi-command.mjs`
         || pathname === `${assetRoot}wasi-repl.mjs`
         || pathname === `${assetRoot}wasi-repl-mocha.mjs`
     ) {
