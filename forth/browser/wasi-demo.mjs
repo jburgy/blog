@@ -33,8 +33,8 @@ function resolvePath({ name, wasmFilePath, htmlPath }, pathname) {
     ) {
         return join(root, "forth", "wasm", pathname.slice(assetRoot.length));
     }
-    if (pathname === `${assetRoot}jonesforth/jonesforth.f`) {
-        return join(root, "jonesforth", "jonesforth.f");
+    if (pathname === `${assetRoot}forth/4th.32.fs`) {
+        return join(root, "forth", "4th.32.fs");
     }
     return safeJoin(root, pathname);
 }

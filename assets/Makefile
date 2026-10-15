@@ -19,19 +19,19 @@ CLEAN += jonesforth.wasm localize.wasm tabulate.wasm
 # uvx/python-zig, not a bare `zig build`: deploy.yml has no system zig. See
 # build.zig's buildWasi. Named <name>-wasi.wasm, not <name>.wasm, to match
 # 4th-wasi.wasm/5th-wasi.wasm below.
-6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
+6th-wasi.wasm : ../forth/6th.zig ../forth/build.zig wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	cd ../forth && uvx --from ziglang==0.17.0 python-zig build install-6th -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call -Doptimize=ReleaseSmall
 	cp ../forth/zig-out/web/wasi/6th.wasm $@
 all : 6th-wasi.wasm
 CLEAN += 6th-wasi.wasm
 
 # wasi-sdk clang (deploy.yml: bytecodealliance/setup-wasi-sdk-action).
-4th-wasi.wasm : ../forth/4th.c wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
+4th-wasi.wasm : ../forth/4th.c wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -Oz -s -o $@ $<
 all : 4th-wasi.wasm
 CLEAN += 4th-wasi.wasm
 
-5th-wasi.wasm : ../forth/5th.c wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs jonesforth/jonesforth.f
+5th-wasi.wasm : ../forth/5th.c wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
 	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DNO_LIBC_SYSCALL_NUMS -mtail-call -Oz -s -o $@ $<
 all : 5th-wasi.wasm
 CLEAN += 5th-wasi.wasm
@@ -60,8 +60,8 @@ CLEAN += *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js
 
 # Published standalone (not just a side effect of 4th.wasm/5th.wasm/6th.wasm
 # above): the how-many-roads post's tab strip hardcodes /blog/wasi-repl.mjs
-# directly (jburgy/jburgy.github.io) -- startRepl(wasmUrl, preamble) takes
-# the two things that differ per interpreter as plain arguments, so there's
+# directly (jburgy/jburgy.github.io) -- mountRepl(module, preamble, container)
+# takes the things that differ per interpreter as plain arguments, so there's
 # no per-post copy to keep in sync.
 wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs
 	cp $< $@
@@ -133,16 +133,16 @@ slip/slip.wasm : ../slip/Cargo.toml $(wildcard ../slip/src/*.rs)
 	cd ../slip && cargo build --release --lib --target wasm32-unknown-unknown
 	cp ../slip/target/wasm32-unknown-unknown/release/slip.wasm $@
 
-# The deployed jonesforth.f: wasi-repl.mjs's one shared preamble for every
-# FORTH demo that doesn't bring its own (4th/5th/6th-wasi.wasm, jonesforth.wasm),
-# and how-many-roads' own preamble (jburgy/jburgy.github.io) hardcodes this same
+# The deployed jonesforth.f: the preamble for jonesforth.wasm, which (unlike
+# the demos fed forth/4th.32.fs below) defines no (ARGC) primitive, and
+# how-many-roads' own preamble (jburgy/jburgy.github.io) hardcodes this same
 # path; matcher.mjs resolves the identical relative path from the source tree.
 jonesforth/jonesforth.f : ../jonesforth/jonesforth.f
 	@mkdir -p $(@D)
 	cp $< $@
 CLEAN += jonesforth
 
-# The deployed 4th.32.fs: 4th-rs-wasi.wasm's own preamble (see
+# The deployed 4th.32.fs: the preamble for 4th/5th/6th/4th-rs-wasi.wasm (see
 # assets/index.html's data-preamble), same "copy into a same-named
 # subdirectory next to wasi-repl.mjs" convention as lisp/eliza.lisp.
 forth/4th.32.fs : ../forth/4th.32.fs
