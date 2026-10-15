@@ -13,12 +13,10 @@ import { runWasiCommand } from "./wasi-command.mjs";
 /**
  * @param {URL} module the WASI command to run
  * @param {URL} preamble fed to the guest's stdin before handing the terminal
- *   to the user: its own dictionary/program (e.g. forth/4th.32.fs for the
- *   FORTHs that define `(ARGC)`, jonesforth/jonesforth.f for those that don't,
- *   lisp/eliza.lisp, TinyBasic/tictactoe.bas)
+ *   to the user
  * @param {Element} container where to mount the terminal; one REPL per
  *   container, but any number of containers per page
- * @returns {{ term: Terminal, sendLine: (text: string) => void, getOutput: () => string, dispose: () => void }}
+ * @returns {{ sendLine: (text: string) => void, getOutput: () => string, dispose: () => void }}
  *   `sendLine`/`getOutput` let a test drive the REPL deterministically
  *   (see wasi-repl-mocha.mjs). `sendLine` uses xterm.js's own `paste()` to
  *   feed Readline's pending `read()` -- still no simulated keystrokes. Two
@@ -129,7 +127,7 @@ export function mountRepl(module, preamble, container) {
         xterm.dispose();
     }
 
-    return { term: xterm, sendLine, getOutput: () => output, dispose };
+    return { sendLine, getOutput: () => output, dispose };
 }
 
 

@@ -598,11 +598,11 @@
 			details.addEventListener('toggle', () => {
 				if (!details.open || details.dataset.started) return;
 				details.dataset.started = '1';
-				const { wasm } = details.dataset;
+				const { wasm, preamble } = details.dataset;
 				// data-wasm/data-preamble resolve against the page, like data-module.
 				const repl = mountRepl(
 					new URL(wasm, location.href),
-					new URL(details.dataset.preamble, location.href),
+					new URL(preamble, location.href),
 					details.querySelector('[data-role="terminal"]'),
 				);
 				const expected = replReady[wasm];
