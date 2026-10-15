@@ -60,7 +60,7 @@ CLEAN += *.d.ts *.wasm* lisp-wasi.js TinyBasic-wasi.js
 
 # Published standalone (not just a side effect of 4th.wasm/5th.wasm/6th.wasm
 # above): the how-many-roads post's tab strip hardcodes /blog/wasi-repl.mjs
-# directly (jburgy/jburgy.github.io) -- mountRepl(module, preamble, container)
+# directly (jburgy/jburgy.github.io) -- new REPL(module, preamble, container)
 # takes the things that differ per interpreter as plain arguments, so there's
 # no per-post copy to keep in sync.
 wasi-repl.mjs : ../forth/wasm/wasi-repl.mjs

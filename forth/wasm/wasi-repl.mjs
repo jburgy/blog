@@ -11,130 +11,154 @@ import { Readline } from "https://esm.sh/xterm-readline@1.1.2";
 import { runWasiCommand } from "./wasi-command.mjs";
 
 /**
- * @param {URL} module the WASI command to run
- * @param {URL} preamble fed to the guest's stdin before handing the terminal
- *   to the user: its own dictionary/program (e.g. forth/4th.32.fs for the
- *   FORTHs that define `(ARGC)`, jonesforth/jonesforth.f for those that don't,
- *   lisp/eliza.lisp, TinyBasic/tictactoe.bas)
- * @param {Element} container where to mount the terminal; one REPL per
- *   container, but any number of containers per page
- * @returns {{ term: Terminal, sendLine: (text: string) => void, getOutput: () => string, dispose: () => void }}
- *   `sendLine`/`getOutput` let a test drive the REPL deterministically
- *   (see wasi-repl-mocha.mjs). `sendLine` uses xterm.js's own `paste()` to
- *   feed Readline's pending `read()` -- still no simulated keystrokes. Two
- *   separate calls, not one `text + "\r"`: Readline's own paste handling
- *   (readline.js's readPaste) deliberately turns an Enter *inside* a
- *   multi-character paste into a literal "\n" (no accidental paste-and-run),
- *   so only a lone, single-character paste of "\r" takes the submit path.
- *   `dispose` tears down the Terminal and parks the guest on stdin forever
- *   (not EOF: jonesforth's KEY spins on it), so a caller that wants to switch
- *   modules mid-page (e.g. a tabbed demo picking between interpreters) can
- *   cleanly `mountRepl(...)` again in the same container.
+ * One REPL per container, but any number of containers per page. These are
+ * interactive demos, so a guest that exits (e.g. BYE) or traps after the user
+ * typed something is respawned with a fresh preamble. One that dies before
+ * reading any user input is not, so a broken preamble can't loop forever.
+ * `sendLine` and `output` let a test drive it deterministically (see
+ * wasi-repl-mocha.mjs). `dispose` tears down the Terminal and parks the guest
+ * on stdin forever (not EOF: jonesforth's KEY spins on it), so a caller that
+ * wants to switch modules mid-page (e.g. a tabbed demo picking between
+ * interpreters) can cleanly `new REPL(...)` again in the same container.
  */
-export function mountRepl(module, preamble, container) {
-    if (!(module instanceof URL)) throw new TypeError("module must be a URL");
-    if (!(preamble instanceof URL)) throw new TypeError("preamble must be a URL");
-    if (!(container instanceof Element)) throw new TypeError("container must be an Element");
-    const xterm = new Terminal();
-    // xterm-readline redraws a line as many tiny write() calls (erase, text, "\r", cursor move);
-    // coalesce them per tick so xterm.js never renders the half-drawn "cursor at column 0" state.
-    // FIXME: drop once strtok/xterm-readline emits each redraw as one write (no upstream issue yet).
-    const write0 = xterm.write.bind(xterm);
-    let pending = "";
-    let callbacks = [];
-    xterm.write = (data, callback) => {
-        if (!pending) queueMicrotask(() => {
-            const [text, cbs] = [pending, callbacks];
-            pending = "";
-            callbacks = [];
-            write0(text, () => cbs.forEach((cb) => cb()));
+export class REPL {
+    /** @readonly */
+    #xterm = new Terminal();
+    /** @readonly */
+    #rl = new Readline();
+    /** @readonly @type {URL} */
+    #module;
+    #disposed = false;
+
+    /** Everything the guest has written so far, uncollapsed. */
+    output = "";
+
+    /**
+     * @param {URL} module the WASI command to run
+     * @param {URL} preamble fed to the guest's stdin before handing the terminal
+     *   to the user
+     * @param {Element} container where to mount the terminal
+     */
+    constructor(module, preamble, container) {
+        if (!(module instanceof URL)) throw new TypeError("module must be a URL");
+        if (!(preamble instanceof URL)) throw new TypeError("preamble must be a URL");
+        if (!(container instanceof Element)) throw new TypeError("container must be an Element");
+        this.#module = module;
+        const xterm = this.#xterm;
+        // xterm-readline redraws a line as many tiny write() calls (erase, text, "\r", cursor move);
+        // coalesce them per tick so xterm.js never renders the half-drawn "cursor at column 0" state.
+        // FIXME: drop once strtok/xterm-readline emits each redraw as one write (no upstream issue yet).
+        const write0 = xterm.write.bind(xterm);
+        let pending = "";
+        let callbacks = [];
+        xterm.write = (data, callback) => {
+            if (!pending) queueMicrotask(() => {
+                const [text, cbs] = [pending, callbacks];
+                pending = "";
+                callbacks = [];
+                write0(text, () => cbs.forEach((cb) => cb()));
+            });
+            pending += data;
+            if (callback) callbacks.push(callback);
+        };
+        xterm.loadAddon(this.#rl);
+        xterm.open(container);
+
+        // Cyan input vs. default-colored output, via xterm-readline's Highlighter hook.
+        this.#rl.setHighlighter({
+            highlight: (line) => `\x1b[36m${line}\x1b[0m`,
+            highlightPrompt: (prompt) => prompt,
+            // Must be true, or xterm-readline skips highlight() on its fast per-keystroke path.
+            highlightChar: () => true,
         });
-        pending += data;
-        if (callback) callbacks.push(callback);
-    };
-    const rl = new Readline();
-    xterm.loadAddon(rl);
-    xterm.open(container);
 
-    // Cyan input vs. default-colored output, via xterm-readline's Highlighter hook.
-    rl.setHighlighter({
-        highlight: (line) => `\x1b[36m${line}\x1b[0m`,
-        highlightPrompt: (prompt) => prompt,
-        // Must be true, or xterm-readline skips highlight() on its fast per-keystroke path.
-        highlightChar: () => true,
-    });
-
-    let output = "";
-    let disposed = false;
-    // Skip "ok" after the first prompt: WELCOME's own one-time "OK " already covers it.
-    let first = true;
-    // Set once an output chunk is a lone ":" with nothing else -- see its
-    // use below.
-    let lastWasBarePrompt = false;
-
-    // A pull-based stdin: `pull` only runs when the guest is genuinely blocked
-    // in read() with nothing buffered, which is exactly when to prompt. Chunks
-    // `start` enqueues (the preamble) are consumed first, so the guest never
-    // reads before it exists.
-    const stdin = new ReadableStream({
-        async start(controller) {
-            controller.enqueue(new Uint8Array(await (await fetch(preamble)).arrayBuffer()));
-        },
-        async pull(controller) {
-            if (disposed) return new Promise(() => { });
-            // This line is done printing -- append dim "ok" (no leading
-            // space: jonesforth's own output usually ends in one), then
-            // "\n" so the next read starts on a row with nothing to erase.
-            if (!first) rl.write("\x1b[2mok\x1b[0m");
-            first = false;
-            rl.write("\n");
-            // Empty prompt always: "ok" above is output glued after the
-            // interpreter's own text, not a read() prompt -- raw output written
-            // after an armed prompt gets erased on that read's next refresh.
-            controller.enqueue(new TextEncoder().encode(`${await rl.read("")}\n`));
-        },
-    }, { highWaterMark: 0 });
-
-    function write(data) {
-        if (disposed) return;
-        output += data;
-        // A multi-line preamble (e.g. TinyBasic/tictactoe.bas,
-        // ~70 stored lines) echoes its own bare ":" command
-        // prompt once per line while loading -- faithful to the
-        // real interpreter (it does this for every line it
-        // reads, not just direct commands), but a wall of
-        // identical prompts is pure noise with nothing else
-        // interleaved. Collapse consecutive repeats down to the
-        // single one a human typing one line at a time would
-        // actually see; `output` above still keeps the true,
-        // uncollapsed stream for getOutput() callers.
-        const isBarePrompt = data === ":";
-        if (!(isBarePrompt && lastWasBarePrompt)) rl.write(data);
-        lastWasBarePrompt = isBarePrompt;
+        this.#run(preamble).catch((error) => this.#rl.println(`[Error: ${error.message}]`));
     }
 
-    runWasiCommand(fetch(module), { stdin, stdout: write, stderr: write }).then(
-        (code) => { if (!disposed) rl.println(`[Process exited with code ${code}]`); },
-        (error) => { if (!disposed) rl.println(`[Error: ${error.message}]`); },
-    );
+    /** @param {URL} preambleUrl */
+    async #run(preambleUrl) {
+        const preamble = new Uint8Array(await (await fetch(preambleUrl)).arrayBuffer());
+        const rl = this.#rl;
+        while (!this.#disposed) {
+            // Skip "ok" after the first prompt: WELCOME's own one-time "OK " already covers it.
+            let first = true;
+            // Set once an output chunk is a lone ":" with nothing else -- see its
+            // use below.
+            let lastWasBarePrompt = false;
+            let lines = 0;
 
-    function sendLine(text) {
-        xterm.paste(text);
-        xterm.paste("\r");
+            // A pull-based stdin: `pull` only runs when the guest is genuinely blocked
+            // in read() with nothing buffered, which is exactly when to prompt. Chunks
+            // `start` enqueues (the preamble) are consumed first, so the guest never
+            // reads before it exists.
+            const stdin = new ReadableStream({
+                start: (controller) => controller.enqueue(preamble),
+                pull: async (controller) => {
+                    if (this.#disposed) return new Promise(() => { });
+                    // This line is done printing -- append dim "ok" (no leading
+                    // space: jonesforth's own output usually ends in one), then
+                    // "\n" so the next read starts on a row with nothing to erase.
+                    if (!first) rl.write("\x1b[2mok\x1b[0m");
+                    first = false;
+                    rl.write("\n");
+                    // Empty prompt always: "ok" above is output glued after the
+                    // interpreter's own text, not a read() prompt -- raw output written
+                    // after an armed prompt gets erased on that read's next refresh.
+                    const line = await rl.read("");
+                    lines++;
+                    controller.enqueue(new TextEncoder().encode(`${line}\n`));
+                },
+            }, { highWaterMark: 0 });
+
+            const write = (data) => {
+                if (this.#disposed) return;
+                this.output += data;
+                // Collapse repeated bare ":" prompts a multi-line preamble echoes; output keeps the raw stream.
+                const isBarePrompt = data === ":";
+                if (!(isBarePrompt && lastWasBarePrompt)) rl.write(data);
+                lastWasBarePrompt = isBarePrompt;
+            };
+
+            let status;
+            try {
+                const code = await runWasiCommand(fetch(this.#module), { stdin, stdout: write, stderr: write });
+                status = `[Process exited with code ${code}`;
+            } catch (error) {
+                status = `[Error: ${error.message}`;
+            }
+            if (this.#disposed) return;
+            // Respawn only once the user got to type something, so a guest that dies
+            // during its own preamble can't loop forever.
+            const respawn = lines > 0;
+            rl.println(`${status}${respawn ? ", restarting" : ""}]`);
+            if (!respawn) return;
+            rl.write("\x1b[3J\x1b[2J\x1b[H");
+        }
     }
 
-    function dispose() {
-        if (disposed) return;
-        disposed = true;
-        xterm.dispose();
+    /**
+     * Feeds Readline's pending `read()` through xterm.js's own `paste()` --
+     * still no simulated keystrokes. Two separate calls, not one
+     * `text + "\r"`: Readline's own paste handling (readline.js's readPaste)
+     * deliberately turns an Enter *inside* a multi-character paste into a
+     * literal "\n" (no accidental paste-and-run), so only a lone,
+     * single-character paste of "\r" takes the submit path.
+     * @param {string} text
+     */
+    sendLine(text) {
+        this.#xterm.paste(text);
+        this.#xterm.paste("\r");
     }
 
-    return { term: xterm, sendLine, getOutput: () => output, dispose };
+    dispose() {
+        if (this.#disposed) return;
+        this.#disposed = true;
+        this.#xterm.dispose();
+    }
 }
 
-
 /**
- * @deprecated Use {@link mountRepl}. Legacy argument handling, kept until
+ * @deprecated Use {@link REPL}. Legacy argument handling, kept until
  * jburgy.github.io migrates: `preamble` is `true` (jonesforth.f), `false`
  * (none) or a path relative to this module; `container` is an element or id.
  * @param {string} wasmUrl
@@ -142,7 +166,7 @@ export function mountRepl(module, preamble, container) {
  * @param {string | Element} [container]
  */
 export function startRepl(wasmUrl, preamble = true, container = "terminal") {
-    return mountRepl(
+    return new REPL(
         new URL(wasmUrl, document.baseURI),
         preamble ? new URL(typeof preamble === "string" ? preamble : "./jonesforth/jonesforth.f", import.meta.url) : new URL("data:,"),
         typeof container === "string" ? document.getElementById(container) : container,
