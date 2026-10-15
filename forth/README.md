@@ -212,13 +212,16 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   landing page is the one consumer that needs this, one `<details>` per
   interpreter; the how-many-roads post's tab strip is the one that switches
   `module` in place instead, `dispose()`-ing the previous REPL (tears down
-  its Terminal) first. `startRepl(wasmUrl, preamble, container)` is the
+  its Terminal) first. A guest that exits or traps after the user typed
+  something (e.g. `BYE`) is respawned with a fresh preamble and a cleared
+  screen; one that dies before reading any user input is not, so a broken
+  preamble can't loop forever. `startRepl(wasmUrl, preamble, container)` is the
   deprecated legacy wrapper (boolean/string `preamble`, id-or-element
   `container`) that delegates to `new REPL` until jburgy.github.io migrates.
   Each
   html/*.html page also loads mocha from a CDN
   and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
-  live `REPL` instance (`sendLine`/`getOutput`, not simulated keystrokes) -- a human
+  live `REPL` instance (`sendLine`/`output`, not simulated keystrokes) -- a human
   visiting the page gets the same pass/fail report CI reads headless (see
   `npm run test:browser` above). The guest runs on the main thread: `fd_read`
   is a `WebAssembly.Suspending` import and `_start` a `WebAssembly.promising`

@@ -606,7 +606,7 @@
 					details.querySelector('[data-role="terminal"]'),
 				);
 				const expected = replReady[wasm];
-				smokeTest(details, `prints ${JSON.stringify(expected)}`, () => waitFor(() => repl.getOutput().includes(expected)), 60000);
+				smokeTest(details, `prints ${JSON.stringify(expected)}`, () => waitFor(() => repl.output.includes(expected)), 60000);
 			});
 		}
 

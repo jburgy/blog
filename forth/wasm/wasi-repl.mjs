@@ -15,19 +15,23 @@ import { runWasiCommand } from "./wasi-command.mjs";
  * interactive demos, so a guest that exits (e.g. BYE) or traps after the user
  * typed something is respawned with a fresh preamble. One that dies before
  * reading any user input is not, so a broken preamble can't loop forever.
- * `sendLine` and `getOutput` let a test drive it deterministically (see
+ * `sendLine` and `output` let a test drive it deterministically (see
  * wasi-repl-mocha.mjs). `dispose` tears down the Terminal and parks the guest
  * on stdin forever (not EOF: jonesforth's KEY spins on it), so a caller that
  * wants to switch modules mid-page (e.g. a tabbed demo picking between
  * interpreters) can cleanly `new REPL(...)` again in the same container.
  */
 export class REPL {
+    /** @readonly */
     #xterm = new Terminal();
+    /** @readonly */
     #rl = new Readline();
+    /** @readonly @type {URL} */
     #module;
-    #preamble;
-    #output = "";
     #disposed = false;
+
+    /** Everything the guest has written so far, uncollapsed. */
+    output = "";
 
     /**
      * @param {URL} module the WASI command to run
@@ -40,7 +44,6 @@ export class REPL {
         if (!(preamble instanceof URL)) throw new TypeError("preamble must be a URL");
         if (!(container instanceof Element)) throw new TypeError("container must be an Element");
         this.#module = module;
-        this.#preamble = preamble;
         const xterm = this.#xterm;
         // xterm-readline redraws a line as many tiny write() calls (erase, text, "\r", cursor move);
         // coalesce them per tick so xterm.js never renders the half-drawn "cursor at column 0" state.
@@ -69,10 +72,12 @@ export class REPL {
             highlightChar: () => true,
         });
 
-        this.#run();
+        this.#run(preamble).catch((error) => this.#rl.println(`[Error: ${error.message}]`));
     }
 
-    async #run() {
+    /** @param {URL} preambleUrl */
+    async #run(preambleUrl) {
+        const preamble = new Uint8Array(await (await fetch(preambleUrl)).arrayBuffer());
         const rl = this.#rl;
         while (!this.#disposed) {
             // Skip "ok" after the first prompt: WELCOME's own one-time "OK " already covers it.
@@ -87,9 +92,7 @@ export class REPL {
             // `start` enqueues (the preamble) are consumed first, so the guest never
             // reads before it exists.
             const stdin = new ReadableStream({
-                start: async (controller) => {
-                    controller.enqueue(new Uint8Array(await (await fetch(this.#preamble)).arrayBuffer()));
-                },
+                start: (controller) => controller.enqueue(preamble),
                 pull: async (controller) => {
                     if (this.#disposed) return new Promise(() => { });
                     // This line is done printing -- append dim "ok" (no leading
@@ -109,8 +112,8 @@ export class REPL {
 
             const write = (data) => {
                 if (this.#disposed) return;
-                this.#output += data;
-                // Collapse repeated bare ":" prompts a multi-line preamble echoes; #output keeps the raw stream.
+                this.output += data;
+                // Collapse repeated bare ":" prompts a multi-line preamble echoes; output keeps the raw stream.
                 const isBarePrompt = data === ":";
                 if (!(isBarePrompt && lastWasBarePrompt)) rl.write(data);
                 lastWasBarePrompt = isBarePrompt;
@@ -129,6 +132,7 @@ export class REPL {
             const respawn = lines > 0;
             rl.println(`${status}${respawn ? ", restarting" : ""}]`);
             if (!respawn) return;
+            rl.write("\x1b[3J\x1b[2J\x1b[H");
         }
     }
 
@@ -144,10 +148,6 @@ export class REPL {
     sendLine(text) {
         this.#xterm.paste(text);
         this.#xterm.paste("\r");
-    }
-
-    getOutput() {
-        return this.#output;
     }
 
     dispose() {

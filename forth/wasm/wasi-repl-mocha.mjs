@@ -50,12 +50,12 @@ export function registerWasiReplSpec({
 
         before(async () => {
             repl = new REPL(module, preamble, container);
-            await waitFor(() => repl.getOutput().includes("JONESFORTH VERSION"));
+            await waitFor(() => repl.output.includes("JONESFORTH VERSION"));
         });
 
         it(`${command} works`, async () => {
             repl.sendLine(command);
-            await waitFor(() => repl.getOutput().includes(expected));
+            await waitFor(() => repl.output.includes(expected));
         });
     });
 }
