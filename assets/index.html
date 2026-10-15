@@ -69,7 +69,7 @@
 			opacity: 1;
 		}
 
-		/* Containers demo.mjs modules/mountRepl mount into, lazily, on first
+		/* Containers demo.mjs modules/REPL mount into, lazily, on first
 		   <details> open -- see the two toggle listeners at the bottom. */
 		.demo,
 		.repl {
@@ -537,7 +537,7 @@
 	</details>
 
 	<script type="module">
-		import { mountRepl } from './wasi-repl.mjs';
+		import { REPL } from './wasi-repl.mjs';
 		import { waitFor } from './wasi-repl-mocha.mjs';
 
 		// Every REPL demo's startup output: the five jonesforth clones (each
@@ -600,7 +600,7 @@
 				details.dataset.started = '1';
 				const { wasm, preamble } = details.dataset;
 				// data-wasm/data-preamble resolve against the page, like data-module.
-				const repl = mountRepl(
+				const repl = new REPL(
 					new URL(wasm, location.href),
 					new URL(preamble, location.href),
 					details.querySelector('[data-role="terminal"]'),

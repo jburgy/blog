@@ -1,5 +1,5 @@
 // Shared in-browser mocha spec for the wasi-command.mjs REPL demos
-// (html/4th.html, html/5th.html, html/6th.html): drives mountRepl()
+// (html/4th.html, html/5th.html, html/6th.html): drives a REPL
 // (wasi-repl.mjs) directly -- no simulated keystrokes -- and asserts on its
 // accumulated output, the same assertion every demo needs, parametrized by
 // which interpreter's page is loading it. The page itself owns mocha.setup()
@@ -13,7 +13,7 @@
 // `waitFor` is exported too: index.html's own lazy, per-<details> smoke
 // tests need the same polling helper but (unlike registerWasiReplSpec) don't
 // send a command into the live terminal, so they can't reuse the spec itself.
-import { mountRepl } from "./wasi-repl.mjs";
+import { REPL } from "./wasi-repl.mjs";
 
 export function waitFor(predicate, timeout = 60000, interval = 100) {
     return new Promise((resolve, reject) => {
@@ -49,7 +49,7 @@ export function registerWasiReplSpec({
         let repl;
 
         before(async () => {
-            repl = mountRepl(module, preamble, container);
+            repl = new REPL(module, preamble, container);
             await waitFor(() => repl.getOutput().includes("JONESFORTH VERSION"));
         });
 

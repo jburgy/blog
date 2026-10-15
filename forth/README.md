@@ -190,7 +190,8 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   command directly. Shares `wasi-command.mjs` with `4th.wasm`/`5th.wasm` above,
   and is what [html/6th.html](html/6th.html) actually runs -- no pty, no
   xterm-pty; [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs)
-  (`mountRepl(module, preamble, container)`, all three strict: a `URL`, a
+  (`class REPL`, constructed as `new REPL(module, preamble, container)`, all
+  three strict: a `URL`, a
   `URL`, an `Element`) does the line editing against `xterm.js`, shared by
   `html/4th.html`, `html/5th.html`, and `html/6th.html`, and published
   standalone via `assets/Makefile`'s own `wasi-repl.mjs` target -- not just
@@ -213,11 +214,11 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   `module` in place instead, `dispose()`-ing the previous REPL (tears down
   its Terminal) first. `startRepl(wasmUrl, preamble, container)` is the
   deprecated legacy wrapper (boolean/string `preamble`, id-or-element
-  `container`) that delegates to `mountRepl` until jburgy.github.io migrates.
+  `container`) that delegates to `new REPL` until jburgy.github.io migrates.
   Each
   html/*.html page also loads mocha from a CDN
   and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
-  live REPL (`mountRepl`'s return value, not simulated keystrokes) -- a human
+  live `REPL` instance (`sendLine`/`getOutput`, not simulated keystrokes) -- a human
   visiting the page gets the same pass/fail report CI reads headless (see
   `npm run test:browser` above). The guest runs on the main thread: `fd_read`
   is a `WebAssembly.Suspending` import and `_start` a `WebAssembly.promising`
