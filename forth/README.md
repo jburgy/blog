@@ -215,11 +215,8 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   its Terminal) first. A guest that exits or traps after the user typed
   something (e.g. `BYE`) is respawned with a fresh preamble and a cleared
   screen; one that dies before reading any user input is not, so a broken
-  preamble can't loop forever. `startRepl(wasmUrl, preamble, container)` is the
-  deprecated legacy wrapper (boolean/string `preamble`, id-or-element
-  `container`) that delegates to `new REPL` until jburgy.github.io migrates.
-  Each
-  html/*.html page also loads mocha from a CDN
+  preamble can't loop forever.
+  Each html/*.html page also loads mocha from a CDN
   and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
   live `REPL` instance (`sendLine`/`output`, not simulated keystrokes) -- a human
   visiting the page gets the same pass/fail report CI reads headless (see

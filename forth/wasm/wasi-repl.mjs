@@ -156,19 +156,3 @@ export class REPL {
         this.#xterm.dispose();
     }
 }
-
-/**
- * @deprecated Use {@link REPL}. Legacy argument handling, kept until
- * jburgy.github.io migrates: `preamble` is `true` (jonesforth.f), `false`
- * (none) or a path relative to this module; `container` is an element or id.
- * @param {string} wasmUrl
- * @param {boolean | string} [preamble]
- * @param {string | Element} [container]
- */
-export function startRepl(wasmUrl, preamble = true, container = "terminal") {
-    return new REPL(
-        new URL(wasmUrl, document.baseURI),
-        preamble ? new URL(typeof preamble === "string" ? preamble : "./jonesforth/jonesforth.f", import.meta.url) : new URL("data:,"),
-        typeof container === "string" ? document.getElementById(container) : container,
-    );
-}
