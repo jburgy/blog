@@ -25,7 +25,12 @@
     <script>mocha.setup({ ui: "bdd", timeout: 60000 });</script>
     <script type="module">
         import { registerWasiReplSpec } from "/assets/wasi-repl-mocha.mjs";
-        registerWasiReplSpec({ name: "6th", wasmUrl: "/assets/6th-wasi.wasm" });
+        registerWasiReplSpec({
+            name: "6th",
+            module: new URL("/assets/6th-wasi.wasm", location.href),
+            preamble: new URL("/assets/forth/4th.32.fs", location.href),
+            container: document.getElementById("terminal"),
+        });
         mocha.run();
     </script>
 </body>

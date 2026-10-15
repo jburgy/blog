@@ -69,7 +69,7 @@
 			opacity: 1;
 		}
 
-		/* Containers demo.mjs modules/startRepl mount into, lazily, on first
+		/* Containers demo.mjs modules/mountRepl mount into, lazily, on first
 		   <details> open -- see the two toggle listeners at the bottom. */
 		.demo,
 		.repl {
@@ -465,7 +465,7 @@
 		</div>
 	</details>
 
-	<details data-wasm="jonesforth.wasm">
+	<details data-wasm="jonesforth.wasm" data-preamble="jonesforth/jonesforth.f">
 		<summary><a
 				href="https://github.com/jburgy/blog/blob/main/forth/wasm/jonesforth.wast"><code>forth/wasm/jonesforth.wast</code></a>
 			&mdash; <span class="desc">jonesforth ported to hand-written WebAssembly, using
@@ -477,7 +477,7 @@
 		</div>
 	</details>
 
-	<details data-wasm="6th-wasi.wasm">
+	<details data-wasm="6th-wasi.wasm" data-preamble="forth/4th.32.fs">
 		<summary><a href="https://github.com/jburgy/blog/blob/main/forth/6th.zig"><code>forth/6th.zig</code></a>
 			&mdash; <span class="desc">jonesforth clone in Zig using <code>@call(.always_tail, ...)</code> for
 				tail calls</span></summary>
@@ -487,7 +487,7 @@
 		</div>
 	</details>
 
-	<details data-wasm="5th-wasi.wasm">
+	<details data-wasm="5th-wasi.wasm" data-preamble="forth/4th.32.fs">
 		<summary><a href="https://github.com/jburgy/blog/blob/main/forth/5th.c"><code>forth/5th.c</code></a>
 			&mdash; <span class="desc">jonesforth clone in GNU C using <code>musttail</code> instead of labels as
 				values</span></summary>
@@ -527,7 +527,7 @@
 		</div>
 	</details>
 
-	<details data-wasm="4th-wasi.wasm">
+	<details data-wasm="4th-wasi.wasm" data-preamble="forth/4th.32.fs">
 		<summary><a href="https://github.com/jburgy/blog/blob/main/forth/4th.c"><code>forth/4th.c</code></a>
 			&mdash; <span class="desc">jonesforth clone in GNU C using labels as values</span></summary>
 		<p>2023-02-24 &middot; <a href="https://bur.gy/2023/02/24/what-forth-again.html">What, Forth, Again?</a></p>
@@ -537,12 +537,12 @@
 	</details>
 
 	<script type="module">
-		import { startRepl } from './wasi-repl.mjs';
+		import { mountRepl } from './wasi-repl.mjs';
 		import { waitFor } from './wasi-repl-mocha.mjs';
 
-		// Every REPL demo's startup output: the five jonesforth clones (four
-		// fed jonesforth.f, 4th-rs-wasi.wasm fed its own forth/4th.32.fs, see
-		// its data-preamble) print the "JONESFORTH VERSION" welcome banner;
+		// Every REPL demo's startup output: the five jonesforth clones (each
+		// fed its own data-preamble, forth/4th.32.fs or jonesforth.f) print
+		// the "JONESFORTH VERSION" welcome banner;
 		// TinyBasic-wasi.wasm's own preamble (TinyBasic/tictactoe.bas, see
 		// its data-preamble) runs Tom Pittman's Tic-Tac-Toe and stops at its
 		// first "YOUR PLAY" prompt; lisp-wasi.wasm's own preamble
@@ -598,13 +598,13 @@
 			details.addEventListener('toggle', () => {
 				if (!details.open || details.dataset.started) return;
 				details.dataset.started = '1';
-				const { wasm, preamble } = details.dataset;
-				const container = details.querySelector('[data-role="terminal"]');
-				// data-preamble: absent -> jonesforth.f (startRepl's own default);
-				// "none" -> no preamble, for a WASI command with no use for one;
-				// any other value is a path to a different command's own
-				// preamble, e.g. "TinyBasic/tictactoe.bas" or "lisp/eliza.lisp".
-				const repl = startRepl(wasm, preamble === 'none' ? false : (preamble ?? true), container);
+				const { wasm } = details.dataset;
+				// data-wasm/data-preamble resolve against the page, like data-module.
+				const repl = mountRepl(
+					new URL(wasm, location.href),
+					new URL(details.dataset.preamble, location.href),
+					details.querySelector('[data-role="terminal"]'),
+				);
 				const expected = replReady[wasm];
 				smokeTest(details, `prints ${JSON.stringify(expected)}`, () => waitFor(() => repl.getOutput().includes(expected)), 60000);
 			});

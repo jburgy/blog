@@ -11,27 +11,13 @@ import { Readline } from "https://esm.sh/xterm-readline@1.1.2";
 import { runWasiCommand } from "./wasi-command.mjs";
 
 /**
- * @param {string} wasmUrl
- * @param {boolean | string} [preamble] feeds jonesforth.f's classic
- *   dictionary before handing the terminal to the user (default); pass
- *   `false` for a WASI command with no use for it (e.g. TinyBasic-wasi.wasm,
- *   see jburgy.github.io's TinyBasic post). One file for every FORTH here
- *   (4th.c/5th.c/6th.zig and jonesforth.wasm alike): jonesforth.f's own
- *   ARGC/ARGV/ENVIRON read S0-relative, the original x86 stack layout, which
- *   compiles fine under WASI but answers wrong instead of real argv (see
- *   wasi-command.test.ts) -- harmless, since nothing here ever calls them.
- *   Pass a string instead (resolved relative to this module, same as the
- *   jonesforth.f default) to feed a different command its own preamble --
- *   e.g. lisp-wasi.wasm's `"./lisp/eliza.lisp"`, a single self-recursive
- *   expression (no interpreter changes needed) that greets the user, then
- *   keeps `(READ)`ing plain sentences and replying to them forever instead
- *   of ever handing control back to a bare `*` prompt.
- * @param {string | HTMLElement} [container] defaults to `#terminal`, same as
- *   every existing caller (a single demo per page). Pass an element (or a
- *   different id) to mount more than one REPL on the same page at once --
- *   e.g. assets/index.html's landing page, where each interpreter gets its
- *   own `<details>` instead of sharing one div like the tabbed how-many-roads
- *   post does.
+ * @param {URL} module the WASI command to run
+ * @param {URL} preamble fed to the guest's stdin before handing the terminal
+ *   to the user: its own dictionary/program (e.g. forth/4th.32.fs for the
+ *   FORTHs that define `(ARGC)`, jonesforth/jonesforth.f for those that don't,
+ *   lisp/eliza.lisp, TinyBasic/tictactoe.bas)
+ * @param {Element} container where to mount the terminal; one REPL per
+ *   container, but any number of containers per page
  * @returns {{ term: Terminal, sendLine: (text: string) => void, getOutput: () => string, dispose: () => void }}
  *   `sendLine`/`getOutput` let a test drive the REPL deterministically
  *   (see wasi-repl-mocha.mjs). `sendLine` uses xterm.js's own `paste()` to
@@ -42,15 +28,33 @@ import { runWasiCommand } from "./wasi-command.mjs";
  *   so only a lone, single-character paste of "\r" takes the submit path.
  *   `dispose` tears down the Terminal and parks the guest on stdin forever
  *   (not EOF: jonesforth's KEY spins on it), so a caller that wants to switch
- *   wasmUrl mid-page (e.g. a tabbed demo picking between interpreters) can
- *   cleanly start a fresh `startRepl(...)` in the same `#terminal` div.
+ *   modules mid-page (e.g. a tabbed demo picking between interpreters) can
+ *   cleanly `mountRepl(...)` again in the same container.
  */
-export function startRepl(wasmUrl, preamble = true, container = "terminal") {
-    const preambleUrl = new URL(typeof preamble === "string" ? preamble : "./jonesforth/jonesforth.f", import.meta.url);
+export function mountRepl(module, preamble, container) {
+    if (!(module instanceof URL)) throw new TypeError("module must be a URL");
+    if (!(preamble instanceof URL)) throw new TypeError("preamble must be a URL");
+    if (!(container instanceof Element)) throw new TypeError("container must be an Element");
     const xterm = new Terminal();
+    // xterm-readline redraws a line as many tiny write() calls (erase, text, "\r", cursor move);
+    // coalesce them per tick so xterm.js never renders the half-drawn "cursor at column 0" state.
+    // FIXME: drop once strtok/xterm-readline emits each redraw as one write (no upstream issue yet).
+    const write0 = xterm.write.bind(xterm);
+    let pending = "";
+    let callbacks = [];
+    xterm.write = (data, callback) => {
+        if (!pending) queueMicrotask(() => {
+            const [text, cbs] = [pending, callbacks];
+            pending = "";
+            callbacks = [];
+            write0(text, () => cbs.forEach((cb) => cb()));
+        });
+        pending += data;
+        if (callback) callbacks.push(callback);
+    };
     const rl = new Readline();
     xterm.loadAddon(rl);
-    xterm.open(typeof container === "string" ? document.getElementById(container) : container);
+    xterm.open(container);
 
     // Cyan input vs. default-colored output, via xterm-readline's Highlighter hook.
     rl.setHighlighter({
@@ -74,7 +78,7 @@ export function startRepl(wasmUrl, preamble = true, container = "terminal") {
     // reads before it exists.
     const stdin = new ReadableStream({
         async start(controller) {
-            if (preamble) controller.enqueue(new Uint8Array(await (await fetch(preambleUrl)).arrayBuffer()));
+            controller.enqueue(new Uint8Array(await (await fetch(preamble)).arrayBuffer()));
         },
         async pull(controller) {
             if (disposed) return new Promise(() => { });
@@ -109,7 +113,7 @@ export function startRepl(wasmUrl, preamble = true, container = "terminal") {
         lastWasBarePrompt = isBarePrompt;
     }
 
-    runWasiCommand(fetch(wasmUrl), { stdin, stdout: write, stderr: write }).then(
+    runWasiCommand(fetch(module), { stdin, stdout: write, stderr: write }).then(
         (code) => { if (!disposed) rl.println(`[Process exited with code ${code}]`); },
         (error) => { if (!disposed) rl.println(`[Error: ${error.message}]`); },
     );
@@ -128,3 +132,19 @@ export function startRepl(wasmUrl, preamble = true, container = "terminal") {
     return { term: xterm, sendLine, getOutput: () => output, dispose };
 }
 
+
+/**
+ * @deprecated Use {@link mountRepl}. Legacy argument handling, kept until
+ * jburgy.github.io migrates: `preamble` is `true` (jonesforth.f), `false`
+ * (none) or a path relative to this module; `container` is an element or id.
+ * @param {string} wasmUrl
+ * @param {boolean | string} [preamble]
+ * @param {string | Element} [container]
+ */
+export function startRepl(wasmUrl, preamble = true, container = "terminal") {
+    return mountRepl(
+        new URL(wasmUrl, document.baseURI),
+        preamble ? new URL(typeof preamble === "string" ? preamble : "./jonesforth/jonesforth.f", import.meta.url) : new URL("data:,"),
+        typeof container === "string" ? document.getElementById(container) : container,
+    );
+}

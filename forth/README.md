@@ -189,34 +189,35 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   `buildWasi`): zig's own linker produces the standalone
   command directly. Shares `wasi-command.mjs` with `4th.wasm`/`5th.wasm` above,
   and is what [html/6th.html](html/6th.html) actually runs -- no pty, no
-  xterm-pty; [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs) (`startRepl(wasmUrl)`)
-  does the line editing against `xterm.js`, shared by `html/4th.html`,
-  `html/5th.html`, and `html/6th.html`, and published standalone via
-  `assets/Makefile`'s own `wasi-repl.mjs` target -- not just a side effect of
-  building `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm` -- so a post can
-  hardcode `/blog/wasi-repl.mjs` directly. `jonesforth.wasm` shares that same
-  `jonesforth.f` dictionary too (its own `ARGC`/`ARGV`/`ENVIRON` just answer
-  wrong instead of real argv under WASI, harmlessly, since nothing here calls
-  them), so `startRepl`'s optional second argument is a plain `preamble`
-  boolean (default `true`) or a path string, not always a full URL: `false`
-  opts all the way out for a WASI command with no use for it
-  (`TinyBasic-wasi.wasm`). A string instead feeds a *different* command its
-  own preamble file (resolved relative to `wasi-repl.mjs` the same way the
-  `jonesforth.f` default is) -- e.g. `lisp-wasi.wasm`'s
-  `"./lisp/eliza.lisp"` (see `assets/index.html`'s `data-preamble`): one
+  xterm-pty; [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs)
+  (`mountRepl(module, preamble, container)`, all three strict: a `URL`, a
+  `URL`, an `Element`) does the line editing against `xterm.js`, shared by
+  `html/4th.html`, `html/5th.html`, and `html/6th.html`, and published
+  standalone via `assets/Makefile`'s own `wasi-repl.mjs` target -- not just
+  a side effect of building `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm`
+  -- so a post can hardcode `/blog/wasi-repl.mjs` directly. The `preamble` is
+  fed to the guest's stdin before the user gets the terminal: `4th.32.fs`
+  for the FORTHs that define the `(ARGC)` primitive it needs
+  (`4th.c`/`5th.c`/`6th.zig`/`4th.rs`), `jonesforth.f` for `jonesforth.wasm`,
+  which doesn't (its own `ARGC`/`ARGV`/`ENVIRON` just answer wrong instead
+  of real argv under WASI, harmlessly, since nothing here calls them), and
+  a *different* command's own file otherwise -- e.g. `lisp-wasi.wasm`'s
+  `lisp/eliza.lisp` (see `assets/index.html`'s `data-preamble`): one
   single self-recursive expression (`core.ts` itself is untouched) that
   prints a greeting, then keeps `(READ)`ing and pattern-matching plain
   sentences forever, so the terminal never goes back to a bare `*` prompt.
-  A third, optional `container` argument (element or id, defaulting to
-  `"terminal"`) lets a caller mount more than one REPL on the same page at
-  once instead of sharing a single div -- `assets/index.html`'s demos
+  Taking a `container` lets a caller mount more than one REPL on the same
+  page at once instead of sharing a single div -- `assets/index.html`'s demos
   landing page is the one consumer that needs this, one `<details>` per
   interpreter; the how-many-roads post's tab strip is the one that switches
-  `wasmUrl` in place instead, `dispose()`-ing the previous REPL (terminates
-  its Worker, tears down its Terminal) first. Each
+  `module` in place instead, `dispose()`-ing the previous REPL (tears down
+  its Terminal) first. `startRepl(wasmUrl, preamble, container)` is the
+  deprecated legacy wrapper (boolean/string `preamble`, id-or-element
+  `container`) that delegates to `mountRepl` until jburgy.github.io migrates.
+  Each
   html/*.html page also loads mocha from a CDN
   and runs [wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs) against the
-  live REPL (`startRepl`'s return value, not simulated keystrokes) -- a human
+  live REPL (`mountRepl`'s return value, not simulated keystrokes) -- a human
   visiting the page gets the same pass/fail report CI reads headless (see
   `npm run test:browser` above). The guest runs on the main thread: `fd_read`
   is a `WebAssembly.Suspending` import and `_start` a `WebAssembly.promising`
