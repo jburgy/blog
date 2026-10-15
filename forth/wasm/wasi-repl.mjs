@@ -11,8 +11,11 @@ import { Readline } from "https://esm.sh/xterm-readline@1.1.2";
 import { runWasiCommand } from "./wasi-command.mjs";
 
 /**
- * One REPL per container, but any number of containers per page. `sendLine`
- * and `getOutput` let a test drive it deterministically (see
+ * One REPL per container, but any number of containers per page. These are
+ * interactive demos, so a guest that exits (e.g. BYE) or traps after the user
+ * typed something is respawned with a fresh preamble. One that dies before
+ * reading any user input is not, so a broken preamble can't loop forever.
+ * `sendLine` and `getOutput` let a test drive it deterministically (see
  * wasi-repl-mocha.mjs). `dispose` tears down the Terminal and parks the guest
  * on stdin forever (not EOF: jonesforth's KEY spins on it), so a caller that
  * wants to switch modules mid-page (e.g. a tabbed demo picking between
@@ -20,6 +23,9 @@ import { runWasiCommand } from "./wasi-command.mjs";
  */
 export class REPL {
     #xterm = new Terminal();
+    #rl = new Readline();
+    #module;
+    #preamble;
     #output = "";
     #disposed = false;
 
@@ -33,6 +39,8 @@ export class REPL {
         if (!(module instanceof URL)) throw new TypeError("module must be a URL");
         if (!(preamble instanceof URL)) throw new TypeError("preamble must be a URL");
         if (!(container instanceof Element)) throw new TypeError("container must be an Element");
+        this.#module = module;
+        this.#preamble = preamble;
         const xterm = this.#xterm;
         // xterm-readline redraws a line as many tiny write() calls (erase, text, "\r", cursor move);
         // coalesce them per tick so xterm.js never renders the half-drawn "cursor at column 0" state.
@@ -50,69 +58,78 @@ export class REPL {
             pending += data;
             if (callback) callbacks.push(callback);
         };
-        const rl = new Readline();
-        xterm.loadAddon(rl);
+        xterm.loadAddon(this.#rl);
         xterm.open(container);
 
         // Cyan input vs. default-colored output, via xterm-readline's Highlighter hook.
-        rl.setHighlighter({
+        this.#rl.setHighlighter({
             highlight: (line) => `\x1b[36m${line}\x1b[0m`,
             highlightPrompt: (prompt) => prompt,
             // Must be true, or xterm-readline skips highlight() on its fast per-keystroke path.
             highlightChar: () => true,
         });
 
-        // Skip "ok" after the first prompt: WELCOME's own one-time "OK " already covers it.
-        let first = true;
-        // Set once an output chunk is a lone ":" with nothing else -- see its
-        // use below.
-        let lastWasBarePrompt = false;
+        this.#run();
+    }
 
-        // A pull-based stdin: `pull` only runs when the guest is genuinely blocked
-        // in read() with nothing buffered, which is exactly when to prompt. Chunks
-        // `start` enqueues (the preamble) are consumed first, so the guest never
-        // reads before it exists.
-        const stdin = new ReadableStream({
-            start: async (controller) => {
-                controller.enqueue(new Uint8Array(await (await fetch(preamble)).arrayBuffer()));
-            },
-            pull: async (controller) => {
-                if (this.#disposed) return new Promise(() => { });
-                // This line is done printing -- append dim "ok" (no leading
-                // space: jonesforth's own output usually ends in one), then
-                // "\n" so the next read starts on a row with nothing to erase.
-                if (!first) rl.write("\x1b[2mok\x1b[0m");
-                first = false;
-                rl.write("\n");
-                // Empty prompt always: "ok" above is output glued after the
-                // interpreter's own text, not a read() prompt -- raw output written
-                // after an armed prompt gets erased on that read's next refresh.
-                controller.enqueue(new TextEncoder().encode(`${await rl.read("")}\n`));
-            },
-        }, { highWaterMark: 0 });
+    async #run() {
+        const rl = this.#rl;
+        while (!this.#disposed) {
+            // Skip "ok" after the first prompt: WELCOME's own one-time "OK " already covers it.
+            let first = true;
+            // Set once an output chunk is a lone ":" with nothing else -- see its
+            // use below.
+            let lastWasBarePrompt = false;
+            let lines = 0;
 
-        const write = (data) => {
+            // A pull-based stdin: `pull` only runs when the guest is genuinely blocked
+            // in read() with nothing buffered, which is exactly when to prompt. Chunks
+            // `start` enqueues (the preamble) are consumed first, so the guest never
+            // reads before it exists.
+            const stdin = new ReadableStream({
+                start: async (controller) => {
+                    controller.enqueue(new Uint8Array(await (await fetch(this.#preamble)).arrayBuffer()));
+                },
+                pull: async (controller) => {
+                    if (this.#disposed) return new Promise(() => { });
+                    // This line is done printing -- append dim "ok" (no leading
+                    // space: jonesforth's own output usually ends in one), then
+                    // "\n" so the next read starts on a row with nothing to erase.
+                    if (!first) rl.write("\x1b[2mok\x1b[0m");
+                    first = false;
+                    rl.write("\n");
+                    // Empty prompt always: "ok" above is output glued after the
+                    // interpreter's own text, not a read() prompt -- raw output written
+                    // after an armed prompt gets erased on that read's next refresh.
+                    const line = await rl.read("");
+                    lines++;
+                    controller.enqueue(new TextEncoder().encode(`${line}\n`));
+                },
+            }, { highWaterMark: 0 });
+
+            const write = (data) => {
+                if (this.#disposed) return;
+                this.#output += data;
+                // Collapse repeated bare ":" prompts a multi-line preamble echoes; #output keeps the raw stream.
+                const isBarePrompt = data === ":";
+                if (!(isBarePrompt && lastWasBarePrompt)) rl.write(data);
+                lastWasBarePrompt = isBarePrompt;
+            };
+
+            let status;
+            try {
+                const code = await runWasiCommand(fetch(this.#module), { stdin, stdout: write, stderr: write });
+                status = `[Process exited with code ${code}`;
+            } catch (error) {
+                status = `[Error: ${error.message}`;
+            }
             if (this.#disposed) return;
-            this.#output += data;
-            // A multi-line preamble (e.g. TinyBasic/tictactoe.bas,
-            // ~70 stored lines) echoes its own bare ":" command
-            // prompt once per line while loading -- faithful to the
-            // real interpreter (it does this for every line it
-            // reads, not just direct commands), but a wall of
-            // identical prompts is pure noise with nothing else
-            // interleaved. Collapse consecutive repeats down to the
-            // single one a human typing one line at a time would
-            // actually see; #output above still keeps the true,
-            // uncollapsed stream for getOutput() callers.
-            const isBarePrompt = data === ":";
-            if (!(isBarePrompt && lastWasBarePrompt)) rl.write(data);
-            lastWasBarePrompt = isBarePrompt;
-        };
-
-        runWasiCommand(fetch(module), { stdin, stdout: write, stderr: write }).then(
-            (code) => { if (!this.#disposed) rl.println(`[Process exited with code ${code}]`); },
-            (error) => { if (!this.#disposed) rl.println(`[Error: ${error.message}]`); },
-        );
+            // Respawn only once the user got to type something, so a guest that dies
+            // during its own preamble can't loop forever.
+            const respawn = lines > 0;
+            rl.println(`${status}${respawn ? ", restarting" : ""}]`);
+            if (!respawn) return;
+        }
     }
 
     /**
