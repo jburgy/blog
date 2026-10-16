@@ -11,6 +11,70 @@ import { Readline } from "https://esm.sh/xterm-readline@1.1.2";
 import { runWasiCommand } from "./wasi-command.mjs";
 
 /**
+ * One guest run's I/O: the stdin source handed to `ReadableStream` and the
+ * stdout/stderr sink. A respawn gets a fresh instance, so every field below is
+ * per-run.
+ */
+class GuestIO {
+    /** Everything the guest has written this run, uncollapsed. */
+    output = "";
+    /** Skip "ok" after the first prompt: WELCOME's own one-time "OK " already covers it. */
+    first = true;
+    /** Lines the user submitted this run. */
+    lines = 0;
+    /** Whether the last output chunk was a lone ":" -- see `write`. */
+    lastWasBarePrompt = false;
+
+    /**
+     * @param {Readline} rl
+     * @param {Uint8Array} preamble
+     * @param {() => boolean} isDisposed
+     */
+    constructor(rl, preamble, isDisposed) {
+        this.rl = rl;
+        this.preamble = preamble;
+        this.isDisposed = isDisposed;
+    }
+
+    // Chunks enqueued here (the preamble) are consumed before the first `pull`, so
+    // the guest never reads before it exists.
+    /** @param {ReadableStreamDefaultController} controller */
+    start(controller) {
+        controller.enqueue(this.preamble);
+    }
+
+    // `pull` only runs when the guest is genuinely blocked in read() with nothing
+    // buffered, which is exactly when to prompt.
+    /** @param {ReadableStreamDefaultController} controller */
+    async pull(controller) {
+        if (this.isDisposed()) return new Promise(() => { });
+        const rl = this.rl;
+        // This line is done printing -- append dim "ok" (no leading
+        // space: jonesforth's own output usually ends in one), then
+        // "\n" so the next read starts on a row with nothing to erase.
+        if (!this.first) rl.write("\x1b[2mok\x1b[0m");
+        this.first = false;
+        rl.write("\n");
+        // Empty prompt always: "ok" above is output glued after the
+        // interpreter's own text, not a read() prompt -- raw output written
+        // after an armed prompt gets erased on that read's next refresh.
+        const line = await rl.read("");
+        this.lines++;
+        controller.enqueue(new TextEncoder().encode(`${line}\n`));
+    }
+
+    /** @param {string} data */
+    write(data) {
+        if (this.isDisposed()) return;
+        this.output += data;
+        // Collapse repeated bare ":" prompts a multi-line preamble echoes; output keeps the raw stream.
+        const isBarePrompt = data === ":";
+        if (!(isBarePrompt && this.lastWasBarePrompt)) this.rl.write(data);
+        this.lastWasBarePrompt = isBarePrompt;
+    }
+}
+
+/**
  * One REPL per container, but any number of containers per page. These are
  * interactive demos, so a guest that exits (e.g. BYE) or traps after the user
  * typed something is respawned with a fresh preamble. One that dies before
@@ -30,8 +94,13 @@ export class REPL {
     #module;
     #disposed = false;
 
-    /** Everything the guest has written so far, uncollapsed. */
-    output = "";
+    /** @type {GuestIO | undefined} */
+    #io;
+
+    /** Everything the guest has written since its last (re)start, uncollapsed. */
+    get output() {
+        return this.#io?.output ?? "";
+    }
 
     /**
      * @param {URL} module the WASI command to run
@@ -80,58 +149,24 @@ export class REPL {
         const preamble = new Uint8Array(await (await fetch(preambleUrl)).arrayBuffer());
         const rl = this.#rl;
         while (!this.#disposed) {
-            // Skip "ok" after the first prompt: WELCOME's own one-time "OK " already covers it.
-            let first = true;
-            // Set once an output chunk is a lone ":" with nothing else -- see its
-            // use below.
-            let lastWasBarePrompt = false;
-            let lines = 0;
-
-            // A pull-based stdin: `pull` only runs when the guest is genuinely blocked
-            // in read() with nothing buffered, which is exactly when to prompt. Chunks
-            // `start` enqueues (the preamble) are consumed first, so the guest never
-            // reads before it exists.
-            const stdin = new ReadableStream({
-                start: (controller) => controller.enqueue(preamble),
-                pull: async (controller) => {
-                    if (this.#disposed) return new Promise(() => { });
-                    // This line is done printing -- append dim "ok" (no leading
-                    // space: jonesforth's own output usually ends in one), then
-                    // "\n" so the next read starts on a row with nothing to erase.
-                    if (!first) rl.write("\x1b[2mok\x1b[0m");
-                    first = false;
-                    rl.write("\n");
-                    // Empty prompt always: "ok" above is output glued after the
-                    // interpreter's own text, not a read() prompt -- raw output written
-                    // after an armed prompt gets erased on that read's next refresh.
-                    const line = await rl.read("");
-                    lines++;
-                    controller.enqueue(new TextEncoder().encode(`${line}\n`));
-                },
-            }, { highWaterMark: 0 });
-
-            const write = (data) => {
-                if (this.#disposed) return;
-                this.output += data;
-                // Collapse repeated bare ":" prompts a multi-line preamble echoes; output keeps the raw stream.
-                const isBarePrompt = data === ":";
-                if (!(isBarePrompt && lastWasBarePrompt)) rl.write(data);
-                lastWasBarePrompt = isBarePrompt;
-            };
+            const io = this.#io = new GuestIO(rl, preamble, () => this.#disposed);
+            const stdin = new ReadableStream(io, { highWaterMark: 0 });
+            const write = io.write.bind(io);
 
             let status;
             try {
                 const code = await runWasiCommand(fetch(this.#module), { stdin, stdout: write, stderr: write });
-                status = `[Process exited with code ${code}`;
+                status = `[Process exited with code ${code}]`;
             } catch (error) {
-                status = `[Error: ${error.message}`;
+                status = `[Error: ${error.message}]`;
             }
             if (this.#disposed) return;
             // Respawn only once the user got to type something, so a guest that dies
             // during its own preamble can't loop forever.
-            const respawn = lines > 0;
-            rl.println(`${status}${respawn ? ", restarting" : ""}]`);
-            if (!respawn) return;
+            if (io.lines === 0) {
+                rl.println(status);
+                break;
+            }
             rl.write("\x1b[3J\x1b[2J\x1b[H");
         }
     }
