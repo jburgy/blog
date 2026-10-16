@@ -28,12 +28,12 @@ class GuestIO {
     /**
      * @param {Readline} rl
      * @param {Uint8Array} preamble
-     * @param {() => boolean} isDisposed
+     * @param {{ readonly disposed: boolean }} repl
      */
-    constructor(rl, preamble, isDisposed) {
+    constructor(rl, preamble, repl) {
         this.rl = rl;
         this.preamble = preamble;
-        this.isDisposed = isDisposed;
+        this.repl = repl;
     }
 
     // Chunks enqueued here (the preamble) are consumed before the first `pull`, so
@@ -47,7 +47,7 @@ class GuestIO {
     // buffered, which is exactly when to prompt.
     /** @param {ReadableStreamDefaultController} controller */
     async pull(controller) {
-        if (this.isDisposed()) return new Promise(() => { });
+        if (this.repl.disposed) return new Promise(() => { });
         const rl = this.rl;
         // This line is done printing -- append dim "ok" (no leading
         // space: jonesforth's own output usually ends in one), then
@@ -65,7 +65,7 @@ class GuestIO {
 
     /** @param {string} data */
     write(data) {
-        if (this.isDisposed()) return;
+        if (this.repl.disposed) return;
         this.output += data;
         // Collapse repeated bare ":" prompts a multi-line preamble echoes; output keeps the raw stream.
         const isBarePrompt = data === ":";
@@ -96,6 +96,10 @@ export class REPL {
 
     /** @type {GuestIO | undefined} */
     #io;
+
+    get disposed() {
+        return this.#disposed;
+    }
 
     /** Everything the guest has written since its last (re)start, uncollapsed. */
     get output() {
@@ -149,7 +153,7 @@ export class REPL {
         const preamble = new Uint8Array(await (await fetch(preambleUrl)).arrayBuffer());
         const rl = this.#rl;
         while (!this.#disposed) {
-            const io = this.#io = new GuestIO(rl, preamble, () => this.#disposed);
+            const io = this.#io = new GuestIO(rl, preamble, this);
             const stdin = new ReadableStream(io, { highWaterMark: 0 });
             const write = io.write.bind(io);
 
