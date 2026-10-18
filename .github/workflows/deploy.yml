@@ -32,6 +32,14 @@ jobs:
           workspaces: |
             forth
             slip
+      # Same key as javascript.yml: `zig build` (6th-wasi.wasm) pays LLVM codegen from scratch otherwise
+      - uses: actions/cache@v6
+        with:
+          path: |
+            forth/.zig-cache
+            ~/.cache/zig
+          key: zig-cache-${{ hashFiles('forth/*.zig') }}
+          restore-keys: zig-cache-
       - run: make --jobs=4
       - uses: actions/upload-pages-artifact@v5
         with:
