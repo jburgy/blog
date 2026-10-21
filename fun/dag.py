@@ -78,7 +78,7 @@ class WeakSetEntry(WeakSet, _BaseEntry):
         self.partial = partial(user_function, *args, **keywords)
         self.hashvalue = hash(self.partial)
 
-    def __hash__(self):  # pyright: ignore[reportIncompatibleVariableOverride]  # ty: ignore[invalid-attribute-override]
+    def __hash__(self):  # pyright: ignore[reportIncompatibleVariableOverride]
         return self.hashvalue
 
     def __call__(self):
