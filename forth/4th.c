@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
 #include <stddef.h>  /* size_t, offsetof */
+#include <stdint.h>  /* intptr_t, uintptr_t */
 #include <stdio.h>  /* EOF, getchar_unlocked, putchar_unlocked */
 #include <stdlib.h>  /* exit, strtol, syscall */
 #include <string.h>  /* memcmp, memmove, memcpy */
