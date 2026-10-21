@@ -142,6 +142,8 @@ SEE QUIT \ : QUIT R0 RSP! INTERPRET BRANCH ( -16 ) ;
 : FOO THROW ;
 : TEST-EXCEPTIONS 25 ['] FOO CATCH ?DUP IF ." FOO threw exception: " . CR DROP THEN ;
 TEST-EXCEPTIONS \ FOO threw exception: 25
+7 0 /MOD . . CR \ 0 7
+-9223372036854775807 1- -1 /MOD DROP . CR \ 0
 """
 
     def test_4th(self, actual: str, expected: str):

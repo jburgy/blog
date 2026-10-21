@@ -236,7 +236,7 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
     wasm.mkdir()
     targets: list[tuple[str, str, list[str]]] = []
 
-    c_flags = ["-O3", "-DNDEBUG", "-fomit-frame-pointer", "-fblocks"]
+    c_flags = ["-O3", "-DNDEBUG", "-fomit-frame-pointer", "-fblocks", "-fwrapv", "-fno-strict-aliasing"]
     build([clang, *c_flags, "-o", str(native / "4th"), "4th.c"])
     build([clang, *c_flags, "-o", str(native / "5th"), "5th.c"])
     build(
@@ -367,6 +367,8 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
                 "-O3",
                 "-Wall",
                 "-Wextra",
+                "-fwrapv",
+                "-fno-strict-aliasing",
                 *extra_flags,
                 "-o",
                 str(wasm_file),

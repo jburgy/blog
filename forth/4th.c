@@ -81,17 +81,17 @@ int syscall(int sysno, ...)
 {
     va_list ap;
     va_start(ap, sysno);
-    int status;
+    int status = -1;
 
     switch(sysno)
     {
-    case SYS_read : status = read(va_arg(ap, int), va_arg(ap, void *), va_arg(ap, size_t)); break;
-    case SYS_write: status = write(va_arg(ap, int), va_arg(ap, const void *), va_arg(ap, size_t)); break;
-    case SYS_open : status = open(va_arg(ap, const char *), va_arg(ap, int), va_arg(ap, mode_t)); break;
+    case SYS_read : { int fd = va_arg(ap, int); void *buf = va_arg(ap, void *); size_t n = va_arg(ap, size_t); status = read(fd, buf, n); break; }
+    case SYS_write: { int fd = va_arg(ap, int); const void *buf = va_arg(ap, const void *); size_t n = va_arg(ap, size_t); status = write(fd, buf, n); break; }
+    case SYS_open : { const char *path = va_arg(ap, const char *); int flags = va_arg(ap, int); mode_t mode = va_arg(ap, mode_t); status = open(path, flags, mode); break; }
     case SYS_close: status = close(va_arg(ap, int)); break;
     case SYS_brk  : status = (intptr_t)va_arg(ap, void *); status = status ? brk((void *)status) : (intptr_t)sbrk(0); break;
     case SYS_exit : status = va_arg(ap, int); va_end(ap); exit(status);
-    case SYS_creat: status = creat(va_arg(ap, const char *), va_arg(ap, mode_t)); break;
+    case SYS_creat: { const char *path = va_arg(ap, const char *); mode_t mode = va_arg(ap, mode_t); status = creat(path, mode); break; }
     }
     va_end(ap);
     return status;
@@ -149,7 +149,8 @@ static intptr_t word(void)
 
     do
     {
-        *s++ = (char)ch;
+        if (s < word_buffer + sizeof word_buffer - 1) /* truncate: callers write word_buffer[len] */
+            *s++ = (char)ch;
         ch = key();
     } while (ch > ' ');
 
@@ -299,8 +300,15 @@ DEFCODE(SUB, 0, "*", MUL):
 DEFCODE(MUL, 0, "/MOD", DIVMOD):
     b = pop();
     a = pop();
-    push(a % b);
-    push(a / b);
+    if (!b) {
+        (void)(write(STDERR_FILENO, "DIVISION BY ZERO\n", sizeof "DIVISION BY ZERO\n" - 1) + 1);
+        push(a);
+        push(b);
+        NEXT;
+    }
+    /* b == -1 would trap on INTPTR_MIN; negate unsigned to wrap instead */
+    push(b == -1 ? 0 : a % b);
+    push(b == -1 ? (intptr_t)(0 - (uintptr_t)a) : a / b);
     NEXT;
 DEFCODE(DIVMOD, 0, "=", EQU):
     a = pop();
@@ -550,6 +558,10 @@ DEFCODE(LITSTRING, 0, "TELL", TELL):
     NEXT;
     static char errmsg[] = "PARSE ERROR: ";
 DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
+    if (sp > s0) { /* ponytail: underflow noticed after the fact, overflow unchecked; per-word checks if needed */
+        (void)(write(STDERR_FILENO, "STACK UNDERFLOW\n", sizeof "STACK UNDERFLOW\n" - 1) + 1);
+        sp = s0;
+    }
     p = (intptr_t *)here;
     c = word();
     created = find(latest, word_buffer, (size_t)c);
@@ -611,6 +623,8 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0):
 _start:
     state = 0;
     here = sbrk(0x10000);
+    if (here == (char *)-1)
+        exit(1);
     latest = &name_SYSCALL0;
     s0 = stack + STACK_SIZE;
     base = 10;

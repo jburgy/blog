@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS ?= -Wall -Wextra -Os -DNDEBUG -fomit-frame-pointer -Wno-deprecated-declarations
+CFLAGS ?= -Wall -Wextra -Os -DNDEBUG -fomit-frame-pointer -Wno-deprecated-declarations -fwrapv -fno-strict-aliasing
 ARFLAGS = -m32 -S -fverbose-asm
 CPPFLAGS = -include cosmopolitan.h -I.
 LDFLAGS = -Wl,--oformat=binary -Wl,--gc-sections -Wl,-z,max-page-size=0x1000 -fuse-ld=bfd -gdwarf-4 -Wl,-T,ape.lds
@@ -45,6 +45,9 @@ crt.o ape-no-modify-self.o ape.lds &: cosmopolitan-amalgamation-2.2.zip
 cosmopolitan-amalgamation-2.2.zip :
 	wget https://justine.lol/cosmopolitan/cosmopolitan-amalgamation-2.2.zip
 
+%.san : %.c
+	clang $(CFLAGS) -UNDEBUG -O1 -g -fsanitize=address,undefined -o $@ $^
+
 %.gcov : %.c
 	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
@@ -85,7 +88,7 @@ jansforth recurse : % : %.c
 	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
 
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th jansforth recurse *.ll 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th jansforth recurse *.ll 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm *.san *.san.dSYM
 
 define allbutlast
 $(wordlist 2, $(words $(1)), x $(1))
