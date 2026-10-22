@@ -37,7 +37,7 @@ static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_lin
 #define XSTR(x) STR(x)
 #define STR(x) #x
 
-#define WORD_MAX 0x1f
+#define WORD_MAX 0x20
 
 struct interp_t {
     intptr_t state;
@@ -46,7 +46,7 @@ struct interp_t {
     intptr_t *s0;
     intptr_t base;
     union instr_t **r0;
-    char buffer[WORD_MAX + 1];
+    char buffer[WORD_MAX];
     char *here;
 };
 
@@ -91,12 +91,27 @@ intptr_t word(char *word_buffer)
 
     do
     {
-        if (s < word_buffer + WORD_MAX) /* truncate: callers write buffer[len] */
+        if (s < word_buffer + WORD_MAX) /* truncate overlong tokens */
             *s++ = (char)ch;
         ch = key();
     } while (ch > ' ');
 
     return s - word_buffer;
+}
+
+/* strtol needs a nul terminator, but Forth strings carry their length: parse a copy (ponytail: first WORD_MAX chars only) */
+intptr_t number(char *s, size_t count, intptr_t base, char **end)
+{
+    char copy[WORD_MAX + 1], *stop;
+    intptr_t value;
+
+    if (count > WORD_MAX)
+        count = WORD_MAX;
+    memcpy(copy, s, count);
+    copy[count] = '\0';
+    value = strtol(copy, &stop, base);
+    *end = s + (stop - copy);
+    return value;
 }
 
 struct word_t *find(struct word_t *word, char *name, size_t count)
@@ -466,13 +481,10 @@ DEFCODE(WORD, 0, "NUMBER", NUMBER)
 {
     register intptr_t c = sp[0];
     register char *s = (char *)sp[1];
-    register char a = s[c];
     char *r;
 
-    s[c] = '\0';
-    sp[1] = strtol(s, &r, env->base);
+    sp[1] = number(s, c, env->base, &r);
     sp[0] = r - s - c;
-    s[c] = a;
     NEXT;
 }
 DEFCODE(NUMBER, 0, "FIND", FIND)
@@ -568,7 +580,6 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET)
     static char errmsg[] = "PARSE ERROR: ";
     register union instr_t *p;
     register intptr_t a;
-    register intptr_t b;
     register intptr_t c;
     register struct word_t *new;
     char *r;
@@ -586,10 +597,7 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET)
             __attribute__((musttail)) return target->code(env, sp, rsp, ip, target);
         (p++)->word = target;
     } else {
-        b = env->buffer[c];
-        env->buffer[c] = '\0';
-        a = strtol(env->buffer, &r, env->base);
-        env->buffer[c] = b;
+        a = number(env->buffer, c, env->base, &r);
         if (r == env->buffer) {
             write(STDERR_FILENO, errmsg, sizeof errmsg - 1);
             write(STDERR_FILENO, env->buffer, c);

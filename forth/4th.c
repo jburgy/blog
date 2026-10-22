@@ -150,7 +150,7 @@ static intptr_t word(void)
 
     do
     {
-        if (s < word_buffer + sizeof word_buffer - 1) /* truncate: callers write word_buffer[len] */
+        if (s < word_buffer + sizeof word_buffer) /* truncate overlong tokens */
             *s++ = (char)ch;
         ch = key();
     } while (ch > ' ');
@@ -164,6 +164,21 @@ static struct word_t *find(struct word_t *word, char *name, size_t count)
         word = word->link;
 
     return word;
+}
+
+/* strtol needs a nul terminator, but Forth strings carry their length: parse a copy (ponytail: first 32 chars only) */
+static intptr_t number(char *s, size_t count, intptr_t base, char **end)
+{
+    char copy[sizeof word_buffer + 1], *stop;
+    intptr_t value;
+
+    if (count > sizeof word_buffer)
+        count = sizeof word_buffer;
+    memcpy(copy, s, count);
+    copy[count] = '\0';
+    value = strtol(copy, &stop, (int)base);
+    *end = s + (stop - copy);
+    return value;
 }
 
 static void *code_field_address(struct word_t *word)
@@ -487,11 +502,8 @@ DEFCODE(EMIT, 0, "WORD", WORD):
 DEFCODE(WORD, 0, "NUMBER", NUMBER):
     c = pop(); /* length of string */
     s = (char *)pop(); /* start address of string */
-    a = s[c];
-    s[c] = '\0';
-    push(strtol(s, &r, (int)base));
+    push(number(s, (size_t)c, base, &r));
     push(r - s - c);
-    s[c] = (char)a;
     NEXT;
 DEFCODE(NUMBER, 0, "FIND", FIND):
     c = pop();
@@ -572,10 +584,7 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
             goto **target;
         *p++ = (intptr_t)target;
     } else {
-        b = word_buffer[c];
-        word_buffer[c] = '\0';
-        a = strtol(word_buffer, &r, (int)base);
-        word_buffer[c] = (char)b;
+        a = number(word_buffer, (size_t)c, base, &r);
         if (r == word_buffer) {
             (void)(write(STDERR_FILENO, errmsg, sizeof errmsg - 1) + 1);
             (void)(write(STDERR_FILENO, word_buffer, (size_t)c) + 1);
