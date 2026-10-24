@@ -115,8 +115,24 @@
                    ^pop  ^pop  ^
                                cont ends here
 
-	Not strict ISO: BRK is emulated with a 16MB calloc arena (no sbrk), and
-	the code needs POSIX read/write/open and, off macOS, syscall().
+	Input hardening, as in 4th.c and 5th.c: tokens are cut to the 32-byte
+	buffer, names keep 31 characters (a 32-character name is never found),
+	/MOD reports DIVISION BY ZERO and wraps INT_MIN / -1, arithmetic and
+	number parsing wrap in unsigned, bytes are unsigned, lone signs are not
+	numbers, and the SYSCALLn words use bounds-checked libc calls returning
+	-errno on every platform.  The data stack (SP_MIN..S0) is checked in
+	INTERPRET and at calls and branches, so runaway loops print STACK
+	OVERFLOW or STACK UNDERFLOW and restart QUIT; `,`, CREATE and INTERPRET's
+	compiling print OUT OF MEMORY at HERE_MAX (FORGET reclaims the space).
+
+	Deliberate limitations:
+	- Words that take raw addresses (@ ! C@ C! CMOVE TELL, HERE +!, ...) are unchecked.
+	- Branch offsets and return addresses are shifted with >> , which is
+	  implementation-defined for negative values.
+	- Names in rodata are packed little-endian, and EMIT writes a cell's first byte.
+	- The rodata indices (5120.., QUIT_CFA) are numbered by hand.
+	- Not strict ISO: BRK is a 16MB calloc arena (no sbrk), and POSIX
+	  read/write/open/creat/close are needed.
 */
 #include <errno.h>
 #include <fcntl.h>
@@ -132,47 +148,63 @@ static char *bytes; /* defined below the rodata dictionary; declared early so do
 #ifdef __APPLE__
 #define SYS_creat 24
 #define SYS_brk 214
+#endif
 
-/* syscall(2) is deprecated on macOS ("please switch to a supported
-   interface"). jonesforth.f only ever drives the handful of syscall numbers
-   below through it (same idea as 4th.c's wasi shim), so dispatch
-   those to the equivalent, supported libc calls directly instead. Buffer and
-   path arguments are memory[]-relative offsets exactly like every other
-   pointer in this file (see TELL's write(STDOUT_FILENO, bytes + memory[sp +
-   1], ...)), so they go through bytes + n here too rather than being
-   reinterpreted as absolute addresses. SYS_creat takes its arity (path, mode,
-   via SYSCALL3) from jansforth.zig's doSyscall3/SysNum.CREAT, the only other
-   place in this project that dispatches it. */
+#define ARENA (1 << 24) /* bytes of address space behind BRK; calloc commits it lazily */
+
+/* jonesforth.f only ever drives the handful of syscall numbers below through
+   SYSCALLn (same idea as 4th.c's wasi shim), so they dispatch to libc calls
+   directly on every platform: syscall(2) is deprecated on macOS and takes
+   raw addresses.  Buffer and path arguments are memory[]-relative offsets
+   exactly like every other pointer in this file, so they go through bytes + n
+   after being checked against the arena, and failures return -errno as the
+   Linux syscall convention jonesforth.f expects.  SYS_creat takes its arity
+   (path, mode, via SYSCALL3) from jansforth.zig's doSyscall3/SysNum.CREAT, the
+   only other place in this project that dispatches it. */
+static int result(long r) {
+    return r < 0 ? -errno : (int)r;
+}
+
+/* Clamp a length to what is left of the arena after off; false if off is outside it. */
+static bool span(int off, int *len) {
+    if (off < 0 || off > ARENA || *len < 0)
+        return false;
+    if (*len > ARENA - off)
+        *len = ARENA - off;
+    return true;
+}
+
+/* A nul-terminated path inside the arena, or NULL. */
+static const char *path(int off) {
+    if (off < 0 || off >= ARENA || !memchr(bytes + off, 0, (size_t)(ARENA - off)))
+        return NULL;
+    return bytes + off;
+}
+
 static int do_syscall3(int sysno, int a, int b, int c) {
     switch (sysno) {
-    case SYS_read:  return (int)read(a, bytes + b, (size_t)c);
-    case SYS_write: return (int)write(a, bytes + b, (size_t)c);
-    case SYS_open:  return open(bytes + a, b, (mode_t)c);
-    case SYS_creat: return creat(bytes + a, (mode_t)c); /* b (flags) unused, matching jansforth.zig */
-    default:        return -1;
+    case SYS_read:  return span(b, &c) ? result(read(a, bytes + b, (size_t)c)) : -EFAULT;
+    case SYS_write: return span(b, &c) ? result(write(a, bytes + b, (size_t)c)) : -EFAULT;
+    case SYS_open:  return path(a) ? result(open(path(a), b, (mode_t)c)) : -EFAULT;
+    case SYS_creat: return path(a) ? result(creat(path(a), (mode_t)c)) : -EFAULT; /* b (flags) unused, matching jansforth.zig */
+    default:        return -ENOSYS;
     }
 }
 
 static int do_syscall2(int sysno, int a, int b) {
     switch (sysno) {
-    case SYS_open: return open(bytes + a, b, 0644);
-    default:       return -1;
+    case SYS_open: return path(a) ? result(open(path(a), b, 0644)) : -EFAULT;
+    default:       return -ENOSYS;
     }
 }
 
 static int do_syscall1(int sysno, int a) {
     switch (sysno) {
-    case SYS_close: return close(a);
+    case SYS_close: return result(close(a));
     case SYS_exit:  exit(a);
-    default:        return -1;
+    default:        return -ENOSYS;
     }
 }
-#else
-#define do_syscall3(sysno, a, b, c) syscall(sysno, a, b, c)
-#define do_syscall2(sysno, a, b) syscall(sysno, a, b)
-#define do_syscall1(sysno, a) syscall(sysno, a)
-#endif
-
 
 enum Builtin {
     DOCOL,
@@ -426,8 +458,13 @@ static struct regs resume;
 static int throw_cfa, marker;
 
 #define QUIT_CFA 5530 /* code field of QUIT in rodata above */
+#define WORD_MAX 0x20 /* bytes between the token buffer at 0x5014 and DROP's header */
+#define NAME_LEN 0x1F /* length bits of a header's flag byte, the rest being IMMEDIATE and HIDDEN */
+#define NAME_HIDDEN 0x20
+#define SP_MIN 16 /* lowest data stack cell, with room for what one word pushes */
+#define HERE_MAX (ARENA - 0x1000u) /* dictionary limit; the rest is scratch for PAD */
 
-char key(void) {
+unsigned char key(void) {
     static int currkey = 0x4000, buftop = 0x4000;
     ssize_t c;
 
@@ -443,11 +480,12 @@ char key(void) {
             exit(0); /* EOF: exit cleanly like jonesforth.S's _KEY rather than spin */
         buftop = (int)(0x4000 + c); /* c <= the 0x1000 just requested, well within int range */
     }
-    return bytes[currkey++];
+    return (unsigned char)bytes[currkey++];
 }
 
 int word(void) {
-    char ch, *s = bytes + 0x5014;
+    unsigned char ch;
+    char *s = bytes + 0x5014;
 
     do
     {
@@ -460,7 +498,8 @@ int word(void) {
 
     do
     {
-        *s++ = ch;
+        if (s < bytes + 0x5014 + WORD_MAX) /* truncate overlong tokens, still consuming them */
+            *s++ = (char)ch;
         ch = key();
     } while (ch > ' ');
 
@@ -470,7 +509,7 @@ int word(void) {
 int find(int count, int name) {
     int word = memory[0x1402]; /* LATEST */
 
-    while (word && (((bytes[word + 4] & 0x3F) != count) || memcmp(bytes + word + 5, bytes + name, (unsigned)count)))
+    while (word && (((bytes[word + 4] & (NAME_HIDDEN | NAME_LEN)) != count) || memcmp(bytes + word + 5, bytes + name, (unsigned)count)))
         word = memory[word >> 2];
 
     return word;
@@ -482,17 +521,20 @@ struct num_t {
 };
 
 struct num_t number(int n, int s) {
-    int digit, res = 0, sign = 1, base = memory[0x1404];
+    int digit, sign = 1, base = memory[0x1404];
+    unsigned res = 0; /* wraps instead of overflowing */
 
-    if (bytes[s] == '-')
-        sign = -1;
-    if (bytes[s] == '-' || bytes[s] == '+') {
+    if (n <= 0)
+        return (struct num_t) { .result = 0, .remaining = 1 }; /* nothing to parse is not the number 0 */
+    if (n > 1 && (bytes[s] == '-' || bytes[s] == '+')) { /* a lone sign is left unparsed */
+        if (bytes[s] == '-')
+            sign = -1;
         --n;
         ++s;
     }
 
     do {
-        res *= base;
+        res *= (unsigned)base;
         digit = bytes[s++] - '0';
         if (digit < 0)
             break;
@@ -503,20 +545,19 @@ struct num_t number(int n, int s) {
         }
         if (digit >= base)
             break;
-        res += digit;
+        res += (unsigned)digit;
     } while (--n);
 
-    return (struct num_t) { .result = res * sign, .remaining = n };
+    return (struct num_t) { .result = (int)(res * (unsigned)sign), .remaining = n };
 }
 
 int code_field_address(int word) {
     word += 4;
-    word += (bytes[word] & 0x1F) + 4;
+    word += (bytes[word] & NAME_LEN) + 4;
     word &= ~3;
     return word;
 }
 
-#define ARENA (1 << 24) /* bytes of address space behind BRK; calloc commits it lazily */
 static int brk_off = 0x10000;
 
 int do_brk(int requested) {
@@ -564,6 +605,38 @@ static struct frame *evacuate(struct frame *k, int extra, int sp) {
         to[i].parent = i ? &to[i - 1] : old;
     }
     return to + n - 1;
+}
+
+static int wrap_add(int x, int y) {
+    return (int)((unsigned)x + (unsigned)y);
+}
+
+static int wrap_sub(int x, int y) {
+    return (int)((unsigned)x - (unsigned)y);
+}
+
+static int wrap_mul(int x, int y) {
+    return (int)((unsigned)x * (unsigned)y);
+}
+
+/* Print a diagnostic and restart QUIT with empty stacks and out of compile mode. */
+static void fail(const char *msg) {
+    (void)(write(STDERR_FILENO, msg, strlen(msg)) + 1);
+    memory[0x1400] = 0;
+    quit(S0_CELL);
+}
+
+/* The data stack left its cells: below SP_MIN is overflow, above S0 underflow. */
+static bool bad_sp(int sp) {
+    return (unsigned)(sp - SP_MIN) > (unsigned)(S0_CELL - SP_MIN);
+}
+
+static void stack_fault(int sp) {
+    fail(sp > S0_CELL ? "STACK UNDERFLOW\n" : "STACK OVERFLOW\n");
+}
+
+static bool no_room(unsigned n) {
+    return (unsigned)memory[0x1401] > HERE_MAX - n;
 }
 
 static void run(int ip, int sp);
@@ -648,6 +721,8 @@ static void run(int ip, int sp) {
     while (1) {
         switch (memory[cfa]) {
             case DOCOL:
+                if (bad_sp(sp))
+                    stack_fault(sp);
                 if (cfa == QUIT_CFA)
                     quit(sp);
                 if (cfa == throw_cfa && marker && memory[sp]) {
@@ -717,34 +792,39 @@ static void run(int ip, int sp) {
                     memory[--sp] = a;
                 break;
             case INCR:
-                ++memory[sp];
+                memory[sp] = wrap_add(memory[sp], 1);
                 break;
             case DECR:
-                --memory[sp];
+                memory[sp] = wrap_sub(memory[sp], 1);
                 break;
             case INCR4:
-                memory[sp] += 4;
+                memory[sp] = wrap_add(memory[sp], 4);
                 break;
             case DECR4:
-                memory[sp] -= 4;
+                memory[sp] = wrap_sub(memory[sp], 4);
                 break;
             case ADD:
-                memory[sp + 1] += memory[sp];
+                memory[sp + 1] = wrap_add(memory[sp + 1], memory[sp]);
                 ++sp;
                 break;
             case SUB:
-                memory[sp + 1] -= memory[sp];
+                memory[sp + 1] = wrap_sub(memory[sp + 1], memory[sp]);
                 ++sp;
                 break;
             case MUL:
-                memory[sp + 1] *= memory[sp];
+                memory[sp + 1] = wrap_mul(memory[sp + 1], memory[sp]);
                 ++sp;
                 break;
             case DIVMOD:
                 a = memory[sp + 1];
                 b = memory[sp + 0];
-                memory[sp + 1] = a % b;
-                memory[sp + 0] = a / b;
+                if (!b) {
+                    (void)(write(STDERR_FILENO, "DIVISION BY ZERO\n", 17) + 1);
+                    break;
+                }
+                /* b == -1 would trap on INT_MIN; negate unsigned to wrap instead */
+                memory[sp + 1] = b == -1 ? 0 : a % b;
+                memory[sp + 0] = b == -1 ? wrap_sub(0, a) : a / b;
                 break;
             case EQU:
                 memory[sp + 1] = memory[sp + 1] == memory[sp];
@@ -820,11 +900,11 @@ static void run(int ip, int sp) {
                 memory[sp] = memory[memory[sp] >> 2];
                 break;
             case ADDSTORE:
-                memory[memory[sp] >> 2] += memory[sp + 1];
+                memory[memory[sp] >> 2] = wrap_add(memory[memory[sp] >> 2], memory[sp + 1]);
                 sp += 2;
                 break;
             case SUBSTORE:
-                memory[memory[sp] >> 2] -= memory[sp + 1];
+                memory[memory[sp] >> 2] = wrap_sub(memory[memory[sp] >> 2], memory[sp + 1]);
                 sp += 2;
                 break;
             case STOREBYTE:
@@ -976,10 +1056,13 @@ static void run(int ip, int sp) {
                 memory[sp] = code_field_address(memory[sp]);
                 break;
             case CREATE:
+                if (no_room(64))
+                    fail("OUT OF MEMORY\n");
                 a = memory[0x1401];
+                c = memory[sp] & NAME_LEN; /* a 32-character name keeps no length and is never found */
                 memory[a >> 2] = memory[0x1402];
-                bytes[a + 4] = (char)memory[sp];
-                memcpy(bytes + a + 5, bytes + memory[sp + 1], (size_t)memory[sp]);
+                bytes[a + 4] = (char)c;
+                memcpy(bytes + a + 5, bytes + memory[sp + 1], (size_t)c);
                 memory[0x1401] = code_field_address(a);
                 memory[0x1402] = a;
                 if (!throw_cfa && memory[sp] == 5 && !memcmp(bytes + a + 5, "THROW", 5))
@@ -989,6 +1072,8 @@ static void run(int ip, int sp) {
                 sp += 2;
                 break;
             case COMMA:
+                if (no_room(4))
+                    fail("OUT OF MEMORY\n");
                 memory[memory[0x1401] >> 2] = memory[sp++];
                 memory[0x1401] += 4;
                 break;
@@ -1008,9 +1093,13 @@ static void run(int ip, int sp) {
                 memory[--sp] = memory[ip++];
                 break;
             case BRANCH:
+                if (bad_sp(sp)) /* loops that never reach INTERPRET or a call still get checked */
+                    stack_fault(sp);
                 ip += memory[ip] >> 2;
                 break;
             case ZBRANCH:
+                if (bad_sp(sp))
+                    stack_fault(sp);
                 ip += memory[sp++] ? 1 : memory[ip] >> 2;
                 break;
             case LITSTRING:
@@ -1023,6 +1112,13 @@ static void run(int ip, int sp) {
                 sp += 2;
                 break;
             case INTERPRET:
+                if (sp > S0_CELL) { /* underflow is noticed after the fact, like 4th.c and 5th.c do */
+                    (void)(write(STDERR_FILENO, "STACK UNDERFLOW\n", 16) + 1);
+                    sp = S0_CELL;
+                } else if (sp < SP_MIN)
+                    fail("STACK OVERFLOW\n");
+                if (memory[0x1400] && no_room(8))
+                    fail("OUT OF MEMORY\n");
                 a = word();
                 b = find(a, 0x5014);
                 if (b) {
@@ -1051,7 +1147,7 @@ static void run(int ip, int sp) {
                 break;
             case CHAR:
                 word();
-                memory[--sp] = bytes[0x5014];
+                memory[--sp] = (unsigned char)bytes[0x5014];
                 break;
             case EXECUTE:
                 cfa = memory[sp++] >> 2;
