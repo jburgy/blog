@@ -91,12 +91,16 @@ jansforth recurse recurse-chicken : % : %.c
 5th-%.c : 5th-opt/%.diff 5th.c
 	patch -o $@ 5th.c $<
 
+# `make 5th-order-p1-p2-p3-p4` reorders 5th.c's parameters (see 5th-opt/reorder.awk) and builds the result.
+5th-order-%.c : 5th.c 5th-opt/reorder.awk
+	awk -v order=$* -f 5th-opt/reorder.awk 5th.c > $@
+
 5th-chicken% : CFLAGS += -fno-optimize-sibling-calls
 5th-preserve-none : CFLAGS += -DPRESERVE_NONE
 
 clean :
 	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th jansforth recurse recurse-chicken *.ll 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm *.san
-	$(RM) $(patsubst 5th-opt/%.diff,5th-%,$(wildcard 5th-opt/*.diff))
+	$(RM) $(patsubst 5th-opt/%.diff,5th-%,$(wildcard 5th-opt/*.diff)) 5th-order-*
 	$(RM) -r *.san.dSYM
 
 define allbutlast
