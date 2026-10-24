@@ -31,6 +31,15 @@
 	the abandoned frames pile up.  Hence the setjmp trampoline: entering QUIT
 	drops straight back to main.
 
+	The rule does not make CATCH catch in C either, so CATCH and THROW are
+	native: when CREATE sees jonesforth.f define a word with either name it
+	records the code field, and DOCOL runs those through do_catch(), which
+	setjmps and then executes the xt, while THROW longjmps to the innermost
+	handler with both stacks restored.  Unwinding is the C stack's job, so it
+	works at any depth.  An uncaught THROW (no handler) still runs the FORTH
+	definition, which prints its message and enters QUIT.  A user redefining
+	CATCH or THROW gets the native behaviour too.
+
 	What the rule is *not* enough for is the idiom where a word pops its own
 	caller's return address -- `R>` reaching one cell below what the caller
 	pushed.  Those addresses now live in C frames, not in `memory`, so they are
@@ -207,7 +216,7 @@ enum Builtin {
 
 static int rodata[] = {
     /* STATE      */ [5120] =    0,
-    /* HERE       */ [5121] = 5559 << 2,
+    /* HERE       */ [5121] = 5562 << 2,
     /* LATEST     */ [5122] = 5554 << 2,
     /* S0         */ [5123] = 2048 << 2,
     /* BASE       */ [5124] =   10,
@@ -316,13 +325,25 @@ static int rodata[] = {
     /* SYSCALL3   */ [5544] = 5540 << 2, [5545] = 0x53595308, [5546] = 0x4c4c4143, [5547] = 0x00000033, [5548] = SYSCALL3,
     /* SYSCALL2   */ [5549] = 5544 << 2, [5550] = 0x53595308, [5551] = 0x4c4c4143, [5552] = 0x00000032, [5553] = SYSCALL2,
     /* SYSCALL1   */ [5554] = 5549 << 2, [5555] = 0x53595308, [5556] = 0x4c4c4143, [5557] = 0x00000031, [5558] = SYSCALL1,
+    /* CATCH thunk */ [5559] = 0, [5560] = 0, [5561] = 5248 << 2,
 };
 static int *memory;
 static int dsp; /* data stack pointer, the one place every frame agrees on */
 static int rsp; /* shadow return stack pointer, only >R & friends push here */
 static jmp_buf restart;
 
+/* Innermost active CATCH. It lives in do_catch()'s C frame, so THROW can longjmp straight to it. */
+static struct handler {
+    jmp_buf jb;
+    int dsp, rsp;
+    struct handler *prev;
+} *top;
+
+/* Code fields of the CATCH and THROW that jonesforth.f defines, recorded by CREATE. */
+static int catch_cfa, throw_cfa;
+
 #define QUIT_CFA 5530 /* code field of QUIT in rodata above */
+#define THUNK 5559 /* code field of a colon word `xt EXIT` appended to rodata; do_catch writes xt */
 
 char key(void) {
     static int currkey = 0x4000, buftop = 0x4000;
@@ -454,6 +475,28 @@ void *set_up_data_segment(const void *src, size_t n) {
 
 #pragma GCC diagnostic pop
 
+static void docol(int cfa);
+
+/* ( xt -- exn? ): execute xt; THROW longjmps back here with its code, restoring both stacks. */
+static void do_catch(void) {
+    struct handler h = {.dsp = dsp + 1, .rsp = rsp, .prev = top};
+    const int xt = memory[dsp];
+    int n;
+
+    top = &h;
+    if ((n = setjmp(h.jb)) == 0) {
+        dsp = h.dsp;
+        memory[THUNK + 1] = xt;
+        docol(THUNK);
+        memory[--dsp] = 0;
+    } else {
+        rsp = h.rsp;
+        dsp = h.dsp;
+        memory[--dsp] = n;
+    }
+    top = h.prev;
+}
+
 /* Run the body of the colon word whose code field address is cfa. */
 static void docol(int cfa) {
     register int sp = dsp;
@@ -472,6 +515,13 @@ static void docol(int cfa) {
                    below.  jonesforth just resets rsp; we have to unwind. */
                 if (cfa == QUIT_CFA)
                     longjmp(restart, 1);
+                if (cfa == catch_cfa) {
+                    do_catch();
+                    sp = dsp;
+                    break;
+                }
+                if (cfa == throw_cfa && top && memory[sp])
+                    longjmp(top->jb, memory[sp]);
                 docol(cfa);
                 sp = dsp;
                 if (rsp > base)
@@ -794,6 +844,12 @@ static void docol(int cfa) {
                 memcpy(bytes + a + 5, bytes + memory[sp + 1], (size_t)memory[sp]);
                 memory[0x1401] = code_field_address(a);
                 memory[0x1402] = a;
+                if (memory[sp] == 5) {
+                    if (!memcmp(bytes + a + 5, "CATCH", 5))
+                        catch_cfa = memory[0x1401] >> 2;
+                    else if (!memcmp(bytes + a + 5, "THROW", 5))
+                        throw_cfa = memory[0x1401] >> 2;
+                }
                 sp += 2;
                 break;
             case COMMA:
@@ -890,6 +946,7 @@ int main(void) {
     rsp = 0x1000;
 
     (void)setjmp(restart);
+    top = NULL;
     for (;;)
         docol(QUIT_CFA);
 }
