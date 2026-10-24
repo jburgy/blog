@@ -84,11 +84,19 @@ test-web : web/4th.wasm
 test-wasm : 4th.rs
 	rustup run nightly cargo test --release --target wasm32-wasip1 -Zbuild-std=std,panic_unwind
 
-jansforth recurse : % : %.c
+jansforth recurse recurse-chicken : % : %.c
 	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
 
+# `make 5th-NAME` applies 5th-opt/NAME.diff to 5th.c and builds the result with the generic rule above.
+5th-%.c : 5th-opt/%.diff 5th.c
+	patch -o $@ 5th.c $<
+
+5th-chicken% : CFLAGS += -fno-optimize-sibling-calls
+5th-preserve-none : CFLAGS += -DPRESERVE_NONE
+
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th jansforth recurse *.ll 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm *.san
+	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th jansforth recurse recurse-chicken *.ll 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm *.san
+	$(RM) $(patsubst 5th-opt/%.diff,5th-%,$(wildcard 5th-opt/*.diff))
 	$(RM) -r *.san.dSYM
 
 define allbutlast

@@ -12,7 +12,7 @@ intermediate files as they are repetitive.  Instead, I kept patches which can be
 
 ```bash
 $ patch 5th.c 5th-opt/sp-rsp-ip-env.diff
-$ clang -S -O3 5th.c -o 5th.s
+$ clang -S -O3 -target x86_64-apple-macos 5th.c -o 5th.s
 $ grep -c mov 5th.s
-640
+836
 ```
