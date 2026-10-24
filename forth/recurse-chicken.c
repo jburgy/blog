@@ -45,6 +45,14 @@
 	  re-laying the rodata image, which is not done.
 
 	RSP@, RSP! and R0 keep a memory view of the chain for code that walks it.
+	Forth addresses the return stack as a flat array of cells in memory[]
+	(`@`, then `4+` to the next entry), but the chain is linked nodes that move
+	when they are evacuated, so there is nothing flat to point at.  The window
+	is the extra level of indirection that fixes that, the fundamental theorem
+	of software engineering (https://en.wikipedia.org/wiki/Fundamental_theorem_of_software_engineering):
+	RSP@ maps nodes to window offsets, and RSP! maps an offset back to a depth
+	and then walks that many `parent` links.  The price is the usual corollary,
+	a second hop (offset, then node) and a copy.
 	R0 is cell 0x1000.  RSP@ copies the newest min(depth, WINDOW) nodes into
 	the WINDOW (256) cells below R0, newest at the lowest address, and returns
 	that address, so `@` and `4+` walk it like jonesforth.  RSP! reads its
