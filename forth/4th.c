@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
 #include <stddef.h>  /* size_t, offsetof */
+#include <stdint.h>  /* intptr_t, uintptr_t */
 #include <stdio.h>  /* EOF, getchar_unlocked, putchar_unlocked */
 #include <stdlib.h>  /* exit, strtol, syscall */
 #include <string.h>  /* memcmp, memmove, memcpy */
@@ -81,17 +82,17 @@ int syscall(int sysno, ...)
 {
     va_list ap;
     va_start(ap, sysno);
-    int status;
+    int status = -1;
 
     switch(sysno)
     {
-    case SYS_read : status = read(va_arg(ap, int), va_arg(ap, void *), va_arg(ap, size_t)); break;
-    case SYS_write: status = write(va_arg(ap, int), va_arg(ap, const void *), va_arg(ap, size_t)); break;
-    case SYS_open : status = open(va_arg(ap, const char *), va_arg(ap, int), va_arg(ap, mode_t)); break;
+    case SYS_read : { int fd = va_arg(ap, int); void *buf = va_arg(ap, void *); size_t n = va_arg(ap, size_t); status = read(fd, buf, n); break; }
+    case SYS_write: { int fd = va_arg(ap, int); const void *buf = va_arg(ap, const void *); size_t n = va_arg(ap, size_t); status = write(fd, buf, n); break; }
+    case SYS_open : { const char *path = va_arg(ap, const char *); int flags = va_arg(ap, int); mode_t mode = va_arg(ap, mode_t); status = open(path, flags, mode); break; }
     case SYS_close: status = close(va_arg(ap, int)); break;
     case SYS_brk  : status = (intptr_t)va_arg(ap, void *); status = status ? brk((void *)status) : (intptr_t)sbrk(0); break;
     case SYS_exit : status = va_arg(ap, int); va_end(ap); exit(status);
-    case SYS_creat: status = creat(va_arg(ap, const char *), va_arg(ap, mode_t)); break;
+    case SYS_creat: { const char *path = va_arg(ap, const char *); mode_t mode = va_arg(ap, mode_t); status = creat(path, mode); break; }
     }
     va_end(ap);
     return status;
@@ -149,7 +150,8 @@ static intptr_t word(void)
 
     do
     {
-        *s++ = (char)ch;
+        if (s < word_buffer + sizeof word_buffer) /* truncate overlong tokens */
+            *s++ = (char)ch;
         ch = key();
     } while (ch > ' ');
 
@@ -162,6 +164,21 @@ static struct word_t *find(struct word_t *word, char *name, size_t count)
         word = word->link;
 
     return word;
+}
+
+/* strtol needs a nul terminator, but Forth strings carry their length: parse a copy (ponytail: first 32 chars only) */
+static intptr_t number(char *s, size_t count, intptr_t base, char **end)
+{
+    char copy[sizeof word_buffer + 1], *stop;
+    intptr_t value;
+
+    if (count > sizeof word_buffer)
+        count = sizeof word_buffer;
+    memcpy(copy, s, count);
+    copy[count] = '\0';
+    value = strtol(copy, &stop, (int)base);
+    *end = s + (stop - copy);
+    return value;
 }
 
 static void *code_field_address(struct word_t *word)
@@ -299,8 +316,15 @@ DEFCODE(SUB, 0, "*", MUL):
 DEFCODE(MUL, 0, "/MOD", DIVMOD):
     b = pop();
     a = pop();
-    push(a % b);
-    push(a / b);
+    if (!b) {
+        (void)(write(STDERR_FILENO, "DIVISION BY ZERO\n", sizeof "DIVISION BY ZERO\n" - 1) + 1);
+        push(a);
+        push(b);
+        NEXT;
+    }
+    /* b == -1 would trap on INTPTR_MIN; negate unsigned to wrap instead */
+    push(b == -1 ? 0 : a % b);
+    push(b == -1 ? (intptr_t)(0 - (uintptr_t)a) : a / b);
     NEXT;
 DEFCODE(DIVMOD, 0, "=", EQU):
     a = pop();
@@ -478,11 +502,8 @@ DEFCODE(EMIT, 0, "WORD", WORD):
 DEFCODE(WORD, 0, "NUMBER", NUMBER):
     c = pop(); /* length of string */
     s = (char *)pop(); /* start address of string */
-    a = s[c];
-    s[c] = '\0';
-    push(strtol(s, &r, (int)base));
+    push(number(s, (size_t)c, base, &r));
     push(r - s - c);
-    s[c] = (char)a;
     NEXT;
 DEFCODE(NUMBER, 0, "FIND", FIND):
     c = pop();
@@ -550,6 +571,10 @@ DEFCODE(LITSTRING, 0, "TELL", TELL):
     NEXT;
     static char errmsg[] = "PARSE ERROR: ";
 DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
+    if (sp > s0) { /* ponytail: underflow noticed after the fact, overflow unchecked; per-word checks if needed */
+        (void)(write(STDERR_FILENO, "STACK UNDERFLOW\n", sizeof "STACK UNDERFLOW\n" - 1) + 1);
+        sp = s0;
+    }
     p = (intptr_t *)here;
     c = word();
     created = find(latest, word_buffer, (size_t)c);
@@ -559,10 +584,7 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET):
             goto **target;
         *p++ = (intptr_t)target;
     } else {
-        b = word_buffer[c];
-        word_buffer[c] = '\0';
-        a = strtol(word_buffer, &r, (int)base);
-        word_buffer[c] = (char)b;
+        a = number(word_buffer, (size_t)c, base, &r);
         if (r == word_buffer) {
             (void)(write(STDERR_FILENO, errmsg, sizeof errmsg - 1) + 1);
             (void)(write(STDERR_FILENO, word_buffer, (size_t)c) + 1);
@@ -611,6 +633,8 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0):
 _start:
     state = 0;
     here = sbrk(0x10000);
+    if (here == (char *)-1)
+        exit(1);
     latest = &name_SYSCALL0;
     s0 = stack + STACK_SIZE;
     base = 10;

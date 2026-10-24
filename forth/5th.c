@@ -1,5 +1,6 @@
 #include <fcntl.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +37,8 @@ static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_lin
 #define XSTR(x) STR(x)
 #define STR(x) #x
 
+#define WORD_MAX 0x20
+
 struct interp_t {
     intptr_t state;
     struct word_t *latest;
@@ -43,7 +46,7 @@ struct interp_t {
     intptr_t *s0;
     intptr_t base;
     union instr_t **r0;
-    char buffer[0x20];
+    char buffer[WORD_MAX];
     char *here;
 };
 
@@ -74,7 +77,8 @@ int key(void)
 
 intptr_t word(char *word_buffer)
 {
-    char ch, *s = word_buffer;
+    int ch;
+    char *s = word_buffer;
 
     do
     {
@@ -87,11 +91,27 @@ intptr_t word(char *word_buffer)
 
     do
     {
-        *s++ = ch;
+        if (s < word_buffer + WORD_MAX) /* truncate overlong tokens */
+            *s++ = (char)ch;
         ch = key();
     } while (ch > ' ');
 
     return s - word_buffer;
+}
+
+/* strtol needs a nul terminator, but Forth strings carry their length: parse a copy (ponytail: first WORD_MAX chars only) */
+intptr_t number(char *s, size_t count, intptr_t base, char **end)
+{
+    char copy[WORD_MAX + 1], *stop;
+    intptr_t value;
+
+    if (count > WORD_MAX)
+        count = WORD_MAX;
+    memcpy(copy, s, count);
+    copy[count] = '\0';
+    value = strtol(copy, &stop, base);
+    *end = s + (stop - copy);
+    return value;
 }
 
 struct word_t *find(struct word_t *word, char *name, size_t count)
@@ -237,8 +257,13 @@ DEFCODE(MUL, 0, "/MOD", DIVMOD)
 {
     register intptr_t a = sp[1];
     register intptr_t b = sp[0];
-    sp[1] = a % b;
-    sp[0] = a / b;
+    if (!b) {
+        write(STDERR_FILENO, "DIVISION BY ZERO\n", sizeof "DIVISION BY ZERO\n" - 1);
+        NEXT;
+    }
+    /* b == -1 would trap on INTPTR_MIN; negate unsigned to wrap instead */
+    sp[1] = b == -1 ? 0 : a % b;
+    sp[0] = b == -1 ? (intptr_t)(0 - (uintptr_t)a) : a / b;
     NEXT;
 }
 DEFCODE(DIVMOD, 0, "=", EQU)
@@ -456,13 +481,10 @@ DEFCODE(WORD, 0, "NUMBER", NUMBER)
 {
     register intptr_t c = sp[0];
     register char *s = (char *)sp[1];
-    register char a = s[c];
     char *r;
 
-    s[c] = '\0';
-    sp[1] = strtol(s, &r, env->base);
+    sp[1] = number(s, c, env->base, &r);
     sp[0] = r - s - c;
-    s[c] = a;
     NEXT;
 }
 DEFCODE(NUMBER, 0, "FIND", FIND)
@@ -556,23 +578,26 @@ DEFCODE(LITSTRING, 0, "TELL", TELL)
 DEFCODE(TELL, 0, "INTERPRET", INTERPRET)
 {
     static char errmsg[] = "PARSE ERROR: ";
-    register union instr_t *p = (union instr_t *)env->here;
+    register union instr_t *p;
     register intptr_t a;
-    register intptr_t b;
-    register intptr_t c = word(env->buffer);
-    register struct word_t *new = find(env->latest, env->buffer, c);
+    register intptr_t c;
+    register struct word_t *new;
     char *r;
 
+    if (sp > env->s0) { /* ponytail: underflow noticed after the fact, overflow unchecked; per-word checks if needed */
+        write(STDERR_FILENO, "STACK UNDERFLOW\n", sizeof "STACK UNDERFLOW\n" - 1);
+        sp = env->s0;
+    }
+    p = (union instr_t *)env->here;
+    c = word(env->buffer);
+    new = find(env->latest, env->buffer, c);
     if (new) {
         target = code_field_address(new);
         if ((new->flag & F_IMMED) || !env->state)
             __attribute__((musttail)) return target->code(env, sp, rsp, ip, target);
         (p++)->word = target;
     } else {
-        b = env->buffer[c];
-        env->buffer[c] = '\0';
-        a = strtol(env->buffer, &r, env->base);
-        env->buffer[c] = b;
+        a = number(env->buffer, c, env->base, &r);
         if (r == env->buffer) {
             write(STDERR_FILENO, errmsg, sizeof errmsg - 1);
             write(STDERR_FILENO, env->buffer, c);
@@ -604,7 +629,7 @@ DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
     switch (sp[0])
     {
         case SYS_open:
-            sp[3] = openat(AT_FDCWD, (const char *)sp[1], sp[2], sp[3]);
+            sp[3] = openat(AT_FDCWD, (const char *)sp[1], sp[2], (mode_t)sp[3]);
             break;
         case SYS_read:
             sp[3] = read(sp[1], (void *)sp[2], sp[3]);
@@ -612,6 +637,8 @@ DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
         case SYS_write:
             sp[3] = write(sp[1], (const void *)sp[2], sp[3]);
             break;
+        default:
+            sp[3] = -1;
     }
     sp += 3;
     NEXT;
@@ -623,6 +650,13 @@ DEFCODE(SYSCALL3, 0, "SYSCALL2", SYSCALL2)
         case SYS_open:
             sp[2] = openat(AT_FDCWD, (const char *)sp[1], sp[2]);
             break;
+#ifndef NO_LIBC_SYSCALL_NUMS
+        case SYS_access:
+            sp[2] = access((const char *)sp[1], sp[2]);
+            break;
+#endif
+        default:
+            sp[2] = -1;
     }
     sp += 2;
     NEXT;
@@ -637,13 +671,17 @@ DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
             sp[1] = close(sp[1]);
             break;
         case SYS_brk:
-            sp[1] = sp[1] ? (intptr_t)sbrk((intptr_t)sbrk(0) + sp[1]) : (intptr_t)sbrk(sp[1]);
+            if (sp[1])
+                sbrk(sp[1] - (intptr_t)sbrk(0));
+            sp[1] = (intptr_t)sbrk(0);
             break;
 #ifndef NO_LIBC_SYSCALL_NUMS
         case SYS_setuid:
             sp[1] = setuid(sp[1]);
             break;
 #endif            
+        default:
+            sp[1] = -1;
     }
     ++sp;
     NEXT;
@@ -656,6 +694,8 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
         case SYS_getuid:
             sp[0] = getuid();
             break;
+        default:
+            sp[0] = -1;
     }
 #endif
     NEXT;
@@ -663,10 +703,12 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
 
 int main(int argc __attribute__((unused)), char *argv[])
 {
-    intptr_t N = 0x100;
+    enum { N = 0x100 };
     intptr_t stack[N];
     union instr_t *return_stack[N];
     char *memory = sbrk(0x10000);
+    if (memory == (char *)-1)
+        return 1;
     struct interp_t env = {
         .state = 0,
         .latest = &name_SYSCALL0,
@@ -679,5 +721,6 @@ int main(int argc __attribute__((unused)), char *argv[])
     static union instr_t cold_start[] = {CODE(QUIT)};
     union instr_t *ip = cold_start;
 
-    return (intptr_t)ip->word->code(&env, env.s0, env.r0, ip, ip->word);
+    ip->word->code(&env, env.s0, env.r0, ip, ip->word); /* never returns: EOF calls exit() */
+    return 0;
 }

@@ -27,12 +27,12 @@ CLEAN += 6th-wasi.wasm
 
 # wasi-sdk clang (deploy.yml: bytecodealliance/setup-wasi-sdk-action).
 4th-wasi.wasm : ../forth/4th.c wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
-	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -Oz -s -o $@ $<
+	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -fwrapv -fno-strict-aliasing -Oz -s -o $@ $<
 all : 4th-wasi.wasm
 CLEAN += 4th-wasi.wasm
 
 5th-wasi.wasm : ../forth/5th.c wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs forth/4th.32.fs
-	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -DNO_LIBC_SYSCALL_NUMS -mtail-call -Oz -s -o $@ $<
+	$${WASI_SDK_PATH}/bin/clang --sysroot=$${WASI_SDK_PATH}/share/wasi-sysroot -Wall -Wextra -fwrapv -fno-strict-aliasing -DNO_LIBC_SYSCALL_NUMS -mtail-call -Oz -s -o $@ $<
 all : 5th-wasi.wasm
 CLEAN += 5th-wasi.wasm
 
