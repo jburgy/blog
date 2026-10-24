@@ -1,55 +1,69 @@
 /*	https://github.com/jburgy/blog/blob/main/forth/jansforth.c with the FORTH
-	return stack made of continuation frames, in the style of Chicken Scheme
+	return stack made of continuation nodes, in the style of Chicken Scheme
 	("Cheney on the M.T.A.") and of forth/recurse.c.
 
-	Every colon word call pushes a `struct frame {parent, ip, ...}` -- the
-	continuation of the callee -- as a local of `enter()` and then calls `run()`,
-	the flat `while (1) switch (memory[cfa])` loop, on top of it.  Nothing ever
-	returns: EXIT just makes `cont` (the current continuation) its parent and
-	keeps looping, so the C stack only grows and is mostly dead frames.  When
-	`enter()` finds it past STACK_BYTES it evacuates the live chain (the frames
-	between `cont` and the first one already on the heap) to a heap stack, fixes
-	the parent pointers, and longjmps to main, which restarts `run()` on an empty
-	C stack.  The frames are then heap frames; EXIT pops them without freeing,
-	and the next evacuation reuses everything above the oldest live heap frame.
-	That is Chicken's minor GC, with the stack as nursery and `heap[]` as the
-	only older generation.  Nesting is bounded by HEAP_FRAMES (1M), not by the
-	process stack or jansforth.c's 2048-cell return stack; going past it prints
-	RETURN STACK OVERFLOW and restarts QUIT.
+	There is ONE return stack and it is a linked chain of `struct frame
+	{parent, value}`.  DOCOL pushes a node whose value is the caller's ip as a
+	byte address (what jonesforth leaves on its return stack), >R pushes any
+	cell, R> and RDROP pop a node, and EXIT pops a node and resumes at its
+	value whatever pushed it: exactly jonesforth's semantics, so there is no
+	shadow stack and no per-frame `base`.
 
-	Build with -fno-optimize-sibling-calls if a compiler ever turns the call to
-	run() into a jump: `&f` escapes into the callee, which already stops clang.  STACK_BYTES (64K) is a cache-sized nursery: 16K evacuates too
-	often, 256K and up falls out of L1/L2 and is slower.
+	Pushing is a call that never returns: push() holds the node as a local and
+	calls run(), the flat `while (1) switch (memory[cfa])` loop, on top of it.
+	Popping just moves `cont`, so the C stack only grows and is mostly dead
+	nodes.  push() counts pushes since the last reset instead of looking at
+	stack addresses; past NURSERY it evacuates the live nodes (the ones not yet
+	`on_heap`) to the static heap[] stack, fixes the parents, and longjmps to
+	main, which restarts run() on an empty C stack.  That is Chicken's minor GC
+	with the C stack as nursery and heap[] as the only older generation; popped
+	heap nodes are reused by the next evacuation.  Nesting is bounded by
+	HEAP_FRAMES (1M), not by the process stack; past it RETURN STACK OVERFLOW is
+	printed and QUIT restarts.  NURSERY (256) pushes must fit the C stack,
+	about 150-250 bytes each (arm64 clang).
 
-	>R, R>, RDROP, RSP@ and RSP! use the same shadow stack in `memory` as in
-	recurse.c, and each frame remembers its depth at entry (`base`) so EXIT
-	obeys the same rule: rsp < base => pop the FORTH-pushed ip and stay in this
-	frame; rsp > base after a return => return once more (see recurse.c).
+	What the former limitations became:
+	- R> reaching the caller's return address, R> ... >R inline data, regexp.f's
+	  XCALL and (NNODE): lifted, since the address is an ordinary node
+	  (test_inline_data_via_return_stack; regexp.f's RE-TESTS give the same
+	  answers as re).
+	- PRINT-STACK-TRACE: lifted, it walks RSP@'s window (test_print_stack_trace).
+	- key() spinning at EOF: it now exits with status 0 as jansforth.c does.
+	- Native CATCH/THROW by name at every CREATE: CATCH is gone, jonesforth.f's
+	  own runs unchanged on the chain.  Only the first THROW is intercepted,
+	  because jonesforth.f's THROW scans the return stack as memory and
+	  RSP@ can show only WINDOW nodes: unmodified it catches up to about 250
+	  nested calls (200 works, 400 does not) and the test needs 5000.  The
+	  native one walks the chain for the first EXCEPTION-MARKER's address, pops
+	  to it and restores the data stack as jonesforth.f's would; it falls back
+	  to the FORTH THROW if there is no marker.  Redefinitions of CATCH,
+	  THROW or EXCEPTION-MARKER are plain FORTH
+	  (test_redefined_catch_throw_not_intercepted).
+	- The 2048-cell data stack: the return stack no longer lives in memory, so
+	  cells 0..0x1000 minus WINDOW (3840) are the data stack, S0 and the
+	  initial sp moved there (test_deep_data_stack).  Going further needs
+	  re-laying the rodata image, which is not done.
 
-	CATCH and THROW are native too, but without setjmp/longjmp: CREATE records
-	the code fields of jonesforth.f's CATCH and THROW, and entering CATCH pushes
-	an ordinary frame whose `catch_dsp` is the data stack depth to restore (and
-	runs the xt through the `xt EXIT` THUNK, as in recurse.c).  THROW walks
-	`cont` up the parent chain to the nearest such frame, restores both
-	stacks and resumes there with the code on the stack; the C stack is not
-	unwound at all, the abandoned frames are simply dead.  A normal return into
-	a CATCH frame pushes 0.  Handlers are data in the chain, so they survive
-	evacuation (a setjmp/longjmp handler in a C frame would not).  With no
-	CATCH frame the FORTH THROW runs, prints its message and enters QUIT.
+	RSP@, RSP! and R0 keep a memory view of the chain for code that walks it.
+	R0 is cell 0x1000.  RSP@ copies the newest min(depth, WINDOW) nodes into
+	the WINDOW (256) cells below R0, newest at the lowest address, and returns
+	that address, so `@` and `4+` walk it like jonesforth.  RSP! reads its
+	argument the same way, counting cells up from R0 against the window the chain
+	would show now: it pops down to the address, or pushes the window cells
+	below the current top.  Ceilings: both cost O(min(depth, WINDOW)); deeper
+	nodes are invisible to FORTH walkers; RSP! can pop only what the window
+	shows (so `R0 RSP!` empties a chain only if it is at most WINDOW deep; QUIT
+	itself restarts natively) and pushing needs room, so it does nothing when
+	the chain already fills the window.  Anything written into the window is
+	only a snapshot; changes reach the chain only through RSP!.
 
-	QUIT is a restart: `quit()` resets the root frame and longjmps to main.
-
-	Not supported, as in recurse.c: words that pop their *caller's* return
-	address with R> (PRINT-STACK-TRACE prints nothing, regexp.f's XCALL and
-	(NNODE) fail).  Return addresses are in frames, not in `memory`.
-	Per-call cost is one more C frame than recurse.c (enter + run), which makes
-	call-heavy code about 1.2-1.3x slower; plain primitive loops are on par.
+	Not strict ISO: BRK is emulated with a 16MB calloc arena (no sbrk), and
+	the code needs POSIX read/write/open and, off macOS, syscall().
 */
 #include <errno.h>
 #include <fcntl.h>
 #include <setjmp.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -155,7 +169,7 @@ enum Builtin {
     BASE,
     VERSION,
     RZ,
-    __DOCOL, 
+    DOCOL_, 
     F_IMMED,
     F_HIDDEN,
     F_LENMASK,
@@ -166,14 +180,14 @@ enum Builtin {
     SYS_WRITE,
     SYS_CREAT,
     SYS_BRK,
-    __O_RDONLY,
-    __O_WRONLY,
-    __O_RDWR,
-    __O_CREAT,
-    __O_EXCL,
-    __O_TRUNC,
-    __O_APPEND,
-    __O_NONBLOCK,
+    O_RDONLY_,
+    O_WRONLY_,
+    O_RDWR_,
+    O_CREAT_,
+    O_EXCL_,
+    O_TRUNC_,
+    O_APPEND_,
+    O_NONBLOCK_,
     TOR,
     FROMR,
     RSPFETCH,
@@ -210,11 +224,15 @@ enum Builtin {
     SYSCALL1,
 };
 
+#define RTOP 0x1000 /* R0 as a cell index; the memory window RSP@ shows ends here */
+#define WINDOW 256 /* cells of the return-stack window, taken from the top of the old return stack region */
+#define S0_CELL (RTOP - WINDOW) /* the data stack grows down from here */
+
 static int rodata[] = {
     /* STATE      */ [5120] =    0,
-    /* HERE       */ [5121] = 5562 << 2,
+    /* HERE       */ [5121] = 5559 << 2,
     /* LATEST     */ [5122] = 5554 << 2,
-    /* S0         */ [5123] = 2048 << 2,
+    /* S0         */ [5123] = S0_CELL << 2,
     /* BASE       */ [5124] =   10,
     /* DROP       */ [5133] =    0 << 2, [5134] = 0x4f524404, [5135] = 0x00000050, [5136] = DROP,
     /* SWAP       */ [5137] = 5133 << 2, [5138] = 0x41575304, [5139] = 0x00000050, [5140] = SWAP,
@@ -267,7 +285,7 @@ static int rodata[] = {
     /* BASE       */ [5293] = 5290 << 2, [5294] = 0x53414204, [5295] = 0x00000045, [5296] = BASE,
     /* VERSION    */ [5297] = 5293 << 2, [5298] = 0x52455607, [5299] = 0x4e4f4953, [5300] = VERSION,
     /* R0         */ [5301] = 5297 << 2, [5302] = 0x00305202, [5303] = RZ,
-    /* DOCOL      */ [5304] = 5301 << 2, [5305] = 0x434f4405, [5306] = 0x00004c4f, [5307] = __DOCOL,
+    /* DOCOL      */ [5304] = 5301 << 2, [5305] = 0x434f4405, [5306] = 0x00004c4f, [5307] = DOCOL_,
     /* F_IMMED    */ [5308] = 5304 << 2, [5309] = 0x495f4607, [5310] = 0x44454d4d, [5311] = F_IMMED,
     /* F_HIDDEN   */ [5312] = 5308 << 2, [5313] = 0x485f4608, [5314] = 0x45444449, [5315] = 0x0000004e, [5316] = F_HIDDEN,
     /* F_LENMASK  */ [5317] = 5312 << 2, [5318] = 0x4c5f4609, [5319] = 0x414d4e45, [5320] = 0x00004b53, [5321] = F_LENMASK,
@@ -278,14 +296,14 @@ static int rodata[] = {
     /* SYS_WRITE  */ [5342] = 5337 << 2, [5343] = 0x53595309, [5344] = 0x4952575f, [5345] = 0x00004554, [5346] = SYS_WRITE,
     /* SYS_CREAT  */ [5347] = 5342 << 2, [5348] = 0x53595309, [5349] = 0x4552435f, [5350] = 0x00005441, [5351] = SYS_CREAT,
     /* SYS_BRK    */ [5352] = 5347 << 2, [5353] = 0x53595307, [5354] = 0x4b52425f, [5355] = SYS_BRK,
-    /* O_RDONLY   */ [5356] = 5352 << 2, [5357] = 0x525f4f08, [5358] = 0x4c4e4f44, [5359] = 0x00000059, [5360] = __O_RDONLY,
-    /* O_WRONLY   */ [5361] = 5356 << 2, [5362] = 0x575f4f08, [5363] = 0x4c4e4f52, [5364] = 0x00000059, [5365] = __O_WRONLY,
-    /* O_RDWR     */ [5366] = 5361 << 2, [5367] = 0x525f4f06, [5368] = 0x00525744, [5369] = __O_RDWR,
-    /* O_CREAT    */ [5370] = 5366 << 2, [5371] = 0x435f4f07, [5372] = 0x54414552, [5373] = __O_CREAT,
-    /* O_EXCL     */ [5374] = 5370 << 2, [5375] = 0x455f4f06, [5376] = 0x004c4358, [5377] = __O_EXCL,
-    /* O_TRUNC    */ [5378] = 5374 << 2, [5379] = 0x545f4f07, [5380] = 0x434e5552, [5381] = __O_TRUNC,
-    /* O_APPEND   */ [5382] = 5378 << 2, [5383] = 0x415f4f08, [5384] = 0x4e455050, [5385] = 0x00000044, [5386] = __O_APPEND,
-    /* O_NONBLOCK */ [5387] = 5382 << 2, [5388] = 0x4e5f4f0a, [5389] = 0x4c424e4f, [5390] = 0x004b434f, [5391] = __O_NONBLOCK,
+    /* O_RDONLY   */ [5356] = 5352 << 2, [5357] = 0x525f4f08, [5358] = 0x4c4e4f44, [5359] = 0x00000059, [5360] = O_RDONLY_,
+    /* O_WRONLY   */ [5361] = 5356 << 2, [5362] = 0x575f4f08, [5363] = 0x4c4e4f52, [5364] = 0x00000059, [5365] = O_WRONLY_,
+    /* O_RDWR     */ [5366] = 5361 << 2, [5367] = 0x525f4f06, [5368] = 0x00525744, [5369] = O_RDWR_,
+    /* O_CREAT    */ [5370] = 5366 << 2, [5371] = 0x435f4f07, [5372] = 0x54414552, [5373] = O_CREAT_,
+    /* O_EXCL     */ [5374] = 5370 << 2, [5375] = 0x455f4f06, [5376] = 0x004c4358, [5377] = O_EXCL_,
+    /* O_TRUNC    */ [5378] = 5374 << 2, [5379] = 0x545f4f07, [5380] = 0x434e5552, [5381] = O_TRUNC_,
+    /* O_APPEND   */ [5382] = 5378 << 2, [5383] = 0x415f4f08, [5384] = 0x4e455050, [5385] = 0x00000044, [5386] = O_APPEND_,
+    /* O_NONBLOCK */ [5387] = 5382 << 2, [5388] = 0x4e5f4f0a, [5389] = 0x4c424e4f, [5390] = 0x004b434f, [5391] = O_NONBLOCK_,
     /* >R         */ [5392] = 5387 << 2, [5393] = 0x00523e02, [5394] = TOR,
     /* R>         */ [5395] = 5392 << 2, [5396] = 0x003e5202, [5397] = FROMR,
     /* RSP@       */ [5398] = 5395 << 2, [5399] = 0x50535204, [5400] = 0x00000040, [5401] = RSPFETCH,
@@ -321,38 +339,37 @@ static int rodata[] = {
     /* SYSCALL3   */ [5544] = 5540 << 2, [5545] = 0x53595308, [5546] = 0x4c4c4143, [5547] = 0x00000033, [5548] = SYSCALL3,
     /* SYSCALL2   */ [5549] = 5544 << 2, [5550] = 0x53595308, [5551] = 0x4c4c4143, [5552] = 0x00000032, [5553] = SYSCALL2,
     /* SYSCALL1   */ [5554] = 5549 << 2, [5555] = 0x53595308, [5556] = 0x4c4c4143, [5557] = 0x00000031, [5558] = SYSCALL1,
-    /* CATCH thunk */ [5559] = 0, [5560] = 0, [5561] = 5248 << 2,
 };
 static int *memory;
-static int rsp; /* shadow return stack pointer, only >R & friends push here */
 
-/* One return-stack entry: where the caller resumes and the continuation it returns to. */
+/* One return-stack node: `value` is whatever was pushed, a return address (as a byte address, like jonesforth) for DOCOL. */
 struct frame {
     struct frame *parent;
-    int ip;
-    int base; /* rsp when the callee was entered */
-    int catch_dsp; /* data stack depth to restore if a THROW lands here, -1 unless this frame is a CATCH */
+    int value;
+    bool on_heap;
 };
 
-#ifndef STACK_BYTES
-#define STACK_BYTES 65536 /* C stack allowed to fill with dead frames before the live ones are evacuated */
+#ifndef NURSERY
+#define NURSERY 256 /* pushes on the C stack before the live nodes are evacuated */
 #endif
 #define HEAP_FRAMES (1 << 20)
 
-static struct frame heap[HEAP_FRAMES]; /* heap[0] is the root; evacuated frames are a stack above it */
-static jmp_buf reset;
-static char *stack_limit;
-static struct frame *cont; /* continuation of the running word: the frame its EXIT returns to */
-static struct { int ip, sp; } resume;
+struct regs {
+    int ip, sp;
+};
 
-/* Code fields of the CATCH and THROW that jonesforth.f defines, recorded by CREATE. */
-static int catch_cfa, throw_cfa;
+static struct frame heap[HEAP_FRAMES]; /* heap[0] is the root; evacuated nodes are a stack above it */
+static jmp_buf reset;
+static int nursery; /* pushes since the C stack was last reset */
+static struct frame *cont; /* top of the return stack: the node EXIT pops */
+static struct regs resume;
+
+/* Code field of the first THROW and the address of the first EXCEPTION-MARKER's RDROP, recorded by CREATE. */
+static int throw_cfa, marker;
 
 #define QUIT_CFA 5530 /* code field of QUIT in rodata above */
-#define THUNK 5559 /* code field of a colon word `xt EXIT` appended to rodata; CATCH writes xt */
 
-/* Out of line: inlined into run() they crowd ip and sp out of registers. */
-[[gnu::noinline]] char key(void) {
+char key(void) {
     static int currkey = 0x4000, buftop = 0x4000;
     ssize_t c;
 
@@ -364,12 +381,14 @@ static int catch_cfa, throw_cfa;
             write(STDERR_FILENO, s, strlen(s));
             exit(EIO);
         }
+        if (c == 0)
+            exit(0); /* EOF: exit cleanly like jonesforth.S's _KEY rather than spin */
         buftop = (int)(0x4000 + c); /* c <= the 0x1000 just requested, well within int range */
     }
     return bytes[currkey++];
 }
 
-[[gnu::noinline]] int word(void) {
+int word(void) {
     char ch, *s = bytes + 0x5014;
 
     do
@@ -407,14 +426,11 @@ struct num_t {
 struct num_t number(int n, int s) {
     int digit, res = 0, sign = 1, base = memory[0x1404];
 
-    switch (bytes[s]) {
-        case '-':
-            sign = -1;
-            [[fallthrough]];
-        case '+':
-            --n;
-            ++s;
-            break;
+    if (bytes[s] == '-')
+        sign = -1;
+    if (bytes[s] == '-' || bytes[s] == '+') {
+        --n;
+        ++s;
     }
 
     do {
@@ -442,121 +458,129 @@ int code_field_address(int word) {
     return word;
 }
 
-/* sbrk(2) is deprecated on both Linux and macOS, but there is no portable,
-   non-deprecated replacement for "query/grow the data segment break by a
-   given amount", which is exactly what jonesforth.f's BRK/MORECORE need; see
-   the comment in do_brk below for why the raw brk(2) syscall itself isn't an
-   option either. Silence the warning at its call sites rather than working
-   around a non-issue. */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#define ARENA (1 << 24) /* bytes of address space behind BRK; calloc commits it lazily */
+static int brk_off = 0x10000;
 
 int do_brk(int requested) {
-    /* jonesforth's raw brk(2): 0 queries the current break, else grows to
-       it, returning the (possibly unchanged, on failure) new break as an
-       absolute address -- not POSIX brk()'s 0/-1.  The raw syscall(2)
-       numbers jonesforth.f uses for SYS_BRK are Linux-specific and don't
-       exist on macOS (SIGSYS), so this calls the portable sbrk(2) library
-       wrapper on the same real process break set_up_data_segment already
-       grew the dictionary out of.  Only ever grows: a requested break at or
-       below the current one is treated as a no-op query rather than
-       actually shrinking, which would unmap memory the interpreter's own
-       dictionary or stacks may already occupy. */
-    char *cur = sbrk(0);
-    int current = (int)(cur - bytes);
-    if (requested <= current)
-        return current;
-    long delta = (bytes + requested) - cur;
-    /* macOS's sbrk() takes a plain int (unlike glibc's intptr_t); delta is
-       derived from requested, itself an int forth cell, so it already fits. */
-    return (int)((sbrk((int)delta) == (void *)-1 ? cur : cur + delta) - bytes);
+    /* jonesforth's brk(2): returns the (possibly unchanged, on failure) new break as an offset into memory. */
+    if (requested > brk_off && requested <= ARENA)
+        brk_off = requested;
+    return brk_off;
 }
 
 void *set_up_data_segment(const void *src, size_t n) {
-    void *here = sbrk(0x10000);
-    if (here == (void *)-1)
-        exit(errno);
+    void *here = calloc(ARENA, 1);
+    if (here == NULL)
+        exit(ENOMEM);
 
-    return memcpy((void *)here, src, n);
+    return memcpy(here, src, n);
 }
 
-#pragma GCC diagnostic pop
-
-static inline char *read_sp(void) {
-    return __builtin_frame_address(0);
-}
-
-static bool in_heap(const struct frame *k) {
-    return (uintptr_t)k - (uintptr_t)heap < sizeof heap;
-}
-
-/* Restart QUIT on an empty return stack: the C stack and every frame on it are abandoned. */
-[[noreturn]] static void quit(int sp) {
-    heap[0] = (struct frame){.base = 0x1000, .catch_dsp = -1};
+/* Restart QUIT on an empty return stack: the C stack and every node on it are abandoned. */
+static void quit(int sp) {
+    heap[0] = (struct frame){.on_heap = true};
     cont = heap;
     resume.ip = QUIT_CFA + 1;
     resume.sp = sp;
     longjmp(reset, 1);
 }
 
-/* Copy the live chain k..first heap frame onto the heap stack and return the copy of k. */
-static struct frame *evacuate(struct frame *k, int sp) {
+/* Copy the stack nodes of the chain k onto the heap stack, leaving room for `extra` more, and return the copy of k. */
+static struct frame *evacuate(struct frame *k, int extra, int sp) {
     struct frame *old = k, *to;
     int n = 0;
 
-    while (!in_heap(old)) {
+    while (!old->on_heap) {
         old = old->parent;
         ++n;
     }
-    to = old + 1; /* everything above the oldest live heap frame is dead */
-    if (to + n > heap + HEAP_FRAMES) {
+    to = old + 1; /* everything above the oldest live heap node is dead */
+    if ((to - heap) + n + extra > HEAP_FRAMES) {
         static const char msg[] = "RETURN STACK OVERFLOW\n";
         (void)(write(STDERR_FILENO, msg, sizeof msg - 1) + 1);
         quit(sp);
     }
     for (int i = n; i--; k = k->parent) {
         to[i] = *k;
+        to[i].on_heap = true;
         to[i].parent = i ? &to[i - 1] : old;
     }
     return to + n - 1;
 }
 
-[[noreturn]] static void run(int ip, int sp);
+static void run(int ip, int sp);
 
-/* Call the colon word at cfa: push a frame on the C stack and run its body on top of it. */
-[[noreturn]] static void enter(int ip, int sp, int cfa) {
-    struct frame *h;
+/* Push value as a node on the C stack and continue at ip, never returning; past NURSERY pushes the live nodes are evacuated first. */
+static void push(int value, int ip, int sp) {
+    struct frame f = {.parent = cont, .value = value};
 
-    if (cfa == QUIT_CFA)
-        quit(sp);
-    if (cfa == throw_cfa && memory[sp]) {
-        for (h = cont; h && h->catch_dsp < 0; h = h->parent);
-        if (h) {
-            int d = h->catch_dsp;
-            rsp = h->base;
-            memory[--d] = memory[sp];
-            cont = h->parent;
-            run(h->ip, d);
-        }
-    }
-    struct frame f = {.parent = cont, .ip = ip, .base = rsp, .catch_dsp = -1};
-    if (cfa == catch_cfa) {
-        memory[THUNK + 1] = memory[sp++];
-        f.catch_dsp = sp;
-        cfa = THUNK;
-    }
-    if (read_sp() < stack_limit) {
-        cont = evacuate(&f, sp);
-        resume.ip = cfa + 1;
+    if (++nursery > NURSERY) {
+        cont = evacuate(&f, 0, sp);
+        resume.ip = ip;
         resume.sp = sp;
         longjmp(reset, 1);
     }
     cont = &f;
-    run(cfa + 1, sp);
+    run(ip, sp);
 }
 
-/* Never returns.  k is the continuation of the word whose body starts at ip. */
-[[noreturn]] static void run(int ip, int sp) {
+/* How many of the top nodes RSP@ shows. */
+static int shown(void) {
+    int m = 0;
+
+    for (const struct frame *p = cont; m < WINDOW && p->parent; p = p->parent)
+        ++m;
+    return m;
+}
+
+/* RSP@: copy the top nodes into the window, top at the lowest address, and return that address. */
+static int rsp_fetch(void) {
+    const int m = shown();
+    const struct frame *p = cont;
+
+    for (int i = 0; i < m; ++i, p = p->parent)
+        memory[RTOP - m + i] = p->value;
+    return (RTOP - m) << 2;
+}
+
+/* RSP!: addr is read like RSP@'s result, counting cells up from R0; pop down to it, or push the window cells below the top. */
+static void rsp_store(int addr, int sp) {
+    int m = shown(), e = RTOP - (addr >> 2);
+
+    if (e < 0)
+        e = 0;
+    if (e > WINDOW)
+        e = WINDOW;
+    for (; m > e; --m)
+        cont = cont->parent;
+    if (m < e) {
+        struct frame *p = evacuate(cont, e - m, sp);
+
+        for (int i = e - m; i--; ++p)
+            p[1] = (struct frame){.parent = p, .value = memory[RTOP - e + i], .on_heap = true};
+        cont = p;
+    }
+}
+
+/* THROW with a CATCH on the return stack: pop to its marker like jonesforth.f's THROW does, resuming after the CATCH; ip is 0 if there is none. */
+static struct regs do_throw(int sp) {
+    const struct frame *m = cont, *d, *r;
+    const int n = memory[sp];
+
+    while (m->parent && m->value != marker)
+        m = m->parent;
+    d = m->parent;
+    r = d ? d->parent : NULL;
+    if (!r || !r->parent)
+        return (struct regs){0, sp};
+    sp = (d->value >> 2) - 1;
+    memory[sp] = n;
+    cont = r->parent;
+    return (struct regs){r->value >> 2, sp};
+}
+
+/* The loop below never returns: DOCOL and >R continue it through push(). */
+static void run(int ip, int sp) {
     register int cfa;
     register int a, b, c, d;
     struct num_t num;
@@ -566,7 +590,19 @@ static struct frame *evacuate(struct frame *k, int sp) {
     while (1) {
         switch (memory[cfa]) {
             case DOCOL:
-                enter(ip, sp, cfa);
+                if (cfa == QUIT_CFA)
+                    quit(sp);
+                if (cfa == throw_cfa && marker && memory[sp]) {
+                    struct regs r = do_throw(sp);
+
+                    if (r.ip) {
+                        ip = r.ip;
+                        sp = r.sp;
+                        break;
+                    }
+                }
+                push(ip << 2, cfa + 1, sp);
+                return;
             case DROP:
                 ++sp;
                 break;
@@ -710,20 +746,10 @@ static struct frame *evacuate(struct frame *k, int sp) {
                 memory[sp] = ~memory[sp];
                 break;
             case EXIT:
-                if (rsp < cont->base) {
-                    /* FORTH pushed a return address of its own: honour it
-                       rather than returning, as jonesforth's EXIT would. */
-                    ip = memory[rsp++];
-                    break;
-                }
-                do {
-                    if (!cont->parent)
-                        quit(sp);
-                    ip = cont->ip;
-                    if (cont->catch_dsp >= 0)
-                        memory[--sp] = 0;
-                    cont = cont->parent;
-                } while (rsp > cont->base); /* a THROW that lifted rsp keeps returning */
+                if (!cont->parent)
+                    quit(sp);
+                ip = cont->value >> 2;
+                cont = cont->parent;
                 break;
             case LIT:
                 memory[--sp] = memory[ip++];
@@ -783,7 +809,7 @@ static struct frame *evacuate(struct frame *k, int sp) {
             case RZ:
                 memory[--sp] = 0x1000 << 2;
                 break;
-            case __DOCOL:
+            case DOCOL_:
                 memory[--sp] = 0;
                 break;
             case F_IMMED:
@@ -816,44 +842,51 @@ static struct frame *evacuate(struct frame *k, int sp) {
             case SYS_BRK:
                 memory[--sp] = SYS_brk;
                 break;
-            case __O_RDONLY:
+            case O_RDONLY_:
                 memory[--sp] = O_RDONLY;
                 break;
-            case __O_WRONLY:
+            case O_WRONLY_:
                 memory[--sp] = O_WRONLY;
                 break;
-            case __O_RDWR:
+            case O_RDWR_:
                 memory[--sp] = O_RDWR;
                 break;
-            case __O_CREAT:
+            case O_CREAT_:
                 memory[--sp] = O_CREAT;
                 break;
-            case __O_EXCL:
+            case O_EXCL_:
                 memory[--sp] = O_EXCL;
                 break;
-            case __O_TRUNC:
+            case O_TRUNC_:
                 memory[--sp] = O_TRUNC;
                 break;
-            case __O_APPEND:
+            case O_APPEND_:
                 memory[--sp] = O_APPEND;
                 break;
-            case __O_NONBLOCK:
+            case O_NONBLOCK_:
                 memory[--sp] = O_NONBLOCK;
                 break;
             case TOR:
-                memory[--rsp] = memory[sp++] >> 2;
-                break;
+                push(memory[sp], ip, sp + 1);
+                return;
             case FROMR:
-                memory[--sp] = memory[rsp++] << 2;
+                a = 0;
+                if (cont->parent) {
+                    a = cont->value;
+                    cont = cont->parent;
+                }
+                memory[--sp] = a;
                 break;
             case RSPFETCH:
-                memory[--sp] = rsp << 2;
+                memory[--sp] = rsp_fetch();
                 break;
             case RSPSTORE:
-                rsp = memory[sp++] >> 2;
+                rsp_store(memory[sp], sp + 1);
+                ++sp;
                 break;
             case RDROP:
-                ++rsp;
+                if (cont->parent)
+                    cont = cont->parent;
                 break;
             case DSPFETCH:
                 a = sp--;
@@ -891,12 +924,10 @@ static struct frame *evacuate(struct frame *k, int sp) {
                 memcpy(bytes + a + 5, bytes + memory[sp + 1], (size_t)memory[sp]);
                 memory[0x1401] = code_field_address(a);
                 memory[0x1402] = a;
-                if (memory[sp] == 5) {
-                    if (!memcmp(bytes + a + 5, "CATCH", 5))
-                        catch_cfa = memory[0x1401] >> 2;
-                    else if (!memcmp(bytes + a + 5, "THROW", 5))
-                        throw_cfa = memory[0x1401] >> 2;
-                }
+                if (!throw_cfa && memory[sp] == 5 && !memcmp(bytes + a + 5, "THROW", 5))
+                    throw_cfa = memory[0x1401] >> 2;
+                else if (!marker && memory[sp] == 16 && !memcmp(bytes + a + 5, "EXCEPTION-MARKER", 16))
+                    marker = memory[0x1401] + 4;
                 sp += 2;
                 break;
             case COMMA:
@@ -989,10 +1020,9 @@ static struct frame *evacuate(struct frame *k, int sp) {
 int main(void) {
     memory = (int *)set_up_data_segment(rodata, sizeof rodata);
     bytes = (char *)memory;
-    rsp = 0x1000;
-    stack_limit = read_sp() - STACK_BYTES;
 
     if (!setjmp(reset))
-        quit(0x0800);
+        quit(S0_CELL);
+    nursery = 0;
     run(resume.ip, resume.sp);
 }

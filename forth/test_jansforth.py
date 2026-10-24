@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 TARGETS = ["jansforth", "recurse", "recurse-chicken"]
+CHICKEN = ["recurse-chicken"]
 
 
 @pytest.mark.parametrize("target", TARGETS)
@@ -87,3 +88,66 @@ def test_catch_throw(target: str) -> None:
         assert "42 77" in cp.stdout
     finally:
         subprocess.run(["rm", "-f", target], cwd="forth", check=True)
+
+
+def run_forth(target: str, program: str) -> subprocess.CompletedProcess[str]:
+    """Run program after jonesforth.f; a timeout raises, so EOF must exit."""
+    subprocess.run(["make", target], cwd="forth", check=True)
+    try:
+        return subprocess.run(
+            [f"./{target}"],
+            cwd="forth/",
+            capture_output=True,
+            input=Path("jonesforth/jonesforth.f").read_text() + program,
+            text=True,
+            timeout=10,
+        )
+    finally:
+        subprocess.run(["rm", "-f", target], cwd="forth", check=True)
+
+
+@pytest.mark.parametrize("target", CHICKEN)
+def test_inline_data_via_return_stack(target: str) -> None:
+    """R> reaches the caller's return address, so a word can read the cell
+    after its call and skip it."""
+    cp = run_forth(target, ": LIT2 R> DUP 4+ >R @ ; : T LIT2 [ 99 , ] . ; T\n")
+    assert "99" in cp.stdout
+
+
+@pytest.mark.parametrize("target", CHICKEN)
+def test_eof_exits(target: str) -> None:
+    cp = run_forth(target, ": T 1 . ; T\n")
+    assert cp.returncode == 0
+    assert "1" in cp.stdout
+
+
+@pytest.mark.parametrize("target", CHICKEN)
+def test_redefined_catch_throw_not_intercepted(target: str) -> None:
+    cp = run_forth(
+        target,
+        ": CATCH DROP 123 ; : T ['] DUP CATCH . ; T\n"
+        ": THROW DROP 456 . ; : U 1 THROW 7 . ; U\n",
+    )
+    assert "123" in cp.stdout
+    assert "456 7" in cp.stdout
+
+
+@pytest.mark.parametrize("target", CHICKEN)
+def test_deep_data_stack(target: str) -> None:
+    """The data stack gets the old return stack region: 3000 cells fit."""
+    cp = run_forth(
+        target,
+        ": D DUP IF DUP 1- RECURSE THEN ; 3000 D S0 @ DSP@ - 4 / . 42 .\n",
+    )
+    assert int(cp.stdout.split()[-2]) >= 3000
+    assert cp.stdout.split()[-1] == "42"
+
+
+@pytest.mark.parametrize("target", CHICKEN)
+def test_print_stack_trace(target: str) -> None:
+    cp = run_forth(
+        target,
+        ": A PRINT-STACK-TRACE ; : B A ; : T B ; T\n",
+    )
+    assert "A+" in cp.stdout
+    assert "B+" in cp.stdout
