@@ -65,6 +65,56 @@
 	the chain already fills the window.  Anything written into the window is
 	only a snapshot; changes reach the chain only through RSP!.
 
+	Three views of the same four-node chain (values are made up; R0 is cell
+	4096, byte 0x4000).  First what is real: linked nodes in two places, none
+	of them readable with `@`.
+
+                cont
+                 |
+                 v
+          C stack (nursery)                    heap[] (static, evacuated)
+          +--------------------+               +--------------------+
+          | A                  |               | C  (heap[2])       |
+          |  value  = 0x5A10   |        +----->|  value  = 0x4C08   |
+          |  parent ----+      |        |      |  parent ----+      |
+          +-------------|------+        |      +-------------|------+
+          ... dead frames ...           |                    |
+          +-------------|------+        |                    v
+          | B           v      |        |      +--------------------+
+          |  value  = 0x5B24   |        |      | D  (heap[1])       |
+          |  parent -----------|--------+      |  value  = 0x4B90   |
+          +--------------------+               |  parent --> heap[0]|
+                                               +--------------------+
+
+	RSP@ is hop one, nodes to a flat window, and returns the lowest address.
+	`@` there reads 0x5A10, `4+` steps to 0x5B24, and walkers stop at R0.
+
+          cell 4092   +--------+  <-- RSP@ returns        A.value
+                      | 0x5A10 |      ((4096 - 4) << 2)    |
+          cell 4093   +--------+      = byte 0x3FF0       B.value
+                      | 0x5B24 |                           |
+          cell 4094   +--------+                         C.value
+                      | 0x4C08 |                           |
+          cell 4095   +--------+                         D.value
+                      | 0x4B90 |
+          cell 4096   +--------+  <-- R0 (byte 0x4000)
+
+	RSP! is both hops: the address gives a depth, the depth gives a node.
+
+          Forth passes address 0x3FF8
+                 |
+                 |  hop 1: address to depth
+                 |    cell = 0x3FF8 >> 2          = 4094
+                 |    e    = R0 cell - cell       = 4096 - 4094 = 2
+                 v
+          keep e = 2 nodes but the chain shows m = 4, so pop m - e = 2
+                 |
+                 |  hop 2: depth to node, follow parent links
+                 v
+          cont --> A --> B --> C --> D
+                   ^pop  ^pop  ^
+                               cont ends here
+
 	Not strict ISO: BRK is emulated with a 16MB calloc arena (no sbrk), and
 	the code needs POSIX read/write/open and, off macOS, syscall().
 */
