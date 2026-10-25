@@ -1,4 +1,5 @@
 ;; SectorLisp in WebAssembly, written for the fewest instructions.
+;; A WASI command, driven like build/lisp-wasi.wasm (see tests/wast.test.mjs).
 ;;
 ;; Pointers are raw byte addresses and nil is 0, so no tagging, shifting or base offsets.
 ;;   [0, 0x8000)   atoms {value: i32, name: NUL-terminated}; an atom is the address of its value
@@ -14,10 +15,12 @@
 ;; compares in place; the token always matches itself, which ends the scan, and
 ;; interning a new atom is just moving $e past it.
 (module
-    (func $getchar (import "index" "getchar") (result i32))
-    (func $putchar (import "index" "putchar") (param i32))
+    (func $fd_read  (import "wasi_snapshot_preview1" "fd_read")  (param i32 i32 i32 i32) (result i32))
+    (func $fd_write (import "wasi_snapshot_preview1" "fd_write") (param i32 i32 i32 i32) (result i32))
 
-    (memory (export "memory") 2)
+    ;; Pages 0-1 are atoms and cells; page 2 is I/O scratch: iovec {0x20008, 1}, the byte, nread/nwritten
+    (memory (export "memory") 3)
+    (data (i32.const 0x20000) "\08\00\02\00\01\00\00\00")
 
     ;; Atom entries: NIL T QUOTE COND READ PRINT ATOM CAR CDR CONS EQ (address = start of entry)
     (data (i32.const 0)
@@ -42,6 +45,22 @@
     (global $dx (mut i32) (i32.const 0))       ;; lookahead character
     (global $m  (mut i32) (i32.const 0))       ;; Gc: cells at or above $m are new
     (global $k  (mut i32) (i32.const 0))       ;; Gc: distance from new cells to their copies
+
+    ;; -1 on error or EOF, like wasiHost.ts
+    (func $getchar (result i32)
+        (if (result i32)
+            (i32.or
+                (call $fd_read (i32.const 0) (i32.const 0x20000) (i32.const 1) (i32.const 0x2000C))
+                (i32.eqz (i32.load (i32.const 0x2000C))))
+            (then (i32.const -1))
+            (else (i32.load8_u (i32.const 0x20008)))
+        )
+    )
+
+    (func $putchar (param $c i32)
+        (i32.store8 (i32.const 0x20008) (local.get $c))
+        (drop (call $fd_write (i32.const 1) (i32.const 0x20000) (i32.const 1) (i32.const 0x2000C)))
+    )
 
     (func $cons (param $a i32) (param $d i32) (result i32)
         (i32.store (global.get $cx) (local.get $a))
@@ -262,7 +281,7 @@
         (local.get $e)
     )
 
-    (func (export "main")
+    (func (export "_start")
         (loop $repl
             (global.set $cx (global.get $M))
             (call $putchar (i32.const 42))
