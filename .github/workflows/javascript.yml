@@ -88,6 +88,8 @@ jobs:
         working-directory: ${{ matrix.package }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
 
       # 24: wasi-command.mjs needs JSPI, which vitest enables with
       # --experimental-wasm-jspi (see forth/vitest.config.mts).

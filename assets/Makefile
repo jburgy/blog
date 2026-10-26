@@ -50,6 +50,13 @@ lisp-wasi.wasm : ../lisp/assembly/wasi.ts ../lisp/assembly/core.ts ../lisp/assem
 all : lisp-wasi.wasm
 CLEAN += lisp-wasi.wasm
 
+# lisp/assembly/core.wast is core.ts by hand in WAT; it speaks WASI itself, so
+# the same harness drives it with the same lisp/eliza.lisp preamble.
+lisp-wast.wasm : ../lisp/assembly/core.wast wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs
+	npx -y --package wabt wat2wasm --enable-tail-call -o $@ $<
+all : lisp-wast.wasm
+CLEAN += lisp-wast.wasm
+
 TinyBasic-wasi.wasm : ../TinyBasic/assembly/wasi.ts ../TinyBasic/assembly/core.ts ../TinyBasic/assembly/wasiHost.ts wasi-command.mjs wasi-repl.mjs wasi-repl-mocha.mjs
 	npm run asbuild:TinyBasic-wasi
 all : TinyBasic-wasi.wasm
@@ -158,6 +165,16 @@ lisp/eliza.lisp : ../lisp/eliza.lisp
 	cp $< $@
 all : lisp/eliza.lisp
 CLEAN += lisp
+
+# lisp.f is SectorLISP in FORTH, so its preamble has to be the whole stack on
+# one stdin: jonesforth.f, then lisp.f, then LISP (which reads s-expressions
+# from the same input), then eliza.lisp. Run it on tabulate.wasm, the fastest
+# of the jonesforth ports (see lisp/tests/lisp-forth.test.mjs). The echoes
+# keep a file without a trailing newline from gluing onto the next one.
+lisp/eliza.f : jonesforth/jonesforth.f ../lisp/lisp.f ../lisp/eliza.lisp
+	@mkdir -p $(@D)
+	{ cat jonesforth/jonesforth.f; echo; cat ../lisp/lisp.f; echo LISP; cat ../lisp/eliza.lisp; } > $@
+all : lisp/eliza.f
 
 # The deployed tictactoe.bas: TinyBasic-wasi.wasm's own preamble (see
 # assets/index.html's data-preamble), same convention as lisp/eliza.lisp.
