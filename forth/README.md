@@ -22,7 +22,7 @@ that sits at that intersection.
 | **C** | [jansforth.c](jansforth.c)<br>[recurse.c](recurse.c) | [4th.c](4th.c) | [5th.c](5th.c) |
 | **Zig** | [jansforth.zig](jansforth.zig)<br>[labeled.zig](labeled.zig)<br>[hybrid.zig](hybrid.zig) | — | [6th.zig](6th.zig) |
 | **Rust** | [jansforth.rs](jansforth.rs) | — | [4th.rs](4th.rs) |
-| **wasm** | [wasm/tabulate.wast](wasm/tabulate.wast)<br>[wasm/recurse.wast](wasm/recurse.wast) | — | [wasm/jonesforth.wast](wasm/jonesforth.wast)<br>[wasm/localize.wast](wasm/localize.wast) |
+| **wasm** | [wasm/tabulate.wast](wasm/tabulate.wast)<br>[wasm/recurse.wast](wasm/recurse.wast) | — | [wasm/jonesforth.wast](wasm/jonesforth.wast)<br>[wasm/localize.wast](wasm/localize.wast)<br>[wasm/defun.wast](wasm/defun.wast)<br>[wasm/cps.wast](wasm/cps.wast) |
 
 Two holes are structural rather than accidental: neither Zig nor WebAssembly
 has anything like GCC's `&&label`, so the middle column can only ever be C.
@@ -95,6 +95,8 @@ guarantee from the compiler: `__attribute__((musttail))`, `@call(.always_tail)`,
 | [wasm/recurse.wast](wasm/recurse.wast) | wasm | switch | ✅ | wat2wasm + Wasmtime | Tabulate with a recursive `$docol`; colon-word returns live on the wasm call stack | — | 61.3 (51.4-67.5) / 2 |
 | [wasm/jonesforth.wast](wasm/jonesforth.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | `return_call_indirect`; state in globals | — | 276.1 (224.7-326.2) / 6 |
 | [wasm/localize.wast](wasm/localize.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | Same, with `cfa`/`ip`/`sp`/`rsp` passed as parameters | — | 222.2 (196.4-233.6) / 4 |
+| [wasm/defun.wast](wasm/defun.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | [forth.rkt](forth.rkt)'s `run-defun` with jonesforth's vocabulary (`4th.32.fs` defines `IF` &c.): `$defun_code`/`$defun_word` thread `ip`/`sp`/`rsp`, primitives return the new state as multi-value | — | — |
+| [wasm/cps.wast](wasm/cps.wast) | wasm | tail calls | ✅ | wat2wasm + Wasmtime | [forth.rkt](forth.rkt)'s `run-cps`: the continuation is a closure `{ip, k, fn}` in linear memory called through its funcref, no return stack; `>R`/`R>`/`CATCH`/`THROW`/`DOES>` still work on the closure chain | — | — |
 | [jonesforth.S](../jonesforth/jonesforth.S) | x86 assembly | indirect threaded | — | Linux/i386 | Requires Linux on x86; not runnable on this macOS/arm64 host | N/R | — |
 
 ## Benchmarks

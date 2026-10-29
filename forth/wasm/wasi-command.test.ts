@@ -57,6 +57,7 @@ let jonesforthWasmPath: string;
 let localizeWasmPath: string;
 let sixthWasmPath: string;
 let tmpDir: string;
+const forthWasmPaths: Record<string, string> = {};
 
 beforeAll(async () => {
     tmpDir = await mkdtemp(join(tmpdir(), 'wasi-command-'));
@@ -78,6 +79,17 @@ beforeAll(async () => {
         '-o', localizeWasmPath,
         join(import.meta.dirname, 'localize.wast'),
     ]);
+
+    // forth.rkt's two inner interpreters (run-defun, run-cps) with jonesforth's vocabulary.
+    for (const name of ['defun', 'cps']) {
+        forthWasmPaths[name] = join(tmpDir, `${name}.wasm`);
+        await wat2wasm([
+            '--enable-tail-call',
+            '--debug-names',
+            '-o', forthWasmPaths[name],
+            join(import.meta.dirname, `${name}.wast`),
+        ]);
+    }
 
     // zig build -Dtarget=wasm32-wasi (see build.zig's buildWasi)
     await execFileAsync('zig', [
@@ -149,3 +161,23 @@ test('jonesforth.wasm: KEY blocks on an open stdin and never treats EOF as a sto
     expect(out).toContain('JONESFORTH VERSION 47');
     expect(out).toContain('49');
 }, 10_000);
+
+// defun.wast and cps.wast differ only in how the continuation is represented (a return stack of
+// ips vs closures in memory), so one script covers both: IF/BEGIN/WHILE defined by 4th.32.fs,
+// CATCH/THROW and DOES> (which walk and pop the return stack), `>R` run from the prompt, and
+// input that ends inside a `\` comment (which used to spin forever). They exit 0 at EOF.
+test.for(['defun', 'cps'])('%s.wast: 4th.32.fs runs on it, return-stack words included', async (name) => {
+    const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
+    const { code, out } = await runScript(await readFile(forthWasmPaths[name]), preamble, [
+        ': FACT DUP 1 > IF DUP 1 - RECURSE * THEN ; 10 FACT . CR',
+        ': COUNT 0 BEGIN DUP . 1 + DUP 4 = UNTIL DROP ; COUNT CR',
+        ': DOWN BEGIN DUP 0 > WHILE DUP . 1 - REPEAT DROP ; 3 DOWN CR',
+        ": BOOM 77 THROW ; : SAFE ['] BOOM CATCH . CR ; SAFE",
+        ': <BUILDS WORD CREATE DODOES , 0 , ; : DOES> R> LATEST @ >DFA ! ; : CONST <BUILDS , DOES> @ ;',
+        '65 CONST FOO FOO EMIT CR',
+        '64 >R RSP@ 1 TELL RDROP CR',
+        '66 EMIT \\ ends without a newline',
+    ].join('\n'));
+    expect(code).toBe(0);
+    expect(out.endsWith('3628800 \n0 1 2 3 \n3 2 1 \n77 \nA\n@\nB')).toBe(true);
+}, 20_000);
