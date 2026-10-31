@@ -1,21 +1,15 @@
 // Entry point for the real-WASI build: pulls wasiHost.ts's ScreenChar/
 // KeyInChar/OutStr into the compiled module (asc's --use flag, see
 // package.json, resolves core.ts's free identifiers of the same names to
-// these) and drives core.ts's Interp from a WASI command's `_start`. See
-// index.ts for the original (custom host import) counterpart built from the
-// same core.ts.
+// these) and drives core.ts's Interp from a WASI command's `_start`.
 import { ScreenChar, KeyInChar, OutStr } from "./wasiHost";
 import { ColdGo, ILfront, Poke2, ColdStart, Interp } from "./core";
 
 type T = u16;
 
-// The original build relies on its host (TinyBasic.worker.js) to write the
-// Tiny BASIC IL program's own bytecode into core memory before calling
-// ColdStart/Interp -- see that file's `interpreter` array of hex listings. A
-// WASI command owns its own startup (no host hook between instantiation and
-// `Interp()`), so _start writes it itself from this static copy of the exact
-// same bytes (same parse as the worker's own `interpreter.map(...)`, done
-// once ahead of time rather than at every load).
+// core.ts needs the Tiny BASIC IL program's bytecode in core memory before
+// ColdStart/Interp, and a WASI command has no host hook to put it there, so
+// _start writes it from this static copy.
 const IL_CODE: usize = memory.data<u8>([
   36, 58, 145, 39, 16, 225, 89, 197, 42, 86, 16, 17, 44, 139, 76, 69, 212,
   160, 128, 189, 48, 188, 224, 19, 29, 148, 71, 207, 136, 84, 207, 48, 188,
@@ -41,7 +35,7 @@ const IL_CODE: usize = memory.data<u8>([
 const IL_CODE_LEN: usize = 343;
 
 export function _start(): void {
-  memory.grow(2); // page 0 for core.ts (same spare it used to get), page 1 for wasiHost.ts's own scratch
+  memory.grow(2); // page 0 for core.ts, page 1 for wasiHost.ts's own scratch
   const ilStart: T = (ILfront + 2) as T;
   Poke2(ILfront, ilStart);
   Poke2(ColdGo + 1, ilStart);

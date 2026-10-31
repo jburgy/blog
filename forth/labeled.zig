@@ -254,8 +254,7 @@ fn findComposite(name: []const u8) ?[]const u8 {
 
 /// Builds the same dictionary as jansforth.c's static `rodata[]`, starting
 /// at the same `5133 << 2` byte offset and walking `NAMES` in the same
-/// order, so the resulting bytes are identical to the C table (validated
-/// the same way jansforth.rs is, by comparison.rs).
+/// order, so the resulting bytes are identical to the C table.
 fn buildRodata(bytes: []u8) void {
     var here: usize = 5133 << 2;
     var latest: usize = 0;

@@ -12,9 +12,9 @@ declare function fd_write(fd: i32, iovs: usize, iovsLen: i32, nwritten: usize): 
 
 // core.ts's own addresses never leave page 0 (0x0000-0xffff: cons cells grow
 // down from M = 0x8000, interned strings grow up from it, and the compiled
-// module declares 0 initial pages, so index.ts's host used to memory.grow(1)
-// to get exactly that one page). These scratch iovec/result bytes instead
-// live in a *second* page, so they can never collide with either.
+// module declares 0 initial pages, so _start grows it). These scratch
+// iovec/result bytes instead live in a *second* page, so they can never
+// collide with either.
 const IOVEC_PTR: usize = 0x10000;
 const IOVEC_LEN: usize = 0x10004;
 const CHAR_BUF: usize = 0x10008;

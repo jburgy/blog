@@ -258,8 +258,6 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
 
 | file | what it is |
 | --- | --- |
-| [src/main.rs](src/main.rs) | Cargo test harness: feeds the preamble to a built binary and diffs stdout |
-| [comparison.rs](comparison.rs) | one-off script checking that the generated dictionary matches the static rodata table |
 | [forth.py](forth.py) | a Forth-to-CPython-bytecode compiler — a different experiment entirely |
 | [benchmark.py](benchmark.py) | rebuilds the native and Wasmtime targets and benchmarks the shared Fibonacci workload |
 | [5th-opt/](5th-opt/) | an LLM-driven search over `5th.c`'s parameter order, with patches and a transcript |
@@ -268,12 +266,14 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
 ## Building and testing
 
 `make` builds the native targets; the per-target recipes live in the
-[Makefile](Makefile) and [build.zig](build.zig).
+[Makefile](Makefile) and [build.zig](build.zig). The C compiler is `$(CC)`, `cc`
+unless you override it (`make CC=clang`); `5th.c` needs `__attribute__((musttail))`,
+so it takes clang or GCC 15+.
 
 | command | covers |
 | --- | --- |
 | `make` | 4th, 5th, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and both Rust binaries |
-| `pytest forth/` | [test_4th.py](test_4th.py) (native) only — [test_4th_wasm.py](test_4th_wasm.py) is excluded, supplanted by `web/4th.test.ts` |
+| `pytest forth/` | [test_4th.py](test_4th.py) (native) and [test_jansforth.py](test_jansforth.py) |
 | `npm test` | builds `4th.wasm`/`5th.wasm` with wasi-sdk and `6th.wasm` with Zig's `wasm32-wasi` target, runs every vitest suite, then drives [html/4th.html](html/4th.html)/[html/5th.html](html/5th.html)/[html/6th.html](html/6th.html) headless (`mocha-headless-chrome`, same tool `regexp/web` already uses) |
 | `npm run test:browser` | [browser/wasi-repl.browser.mjs](browser/wasi-repl.browser.mjs) (shared harness: [browser/wasi-demo.mjs](browser/wasi-demo.mjs)): serves each real `<n>th.html` demo and checks that its own in-page mocha spec ([wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs), loaded from the page itself, same as a human visiting it would see) passed |
 | `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) — the browser demo, driven in node; also covers `5th.wasm` if it's already been built, skipped otherwise |

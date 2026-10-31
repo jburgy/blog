@@ -3,13 +3,6 @@ name = "fourth"
 version = "0.0.0"
 edition = "2024"
 publish = false
-# Keep auto-discovery away from `src/`; the two standalone interpreters are
-# declared explicitly below.
-autobins = false
-autolib = false
-autotests = false
-autoexamples = false
-autobenches = false
 
 [features]
 # Re-entrant entry points for the browser demo instead of a `main` reading stdin.

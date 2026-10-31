@@ -1,10 +1,8 @@
 //! Zig transcription of jansforth.c/jansforth.rs: the same [jonesforth](https://github.com/nornagon/jonesforth)
 //! dictionary and the same "everything lives in one `memory[]` array,
 //! `NEXT` is a plain `switch`" design, but written for Zig. The dictionary
-//! itself is *generated*, the way jansforth.rs's `init_rodata` does it (and
-//! `comparison.rs` checks byte-for-byte against jansforth.c's literal
-//! `static int rodata[]`), rather than typed out as a giant designated-
-//! initializer array: same `names`/`composite`/`immediate` tables, same
+//! itself is *generated*, the way jansforth.rs's `init_rodata` does it, rather
+//! than typed out as a giant designated-initializer array: same `names`/`composite`/`immediate` tables, same
 //! starting `here = 5133 << 2`, so the two dictionaries end up bit-for-bit
 //! identical and `LIT_CFA`/the initial `cfa = 5530` can be reused as-is.
 //!
@@ -258,8 +256,7 @@ fn findComposite(name: []const u8) ?[]const u8 {
 
 /// Builds the same dictionary as jansforth.c's static `rodata[]`, starting
 /// at the same `5133 << 2` byte offset and walking `NAMES` in the same
-/// order, so the resulting bytes are identical to the C table (validated
-/// the same way jansforth.rs is, by comparison.rs).
+/// order, so the resulting bytes are identical to the C table.
 fn buildRodata(bytes: []u8) void {
     var here: usize = 5133 << 2;
     var latest: usize = 0;

@@ -32,11 +32,9 @@ const DEBUGON = 1;
 const LOGSIZE: T = 0x1000;
 
 // ScreenChar/KeyInChar/OutStr are deliberately free identifiers, not
-// declared here: index.ts (original custom host import) and wasi.ts (real
-// WASI fd_read/fd_write) each bind them to a different implementation via
-// asc's `--use ScreenChar=... --use KeyInChar=... --use OutStr=...` (see
-// TinyBasic/package.json), so this interpreter compiles unchanged into
-// either host ABI without duplication.
+// declared here: wasi.ts binds them to wasiHost.ts (real WASI
+// fd_read/fd_write) via asc's `--use ScreenChar=... --use KeyInChar=...
+// --use OutStr=...` (see TinyBasic/package.json).
 
 let Debugging = 0;
 const DebugLog = CoreTop;

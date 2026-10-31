@@ -12,11 +12,9 @@ declare function fd_read(fd: i32, iovs: usize, iovsLen: i32, nread: usize): i32;
 @external("wasi_snapshot_preview1", "fd_write")
 declare function fd_write(fd: i32, iovs: usize, iovsLen: i32, nwritten: usize): i32;
 
-// core.ts's own addresses never leave CoreTop (0x0000-0xffff: T = u16), and
-// the original host used to memory.grow(2) to get exactly that one page
-// plus a spare second one. These scratch iovec/result bytes, and OutStr's
-// string table below, live in that already-spare second page, so they can
-// never collide with core.ts's own usage.
+// core.ts's own addresses never leave CoreTop (0x0000-0xffff: T = u16).
+// These scratch iovec/result bytes, and OutStr's string table below, live in
+// a second page, so they can never collide with core.ts's own usage.
 const IOVEC_PTR: usize = 0x10000;
 const IOVEC_LEN: usize = 0x10004;
 const CHAR_BUF: usize = 0x10008;
@@ -57,8 +55,7 @@ const STRING_LENGTHS: usize = memory.data<u8>([6, 6, 7, 4, 5, 19, 18, 9, 5, 5, 5
 export function OutStr(theMsg: u8): void {
   // Raw, unchecked loads (no StaticArray/Array indexing, which would pull in
   // an "env.abort" bounds-check import this build has no host for): theMsg
-  // is always a small, compile-time-trusted index from core.ts itself, the
-  // same contract OutStr's original custom host import already relied on.
+  // is always a small, compile-time-trusted index from core.ts itself.
   const offset = load<u16>(STRING_OFFSETS + (theMsg as usize) * 2);
   const length = load<u8>(STRING_LENGTHS + theMsg);
   store<u32>(IOVEC_PTR, (STRINGS + offset) as u32);

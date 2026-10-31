@@ -5,11 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "npm run asbuild:wasi && vitest run",
-    "asbuild:debug": "npx -y --package assemblyscript asc assembly/index.ts --target debug --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
-    "asbuild:release": "npx -y --package assemblyscript asc assembly/index.ts --target release --use getchar=assembly/host/getchar --use putchar=assembly/host/putchar",
-    "asbuild:wasi": "npx -y --package assemblyscript asc assembly/wasi.ts --target wasi --use getchar=assembly/wasiHost/getchar --use putchar=assembly/wasiHost/putchar",
-    "asbuild": "npm run asbuild:debug && npm run asbuild:release && npm run asbuild:wasi",
-    "start": "npx serve ../assets"
+    "asbuild:wasi": "npx -y --package assemblyscript asc assembly/wasi.ts --target wasi --use getchar=assembly/wasiHost/getchar --use putchar=assembly/wasiHost/putchar"
   },
   "repository": {
     "type": "git",

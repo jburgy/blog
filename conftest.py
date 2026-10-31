@@ -11,12 +11,9 @@ collect_ignore = [
     "aoc2025",
     "assets",
     "build",
-    "emsdk-cache",
     "foo",
     "forth/benchmark.py",
-    "forth/jansforth.py",
     "forth/node_modules",
-    "forth/test_4th_wasm.py",  # supplanted by forth/web/4th.test.ts
     "fun/api_from.py",
     "fun/assemble.py",
     "fun/awslayer.py",
@@ -38,7 +35,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     if scenarios:
         target = {
             "test_4th": "4th",
-            "test_5th": "5th.ll",
+            "test_5th": "5th",
             "test_6th": "zig-out/bin/6th",
         }[metafunc.function.__name__]
         scenarios = scenarios.format(

@@ -1,8 +1,5 @@
 /* A port of http://git.annexia.org/?p=jonesforth.git;a=blob;f=jonesforth.S to gcc */
 
-#if __has_include ("cosmopolitan.h")  /* https://justine.lol/ape.html */
-#include "cosmopolitan.h"
-#else
 #include <assert.h>
 #include <fcntl.h>  /* O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_EXCL, O_TRUNC, O_APPEND, O_NONBLOCK */
 #include <stddef.h>  /* size_t, offsetof */
@@ -12,7 +9,6 @@
 #include <string.h>  /* memcmp, memmove, memcpy */
 #include <sys/syscall.h>  /* SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk */
 #include <unistd.h>  /* read, write, intptr_t */
-#endif
 
 /* These extensions and legacy calls define the computed-goto interpreter. */
 #if defined(__clang__)

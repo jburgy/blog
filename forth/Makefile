@@ -1,9 +1,4 @@
-CC = gcc
 CFLAGS ?= -Wall -Wextra -Os -DNDEBUG -fomit-frame-pointer -Wno-deprecated-declarations -fwrapv -fno-strict-aliasing
-ARFLAGS = -m32 -S -fverbose-asm
-CPPFLAGS = -include cosmopolitan.h -I.
-LDFLAGS = -Wl,--oformat=binary -Wl,--gc-sections -Wl,-z,max-page-size=0x1000 -fuse-ld=bfd -gdwarf-4 -Wl,-T,ape.lds
-LDLIBS = cosmopolitan.a
 
 all: 4th 5th zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig jansforth recurse 4th-rs jansforth-rs
 
@@ -15,41 +10,8 @@ all: 4th 5th zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig z
 jansforth-rs: Cargo.toml jansforth.rs
 	cargo build --features jansforth --bin jansforth
 
-run: 4th
-	cat 4th.fs - | ./4th
-
-%.com : %.com.dbg
-	objcopy -S -O binary $< $@
-
-%.com.dbg : %.c crt.o ape-no-modify-self.o ape.lds
-	$(CC) -g -Os -static -nostdlib -nostdinc -fno-pie -no-pie -mno-red-zone -fno-omit-frame-pointer -pg -mnop-mcount -mno-tls-direct-seg-refs $(LDFLAGS) -o $@ $(CPPFLAGS) $(call allbutlast, $^) $(LDLIBS)
-
 % : %.c
 	$(CC) $(CFLAGS) -mstackrealign -o $@ $^
-
-%.32 : %.c
-	$(CC) $(CFLAGS) -m32 -o $@ $^
-
-%.s : %.c
-	$(CC) $(CFLAGS) $(ARFLAGS) -o $@ $^
-
-%.ll : %.c
-	clang $(CFLAGS) -fblocks -o $@ $^
-
-%.ll.32 : %.c
-	clang $(CFLAGS) -g -m32 -o $@ $^
-
-crt.o ape-no-modify-self.o ape.lds &: cosmopolitan-amalgamation-2.2.zip
-	unzip -u $<
-
-cosmopolitan-amalgamation-2.2.zip :
-	wget https://justine.lol/cosmopolitan/cosmopolitan-amalgamation-2.2.zip
-
-%.san : %.c
-	clang $(CFLAGS) -UNDEBUG -O1 -g -fsanitize=address,undefined -o $@ $^
-
-%.gcov : %.c
-	$(CC) -Wall -Wextra -Og --coverage -mstackrealign -o $@ $^
 
 zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig : 6th.zig jansforth.zig labeled.zig hybrid.zig build.zig
 	zig build
@@ -99,10 +61,5 @@ jansforth recurse recurse-chicken : % : %.c
 5th-preserve-none : CFLAGS += -DPRESERVE_NONE
 
 clean :
-	$(RM) *.o ape.lds *.a cosmopolitan-amalgamation-2.2.zip cosmopolitan.h 4th.com 4th.com.dbg 4th jansforth recurse recurse-chicken *.ll 4th.32 4th.gcov *.gcda *.gcno web/4th.wasm *.san
+	$(RM) 4th 5th jansforth recurse recurse-chicken web/4th.wasm
 	$(RM) $(patsubst 5th-opt/%.diff,5th-%,$(wildcard 5th-opt/*.diff)) 5th-order-*
-	$(RM) -r *.san.dSYM
-
-define allbutlast
-$(wordlist 2, $(words $(1)), x $(1))
-endef

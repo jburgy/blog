@@ -47,10 +47,8 @@ let cx: T; /* stores negative memory use */
 let dx: u8; /* stores lookahead character */
 
 // getchar/putchar are deliberately free identifiers, not declared here:
-// index.ts (original custom host import) and wasi.ts (real WASI
-// fd_read/fd_write) each bind them to a different implementation via asc's
-// `--use getchar=... --use putchar=...` (see lisp/package.json), so this
-// interpreter compiles unchanged into either host ABI without duplication.
+// wasi.ts binds them to wasiHost.ts (real WASI fd_read/fd_write) via asc's
+// `--use getchar=... --use putchar=...` (see lisp/package.json).
 
 function Intern(): T {
   let i: T, j: T, k: T, x: u8;

@@ -6,6 +6,9 @@ jobs:
   build:
 
     runs-on: ubuntu-24.04
+    env:
+      # every C build in the repo (meson, forth/Makefile, regexp tests) honors $CC
+      CC: clang
     strategy:
       max-parallel: 4
       matrix:
@@ -32,6 +35,7 @@ jobs:
       - run: uvx ty check --python .venv
       - run: |
           sudo apt-get update
+          # clang's -m32 still takes its 32-bit libgcc and headers from gcc-multilib
           sudo apt-get install -y gcc-multilib
       # a re-sync would drop -Dprogress=false
       - run: uv run --no-sync pytest --cov --cov-report=xml
