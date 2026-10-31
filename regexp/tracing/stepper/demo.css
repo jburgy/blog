@@ -1,0 +1,137 @@
+/* The Forth stepper panel's rules, scoped under .demo--stepper. Uses --line and
+   --mono from assets/index.html's :root. */
+.demo--stepper {
+	--accent: #b58900;
+}
+
+.demo--stepper .stepper__form {
+	display: grid;
+	grid-template-columns: 1fr 10rem auto;
+	gap: .5rem;
+	align-items: end;
+}
+
+.demo--stepper .stepper__form label {
+	display: flex;
+	flex-direction: column;
+	gap: .25rem;
+	font-size: .8rem;
+	text-transform: uppercase;
+	letter-spacing: .06em;
+	opacity: .75;
+}
+
+.demo--stepper input,
+.demo--stepper button {
+	font: inherit;
+	padding: .45rem .7rem;
+	border: 1px solid var(--line);
+	border-radius: .25rem;
+	background: transparent;
+	color: inherit;
+}
+
+.demo--stepper .stepper__form input {
+	font-family: var(--mono);
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.demo--stepper button {
+	cursor: pointer;
+}
+
+.demo--stepper .stepper__controls {
+	display: flex;
+	gap: .5rem;
+	align-items: center;
+	margin: 1rem 0 .5rem;
+}
+
+.demo--stepper .stepper__controls input[type=range] {
+	flex: 1;
+	padding: 0;
+	accent-color: var(--accent);
+}
+
+.demo--stepper .stepper__controls output {
+	min-width: 6.5rem;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.demo--stepper .stepper__grid {
+	display: grid;
+	grid-template-columns: 1fr 8rem 11rem;
+	gap: 1rem;
+	align-items: start;
+}
+
+.demo--stepper .stepper__grid section {
+	border: 1px solid var(--line);
+	border-radius: .4rem;
+	padding: .25rem .75rem .75rem;
+	min-height: 8rem;
+}
+
+.demo--stepper h3 {
+	font-size: .75rem;
+	text-transform: uppercase;
+	letter-spacing: .08em;
+	opacity: .65;
+	margin: .5rem 0;
+	font-weight: 600;
+}
+
+.demo--stepper .stepper__title {
+	font-size: .9rem;
+	margin: 0 0 .5rem;
+}
+
+.demo--stepper .stepper__cells {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .3rem;
+}
+
+.demo--stepper .stepper__stack {
+	display: flex;
+	flex-direction: column;
+	gap: .25rem;
+}
+
+.demo--stepper .cell {
+	border: 1px solid var(--line);
+	border-radius: .25rem;
+	padding: .1rem .5rem;
+	font-family: var(--mono);
+	font-size: .9rem;
+}
+
+.demo--stepper .cell.lit {
+	opacity: .55;
+}
+
+.demo--stepper .cell.at {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 22%, transparent);
+	font-weight: 700;
+}
+
+.demo--stepper .cell.new {
+	border-color: var(--accent);
+}
+
+.demo--stepper .status {
+	font-size: .85rem;
+	opacity: .75;
+	margin: 1rem 0 0;
+}
+
+@media (max-width: 40rem) {
+
+	.demo--stepper .stepper__form,
+	.demo--stepper .stepper__grid {
+		grid-template-columns: 1fr;
+	}
+}

@@ -43,6 +43,8 @@ the default `a(b|c)*d` / `abccbcccd` snapshot.
 | `snap.mjs` | Runs the demo's own `Matcher`/`Forth` classes and records every NEXT of the first call of `R` (stacks, `RE-NLIST`, subject cursor) plus the JS stack and tiers, into `out.json` |
 | `gen.mjs` | Draws step 791 of `out.json` as an SVG with light and dark modes. Asserts on the measured values stop it from drawing a snapshot that no longer matches |
 | `bench.mjs` | Times `Matcher.search` on the uninstrumented `forth.wasm` |
+| `trace-step.diff` | The same trace hook as a patch against the current `tabulate.wast`. `make stepper` in `assets/` applies it and compiles the result to `regexp/tracing/stepper/traced.wasm` |
+| `stepper/` | A page that records every NEXT of a Forth expression and lets you scrub through the code, data stack and return stack. `node stepper/stepper.test.mjs` is its self-check |
 
 `INSTRUMENT=0` makes `snap.mjs` load the shipped `../web/forth.wasm` instead of
 the traced build. `disasm` uses that mode, because the trace call would change

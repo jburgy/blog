@@ -7,12 +7,13 @@
   "scripts": {
     "build": "npx -y --package wabt wat2wasm --enable-multi-memory ../../forth/wasm/tabulate.wast -o forth.wasm",
     "start": "python3 -m http.server --directory ../.. 8000",
-    "test": "npm run build && node coverage.mjs"
+    "test": "npm run build && node ../tracing/stepper/stepper.test.mjs && node coverage.mjs"
   },
   "devDependencies": {
     "mocha": "^12.0.2",
     "mocha-headless-chrome": "^5.1.0",
-    "nyc": "^18.0.0"
+    "nyc": "^18.0.0",
+    "wabt": "^1.0.39"
   },
   "allowScripts": {
     "puppeteer@24.43.1": true
