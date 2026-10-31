@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Forth stepper &mdash; scrub through every NEXT</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+			--accent: #b58900;
+			--dim: color-mix(in srgb, currentColor 55%, transparent);
+			--line: color-mix(in srgb, currentColor 25%, transparent);
+		}
+
+		body {
+			margin: 0 auto;
+			max-width: 52rem;
+			padding: 2rem 1rem 4rem;
+			font: 16px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+		}
+
+		h1 {
+			font-size: 1.6rem;
+			margin-bottom: .25rem;
+		}
+
+		.blurb {
+			margin-top: 0;
+			opacity: .75;
+		}
+
+		code,
+		input,
+		textarea,
+		.cell {
+			font-family: Menlo, Consolas, monospace;
+		}
+
+		form {
+			display: grid;
+			grid-template-columns: 1fr 12rem auto;
+			gap: .5rem;
+			align-items: end;
+		}
+
+		label {
+			display: flex;
+			flex-direction: column;
+			gap: .25rem;
+			font-size: .8rem;
+			text-transform: uppercase;
+			letter-spacing: .06em;
+			opacity: .75;
+		}
+
+		input,
+		button {
+			font: inherit;
+			padding: .45rem .7rem;
+			border: 1px solid var(--line);
+			border-radius: .25rem;
+			background: transparent;
+			color: inherit;
+		}
+
+		button {
+			cursor: pointer;
+		}
+
+		.controls {
+			display: flex;
+			gap: .5rem;
+			align-items: center;
+			margin: 1.25rem 0 .5rem;
+		}
+
+		.controls input[type=range] {
+			flex: 1;
+			padding: 0;
+			accent-color: var(--accent);
+		}
+
+		.controls output {
+			min-width: 6.5rem;
+			text-align: right;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.grid {
+			display: grid;
+			grid-template-columns: 1fr 9rem 12rem;
+			gap: 1rem;
+			align-items: start;
+		}
+
+		section {
+			border: 1px solid var(--line);
+			border-radius: .4rem;
+			padding: .5rem .75rem .75rem;
+			min-height: 8rem;
+		}
+
+		h2 {
+			font-size: .75rem;
+			text-transform: uppercase;
+			letter-spacing: .08em;
+			opacity: .65;
+			margin: .25rem 0 .5rem;
+			font-weight: 600;
+		}
+
+		.cells {
+			display: flex;
+			flex-wrap: wrap;
+			gap: .3rem;
+		}
+
+		.stack {
+			display: flex;
+			flex-direction: column;
+			gap: .25rem;
+		}
+
+		.cell {
+			border: 1px solid var(--line);
+			border-radius: .25rem;
+			padding: .1rem .5rem;
+			font-size: .9rem;
+		}
+
+		.cell.lit {
+			color: var(--dim);
+		}
+
+		.cell.at {
+			border-color: var(--accent);
+			background: color-mix(in srgb, var(--accent) 22%, transparent);
+			font-weight: 700;
+		}
+
+		.cell.new {
+			border-color: var(--accent);
+		}
+
+		.empty {
+			color: var(--dim);
+			font-style: italic;
+			font-size: .85rem;
+		}
+
+		.title {
+			font-size: .9rem;
+			margin: 0 0 .5rem;
+		}
+
+		.status {
+			color: var(--dim);
+			font-size: .85rem;
+			margin-top: 1rem;
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Forth stepper</h1>
+	<p class="blurb">The interpreter's <code>$next</code> loop calls a <code>trace.step</code> import before every
+		dispatch. This page records them all, then lets you scrub through: the cell being executed, the data stack, and
+		the return stack, one <code>NEXT</code> at a time.</p>
+
+	<form id="form">
+		<label>Definition <input id="def" value=": FACT DUP 1 > IF DUP 1- RECURSE * THEN ;" spellcheck="false"></label>
+		<label>Run <input id="expr" value="5 FACT ." spellcheck="false"></label>
+		<button type="submit">Record</button>
+	</form>
+
+	<div class="controls">
+		<button id="first" title="Home">⏮</button>
+		<button id="prev" title="←">◀</button>
+		<button id="play" title="Space">▶</button>
+		<button id="next" title="→">▶|</button>
+		<input id="slider" type="range" min="0" max="0" value="0">
+		<output id="pos"></output>
+	</div>
+
+	<div class="grid">
+		<section>
+			<h2>Threaded code</h2>
+			<p class="title" id="title"></p>
+			<div class="cells" id="code"></div>
+		</section>
+		<section>
+			<h2>Data stack</h2>
+			<div class="stack" id="ds"></div>
+		</section>
+		<section>
+			<h2>Return stack</h2>
+			<div class="stack" id="rs"></div>
+		</section>
+	</div>
+	<p class="status" id="status"></p>
+
+	<script type="module">
+		import { record, locate, disassemble } from './stepper.mjs';
+
+		const $ = (id) => document.getElementById(id);
+		const [wasm, preamble] = await Promise.all([
+			fetch('./traced.wasm').then((r) => r.arrayBuffer()),
+			fetch('../../../jonesforth/jonesforth.f').then((r) => r.text()),
+		]);
+
+		let rec, i = 0, timer = null;
+
+		const cell = (text, cls = '') => {
+			const el = document.createElement('span');
+			el.className = `cell ${cls}`;
+			el.textContent = text;
+			return el;
+		};
+		const fill = (el, children, empty) =>
+			el.replaceChildren(...(children.length ? children : [Object.assign(document.createElement('span'), { className: 'empty', textContent: empty })]));
+
+		function show(n) {
+			i = Math.max(0, Math.min(rec.steps.length - 1, n));
+			const step = rec.steps[i];
+			const prev = rec.steps[i - 1];
+			const { word } = locate(rec.words, step.ip);
+
+			$('slider').value = i;
+			$('pos').textContent = `${i + 1} / ${rec.steps.length}`;
+			$('title').textContent = `: ${word.name} … ;`;
+			fill($('code'), disassemble(rec, word).map((c) => cell(c.text, `${c.literal ? 'lit' : ''} ${c.addr === step.ip ? 'at' : ''}`)), '');
+
+			// Top of stack first; a cell is "new" when the stack below it didn't change.
+			const stackCells = (now, before, fmt) => [...now].reverse().map((v, k) => {
+				const depth = now.length - 1 - k;
+				return cell(fmt(v), before?.[depth] === v && before.length > depth ? '' : 'new');
+			});
+			fill($('ds'), stackCells(step.ds, prev?.ds, String), 'empty');
+			const ret = (a) => { const l = locate(rec.words, a); return `${l.word.name}+${l.cell}`; };
+			fill($('rs'), stackCells(step.rs, prev?.rs, ret), 'empty');
+		}
+
+		const stop = () => { clearInterval(timer); timer = null; $('play').textContent = '▶'; };
+		const play = () => {
+			if (timer) return stop();
+			if (i >= rec.steps.length - 1) show(0);
+			$('play').textContent = '⏸';
+			timer = setInterval(() => (i >= rec.steps.length - 1 ? stop() : show(i + 1)), 250);
+		};
+
+		async function run() {
+			stop();
+			rec = await record(wasm, preamble, $('def').value, $('expr').value);
+			$('slider').max = rec.steps.length - 1;
+			$('status').textContent = rec.steps.length
+				? `Output: ${rec.output.trim() || '(none)'}  ·  ${rec.steps.length} steps inside the new code`
+				: `No steps executed inside the new code. Output: ${rec.output.trim()}`;
+			if (rec.steps.length) show(0);
+		}
+
+		$('form').addEventListener('submit', (e) => { e.preventDefault(); run(); });
+		$('slider').addEventListener('input', (e) => show(+e.target.value));
+		$('first').onclick = () => show(0);
+		$('prev').onclick = () => show(i - 1);
+		$('next').onclick = () => show(i + 1);
+		$('play').onclick = play;
+		addEventListener('keydown', (e) => {
+			if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+			const k = { ArrowLeft: () => show(i - 1), ArrowRight: () => show(i + 1), Home: () => show(0), End: () => show(1e9), ' ': play }[e.key];
+			if (k) { e.preventDefault(); k(); }
+		});
+
+		await run();
+	</script>
+</body>
+
+</html>

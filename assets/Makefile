@@ -102,6 +102,24 @@ regexp/web/forth.wasm : ../forth/wasm/tabulate.wast
 	@mkdir -p $(@D)
 	npx -y --package wabt wat2wasm --enable-multi-memory -o $@ $<
 
+# The stepper page records every NEXT of a tabulate.wast patched to call trace.step.
+STEPPER = $(addprefix regexp/tracing/stepper/,index.html stepper.mjs)
+
+stepper : $(STEPPER) regexp/tracing/stepper/traced.wasm regexp/web/forth.mjs jonesforth/jonesforth.f
+all : stepper
+CLEAN += regexp/tracing
+
+$(STEPPER) : regexp/tracing/stepper/% : ../regexp/tracing/stepper/%
+	@mkdir -p $(@D)
+	cp $< $@
+
+regexp/tracing/stepper/traced.wast : ../forth/wasm/tabulate.wast ../regexp/tracing/trace-step.diff
+	@mkdir -p $(@D)
+	patch -o $@ $< ../regexp/tracing/trace-step.diff
+
+regexp/tracing/stepper/traced.wasm : regexp/tracing/stepper/traced.wast
+	npx -y --package wabt wat2wasm --enable-multi-memory -o $@ $<
+
 fourt2py : $(FOURT2PY)
 all : fourt2py
 CLEAN += fourt2py
@@ -188,7 +206,7 @@ CLEAN += TinyBasic
 serve-e2e : all
 	node serve-e2e.mjs --skip-jekyll-build
 
-.PHONY : all clean regexp fourt2py ising resistor-network slip serve-e2e
+.PHONY : all clean regexp stepper fourt2py ising resistor-network slip serve-e2e
 
 clean :
 	rm -rf $(CLEAN)

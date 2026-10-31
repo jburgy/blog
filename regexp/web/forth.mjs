@@ -21,9 +21,10 @@ export class Forth {
     #output = '';
     #decoder = new TextDecoder();
 
-    static async instantiate(wasmBytes) {
+    static async instantiate(wasmBytes, imports = {}) {
         const forth = new Forth();
         const { instance } = await WebAssembly.instantiate(wasmBytes, {
+            ...imports,
             wasi_snapshot_preview1: forth.#wasi(),
         });
         forth.#exports = instance.exports;
