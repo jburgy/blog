@@ -88,6 +88,7 @@
     (global $m_zero   i32 (i32.const 0x4250))
     (global $m_over   i32 (i32.const 0x4270))
     (global $names    i32 (i32.const 0x4300))
+    (global $checks   i32 (i32.const 0x4800))
     (global $inbuf    i32 (i32.const 0x5000))
     (global $dict     i32 (i32.const 0x8000))
     (global $lit_cfa  i32 (i32.const 0x8068))    ;; builtin #3: 0x8000 + 3 * 28 + 20
@@ -832,16 +833,35 @@
         $const $const $const $const $const $const $const $const)
     (elem (i32.const 108) $resume $halt $resume $resume) ;; tags 2 and 3 never get written; they resume like 0
 
-    ;; The words at the addresses and codeword bases hard-coded above must be the expected ones:
-    ;; flags|length and the first three letters. The ends of each group are checked, so inserting, removing or
-    ;; moving a group trips it; swapping two names inside a group does not.
-    (func $expect (param $cfa i32) (param $want i32)
-        (if (i32.ne (i32.load (i32.sub (local.get $cfa) (i32.const 16))) (local.get $want)) (then (unreachable)))
+    ;; The names whose codewords are hard-coded elsewhere, as {codeword, length, name}: the control
+    ;; words, and the first and last name of each group that shares a function ($binop $unop
+    ;; $const). $check_names looks each up and traps unless it has that codeword, so a name
+    ;; inserted, removed or moved across a group's end trips it; swapping two names inside a
+    ;; group does not.
+    (data (i32.const 0x4800)
+        "\03\04EXIT" "\04\09INTERPRET" "\05\07EXECUTE" "\06\03LIT" "\07\06BRANCH"
+        "\12\01+" "\1d\02>=" "\1e\021+" "\28\06INVERT" "\50\05STATE" "\6b\0aO_NONBLOCK"
+        "\00")
+
+    (func $check_names
+        (local $p i32) (local $w i32)
+        (local.set $p (global.get $checks))
+        (loop $next
+            (if (i32.or
+                    (i32.eqz (local.tee $w (call $find (i32.add (local.get $p) (i32.const 2)) (i32.load8_u offset=1 (local.get $p)))))
+                    (i32.ne (i32.load (call $tcfa (local.get $w))) (i32.load8_u (local.get $p))))
+                (then (unreachable))
+            )
+            (local.set $p (i32.add (local.get $p) (i32.add (i32.load8_u offset=1 (local.get $p)) (i32.const 2))))
+            (br_if $next (i32.load8_u (local.get $p)))
+        )
     )
 
     ;; the builtin with codeword c is at dict + 28 * (c - 3), its codeword 20 bytes in
-    (func $expect_at (param $c i32) (param $want i32)
-        (call $expect (i32.add (global.get $dict) (i32.add (i32.mul (i32.sub (local.get $c) (i32.const 3)) (i32.const 28)) (i32.const 20))) (local.get $want))
+    (func $check_cfa (param $cfa i32) (param $c i32)
+        (if (i32.ne (local.get $cfa) (i32.add (global.get $dict) (i32.add (i32.mul (i32.sub (local.get $c) (i32.const 3)) (i32.const 28)) (i32.const 20))))
+            (then (unreachable))
+        )
     )
 
     ;; builtins at a 28-byte stride: link, flags|name[15], codeword, spare cell for data
@@ -863,17 +883,11 @@
         )
         (i32.store (global.get $here_a) (local.get $w))
         (i32.store (global.get $latest_a) (local.get $prev))
-        (call $expect (global.get $exit_cfa) (i32.const 0x49584504))               ;; EXIT
-        (call $expect (global.get $lit_cfa) (i32.const 0x54494c03))                ;; LIT
-        (call $expect (i32.load (global.get $cold)) (i32.const 0x544e4909))        ;; INTERPRET
-        (call $expect (i32.load offset=4 (global.get $cold)) (i32.const 0x41524206)) ;; BRANCH
-        (call $expect_at (i32.const 5) (i32.const 0x45584507))                     ;; EXECUTE, the last control word
-        (call $expect_at (i32.const 18) (i32.const 0x00002b01))                      ;; +, first of $binop
-        (call $expect_at (i32.const 29) (i32.const 0x003d3e02))                      ;; >=, last of $binop
-        (call $expect_at (i32.const 30) (i32.const 0x002b3102))                      ;; 1+, first of $unop
-        (call $expect_at (i32.const 40) (i32.const 0x564e4906))                      ;; INVERT, last of $unop
-        (call $expect_at (i32.const 80) (i32.const 0x41545305))                      ;; STATE, first of $const
-        (call $expect_at (i32.const 107) (i32.const 0x4e5f4f0a))                     ;; O_NONBLOCK, last of $const
+        (call $check_names)
+        (call $check_cfa (global.get $exit_cfa) (i32.const 3))
+        (call $check_cfa (global.get $lit_cfa) (i32.const 6))
+        (call $check_cfa (i32.load (global.get $cold)) (i32.const 4))
+        (call $check_cfa (i32.load offset=4 (global.get $cold)) (i32.const 7))
         (local.set $p (global.get $inbuf))
         (loop $len
             (br_if $len (i32.load8_u (local.tee $p (i32.add (local.get $p) (i32.const 1)))))
