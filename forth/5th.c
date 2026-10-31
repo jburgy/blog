@@ -135,6 +135,7 @@ union instr_t *code_field_address(struct word_t *word)
     return (union instr_t *)((char *)word + offset);
 }
 
+/* rsp is forth.rkt's continuation chain defunctionalized: one cell per frame, since frames die LIFO and all resume at an ip (cf. frame/apply-k) */
 intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
 {
     *--rsp = ip;
