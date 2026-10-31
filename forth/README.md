@@ -263,6 +263,7 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
 | [forth.py](forth.py) | a Forth-to-CPython-bytecode compiler — a different experiment entirely |
 | [benchmark.py](benchmark.py) | rebuilds the native and Wasmtime targets and benchmarks the shared Fibonacci workload |
 | [5th-opt/](5th-opt/) | an LLM-driven search over `5th.c`'s parameter order, with patches and a transcript |
+| [jansforth-patches/](jansforth-patches/) | patches to `jansforth.c`, built with `make jansforth-NAME`; `assemble` replaces the `rodata` table with a small assembler |
 | [4th.fs](4th.fs), [4th.32.fs](4th.32.fs), [fixes.f](fixes.f) | the shared preamble, 64- and 32-bit cell flavours |
 
 ## Building and testing

@@ -53,6 +53,13 @@ test-native : 4th 5th
 jansforth recurse recurse-chicken : % : %.c
 	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
 
+# `make jansforth-NAME` applies jansforth-patches/NAME.diff to jansforth.c and builds the result like jansforth.
+jansforth-%.c : jansforth-patches/%.diff jansforth.c
+	patch -o $@ jansforth.c $<
+
+jansforth-% : jansforth-%.c
+	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
+
 # `make 5th-NAME` applies 5th-opt/NAME.diff to 5th.c and builds the result with the generic rule above.
 5th-%.c : 5th-opt/%.diff 5th.c
 	patch -o $@ 5th.c $<
@@ -67,3 +74,4 @@ jansforth recurse recurse-chicken : % : %.c
 clean :
 	$(RM) 4th 5th jansforth recurse recurse-chicken web/4th.wasm
 	$(RM) $(patsubst 5th-opt/%.diff,5th-%,$(wildcard 5th-opt/*.diff)) 5th-order-*
+	$(RM) $(patsubst jansforth-patches/%.diff,jansforth-%,$(wildcard jansforth-patches/*.diff)) jansforth-*.c
