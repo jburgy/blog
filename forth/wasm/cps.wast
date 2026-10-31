@@ -1,18 +1,20 @@
 ;; forth.rkt's run-cps in WebAssembly, with jonesforth's vocabulary: IF, THEN, BEGIN, ...
 ;; are defined in FORTH (4th.32.fs) on top of LIT, BRANCH, 0BRANCH, ', `,`, HERE, ...
 ;;
-;; The continuation k is a closure, as in forth.rkt: a node {ip, k, fn} in linear memory,
-;; where fn is a funcref (table index) and ip and k are its captured variables. There is
-;; no return stack: calling a closure is a tail call through its fn.
+;; The continuation k is a closure, as in forth.rkt, and takes one cell in linear memory:
+;; the ip it captured, with a 2-bit tag in the low bits that selects its code, a funcref
+;; (table index 108 + tag): 0 is $resume, 1 is $halt. Its own k is the next cell up, since
+;; closures are used once and die in LIFO order. There is no return stack: calling a
+;; closure is a tail call through that funcref.
 ;;
 ;;   forth.rkt                                   here
 ;;   ----------------------------------------    -------------------------------------------
 ;;   (cps-code code i k)                         $cps_code (ip sp k)         NEXT
 ;;   (cps-word w k)                              $cps_word (cfa ip sp k)     the word gets ip alone
-;;   next = (λ () (cps-code code (add1 i) k))    a node {ip, k, fn = $resume}, built by $push_k
-;;                                               when a colon word is entered
-;;   (k)                                         $apply_k: return_call_indirect through fn
-;;   'done, the initial k                        the root node at R0, fn = $halt
+;;   next = (λ () (cps-code code (add1 i) k))    a cell holding ip, tag 0 = $resume, built by
+;;                                               $push_k when a colon word is entered
+;;   (k)                                         $apply_k: return_call_indirect on the tag
+;;   'done, the initial k                        the root cell at R0, tag 1 = $halt
 ;;   (begin (c) (k)) for primitives              a direct primitive maps (ip sp k) to (ip sp k),
 ;;                                               then $cps_code continues
 ;;   lit / br / brz instructions                 LIT, BRANCH, 0BRANCH followed by a cell
@@ -30,12 +32,13 @@
 ;; thunk holding it: it only needs to find itself, and the real ip is kept. LIT, BRANCH,
 ;; 0BRANCH and LITSTRING read inline cells, so they only make sense inside a definition.
 ;;
-;; ponytail: closures are used once and die in LIFO order, so the node region is a stack
-;; and "allocation" is a pointer decrement. Closures that outlive their caller (a heap and
-;; a collector) are the upgrade path. >R R> RSP@ RSP! RDROP R0 expose this chain of nodes,
-;; the top node's first cell being the value or return address, as in jonesforth, which
-;; lets DOES> work unchanged. THROW steps through it 4 bytes at a time, so RSP! rounds an
-;; address up to the next node.
+;; ponytail: closures are used once and die in LIFO order, so the cells are a stack and
+;; "allocation" is a pointer decrement. Closures that outlive their caller (call/cc: k
+;; stored again, a heap and a collector) are the upgrade path. >R R> RSP@ RSP! RDROP R0
+;; expose this chain as jonesforth's return stack: one cell per entry holding the value or
+;; return address as is, so RSP@ 4+ @ is the parent's, and DOES> and jonesforth.f's THROW
+;; work unchanged. EXIT on a >R'd value whose low 2 bits are set would dispatch on them;
+;; code addresses are 4-aligned.
 ;;
 ;; Cells are 4 bytes (i32) like jonesforth.f and localize.wast, and the dictionary layout
 ;; is 5th.c's on wasm32:
@@ -52,8 +55,8 @@
 
     ;; Memory map (16 pages):
     ;;   0x0000 - 0x2000  data stack, grows down from S0
-    ;;   0x2000 - 0x4000  continuation nodes (12 bytes each), growing down from R0
-    ;;   0x4000 - 0x400c  the root continuation
+    ;;   0x2000 - 0x4000  continuation cells, growing down from R0
+    ;;   0x4000 - 0x4004  the root continuation
     ;;   0x4100 -         STATE HERE LATEST S0 BASE (ARGC) cells, cold start, WORD buffer,
     ;;                    iovec, thunk, constant values, messages, builtin names
     ;;   0x5000 - 0x6000  input buffer; starts out holding the boot text below
@@ -64,8 +67,7 @@
     (type $cont (func (param i32 i32) (result i32)))               ;; a closure's code: ( env sp )
     (table 110 funcref)
 
-    (global $fn_resume i32 (i32.const 108))
-    (global $fn_halt   i32 (i32.const 109))
+    (global $fn_resume i32 (i32.const 108))      ;; table index of $resume, tag 0; $halt follows, tag 1
     (global $s0       i32 (i32.const 0x2000))
     (global $r0       i32 (i32.const 0x4000))
     (global $state_a  i32 (i32.const 0x4100))
@@ -94,7 +96,7 @@
     (global $buftop  (mut i32) (i32.const 0x5000))
     (global $num     (mut i32) (i32.const 0))     ;; value parsed by $number
 
-    (data (i32.const 0x4000) "\00\00\00\00" "\00\40\00\00" "\6d\00\00\00")   ;; root: ip, k = itself, fn = $halt
+    (data (i32.const 0x4000) "\01\00\00\00")   ;; root: tag 1 = $halt
     (data (i32.const 0x410c) "\00\20\00\00")   ;; S0
     (data (i32.const 0x4110) "\0a\00\00\00")   ;; BASE
     ;; QUIT's cold start: INTERPRET BRANCH -8
@@ -327,29 +329,28 @@
         (return_call $cps_code (local.get $ip) (local.get $sp) (local.get $k))
     )
 
-    ;; (k): call the closure k through its funcref
+    ;; (k): call the closure k through its funcref, selected by the cell's low two bits
     (func $apply_k (param $sp i32) (param $k i32) (result i32)
-        (return_call_indirect (type $cont) (local.get $k) (local.get $sp) (i32.load offset=8 (local.get $k)))
+        (return_call_indirect (type $cont) (local.get $k) (local.get $sp)
+            (i32.add (global.get $fn_resume) (i32.and (i32.load (local.get $k)) (i32.const 3))))
     )
 
-    ;; build the closure {ip, k, fn = $resume}
+    ;; push the closure "carry on at ip": one cell, ip with tag 0 (= $resume)
     (func $push_k (param $ip i32) (param $k i32) (result i32)
         (local $n i32)
-        (if (i32.lt_u (local.tee $n (i32.sub (local.get $k) (i32.const 12))) (global.get $s0))
+        (if (i32.lt_u (local.tee $n (i32.sub (local.get $k) (i32.const 4))) (global.get $s0))
             (then
                 (drop (call $write (i32.const 2) (global.get $m_over) (i32.const 22)))
                 (call $proc_exit (i32.const 1))
             )
         )
         (i32.store (local.get $n) (local.get $ip))
-        (i32.store offset=4 (local.get $n) (local.get $k))
-        (i32.store offset=8 (local.get $n) (global.get $fn_resume))
         (local.get $n)
     )
 
-    ;; the closure (λ () (cps-code code (add1 i) k)) is ( env sp ): continue at ip with env's k
+    ;; the closure (λ () (cps-code code (add1 i) k)) is ( env sp ): continue at the cell's ip with the next cell up
     (func $resume (param $env i32) (param $sp i32) (result i32)
-        (return_call $cps_code (i32.load (local.get $env)) (local.get $sp) (i32.load offset=4 (local.get $env)))
+        (return_call $cps_code (i32.and (i32.load (local.get $env)) (i32.const -4)) (local.get $sp) (i32.add (local.get $env) (i32.const 4)))
     )
 
     ;; 'done
@@ -650,29 +651,23 @@
     )
 
     ;; ---- the closure chain as jonesforth's return stack ------------------
-    ;; the node at or above x: THROW steps RSP@ by 4 bytes per cell, a node is 12
-    (func $node (param $x i32) (result i32)
-        (select
-            (global.get $r0)
-            (i32.sub (global.get $r0) (i32.mul (i32.div_u (i32.sub (global.get $r0) (local.get $x)) (i32.const 12)) (i32.const 12)))
-            (i32.ge_u (local.get $x) (global.get $r0)))
-    )
+    ;; one cell per entry, so RSP@ is a real address and 4+ steps to the parent
     (func $>r (param $ip i32) (param $sp i32) (param $k i32) (result i32 i32 i32)
         (local.get $ip) (i32.add (local.get $sp) (i32.const 4)) (call $push_k (i32.load (local.get $sp)) (local.get $k))
     )
     (func $r> (param $ip i32) (param $sp i32) (param $k i32) (result i32 i32 i32)
         (i32.store (local.tee $sp (i32.sub (local.get $sp) (i32.const 4))) (i32.load (local.get $k)))
-        (local.get $ip) (local.get $sp) (i32.load offset=4 (local.get $k))
+        (local.get $ip) (local.get $sp) (i32.add (local.get $k) (i32.const 4))
     )
     (func $rsp@ (param $ip i32) (param $sp i32) (param $k i32) (result i32 i32 i32)
         (i32.store (local.tee $sp (i32.sub (local.get $sp) (i32.const 4))) (local.get $k))
         (local.get $ip) (local.get $sp) (local.get $k)
     )
     (func $rsp! (param $ip i32) (param $sp i32) (param $k i32) (result i32 i32 i32)
-        (local.get $ip) (i32.add (local.get $sp) (i32.const 4)) (call $node (i32.load (local.get $sp)))
+        (local.get $ip) (i32.add (local.get $sp) (i32.const 4)) (i32.load (local.get $sp))
     )
     (func $rdrop (param $ip i32) (param $sp i32) (param $k i32) (result i32 i32 i32)
-        (local.get $ip) (local.get $sp) (i32.load offset=4 (local.get $k))
+        (local.get $ip) (local.get $sp) (i32.add (local.get $k) (i32.const 4))
     )
     (func $dsp@ (param $ip i32) (param $sp i32) (param $k i32) (result i32 i32 i32)
         (i32.store (i32.sub (local.get $sp) (i32.const 4)) (local.get $sp))
