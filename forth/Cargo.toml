@@ -13,6 +13,9 @@ jansforth = ["dep:libc"]
 [dependencies]
 libc = { version = "0.2", optional = true }
 
+[dev-dependencies]
+rstest = { version = "0.28", default-features = false }
+
 [[bin]]
 name = "4th"
 path = "4th.rs"

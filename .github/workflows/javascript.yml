@@ -68,6 +68,12 @@ jobs:
           workspaces: forth
       - run: make web
 
+      # cargo needs nightly for 4th.rs's `become`, and the harness drives the C
+      # binaries, which CI builds with clang like everywhere else.
+      - run: make test-native
+        env:
+          CC: clang
+
       - run: npm run test
 
       - uses: codecov/codecov-action@v7

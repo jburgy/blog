@@ -46,6 +46,10 @@ test-web : web/4th.wasm
 test-wasm : 4th.rs
 	rustup run nightly cargo test --release --target wasm32-wasip1 -Zbuild-std=std,panic_unwind
 
+# Feeds a preamble to the C binaries built above and diffs their stdout (tests/native.rs).
+test-native : 4th 5th
+	rustup run nightly cargo test --test native
+
 jansforth recurse recurse-chicken : % : %.c
 	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
 
