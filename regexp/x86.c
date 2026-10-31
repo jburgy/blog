@@ -329,7 +329,7 @@ int main(void)
         printf("search(%p) %s %s\n", (void *)search, test[i].r, test[i].s);
         t = search(test[i].s);
         if (t)
-            printf("match found after %ld bytes\n", t - test[i].s);
+            printf("match found after %td bytes\n", t - test[i].s);
         else
             printf("match not found\n");
         free((void *)search);

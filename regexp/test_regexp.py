@@ -63,13 +63,13 @@ def run(exe: str) -> str:
 @pytest.mark.parametrize("source", ["arm.c", "cps.c", "x86.c"])
 def test_strict_syntax(source: str) -> None:
     """Sources no other test builds (arm64/x86 codegen) still pass strict.flags."""
-    target: list[str] = []
-    if source == "x86.c" and platform.machine() not in ("x86_64", "AMD64"):
-        if sys.platform != "darwin":
-            pytest.skip("x86.c needs an x86 target")
-        target = ["--target=x86_64-apple-macos"]
+    flags: list[str] = []
+    if source == "x86.c":  # a 32-bit JIT
+        if sys.platform != "linux" or platform.machine() != "x86_64":
+            pytest.skip("x86.c needs -m32")
+        flags = ["-m32"]
     subprocess.run(
-        [CC, STRICT, *target, "-fsyntax-only", str(HERE / source)], check=True
+        [CC, STRICT, *flags, "-fsyntax-only", str(HERE / source)], check=True
     )
 
 
