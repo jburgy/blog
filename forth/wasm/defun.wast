@@ -52,6 +52,7 @@
     (global $m_parse  i32 (i32.const 0x4220))
     (global $m_under  i32 (i32.const 0x4230))
     (global $m_zero   i32 (i32.const 0x4250))
+    (global $m_over   i32 (i32.const 0x4270))
     (global $names    i32 (i32.const 0x4300))
     (global $inbuf    i32 (i32.const 0x5000))
     (global $dict     i32 (i32.const 0x8000))
@@ -69,6 +70,7 @@
     (data (i32.const 0x4220) "PARSE ERROR: ")
     (data (i32.const 0x4230) "STACK UNDERFLOW\0a")
     (data (i32.const 0x4250) "DIVISION BY ZERO\0a")
+    (data (i32.const 0x4270) "RETURN STACK OVERFLOW\0a")
 
     ;; values of the constant words, in names order
     (data (i32.const 0x41a0)
@@ -265,14 +267,25 @@
     )
 
     ;; ---- codewords -----------------------------------------------------
+    ;; the return stack grows down from R0 toward the data stack's S0: stop instead of overwriting it
+    (func $rpush (param $rsp i32) (param $x i32) (result i32)
+        (if (i32.lt_u (local.tee $rsp (i32.sub (local.get $rsp) (i32.const 4))) (global.get $s0))
+            (then
+                (drop (call $write (i32.const 2) (global.get $m_over) (i32.const 22)))
+                (call $proc_exit (i32.const 1))
+            )
+        )
+        (i32.store (local.get $rsp) (local.get $x))
+        (local.get $rsp)
+    )
+
     (func $docol (param $cfa i32) (param $ip i32) (param $sp i32) (param $rsp i32) (result i32 i32 i32)
-        (i32.store (local.tee $rsp (i32.sub (local.get $rsp) (i32.const 4))) (local.get $ip))
-        (i32.add (local.get $cfa) (i32.const 4)) (local.get $sp) (local.get $rsp)
+        (i32.add (local.get $cfa) (i32.const 4)) (local.get $sp) (call $rpush (local.get $rsp) (local.get $ip))
     )
 
     ;; CREATE ... DODOES , <code address> , <data> ...: run the code with the data's address pushed
     (func $dodoes (param $cfa i32) (param $ip i32) (param $sp i32) (param $rsp i32) (result i32 i32 i32)
-        (i32.store (local.tee $rsp (i32.sub (local.get $rsp) (i32.const 4))) (local.get $ip))
+        (local.set $rsp (call $rpush (local.get $rsp) (local.get $ip)))
         (i32.store (local.tee $sp (i32.sub (local.get $sp) (i32.const 4))) (i32.add (local.get $cfa) (i32.const 8)))
         (i32.load offset=4 (local.get $cfa)) (local.get $sp) (local.get $rsp)
     )
@@ -554,8 +567,7 @@
 
     ;; ---- return and parameter stack pointers ----------------------------
     (func $>r (param $cfa i32) (param $ip i32) (param $sp i32) (param $rsp i32) (result i32 i32 i32)
-        (i32.store (local.tee $rsp (i32.sub (local.get $rsp) (i32.const 4))) (i32.load (local.get $sp)))
-        (local.get $ip) (i32.add (local.get $sp) (i32.const 4)) (local.get $rsp)
+        (local.get $ip) (i32.add (local.get $sp) (i32.const 4)) (call $rpush (local.get $rsp) (i32.load (local.get $sp)))
     )
     (func $r> (param $cfa i32) (param $ip i32) (param $sp i32) (param $rsp i32) (result i32 i32 i32)
         (i32.store (local.tee $sp (i32.sub (local.get $sp) (i32.const 4))) (i32.load (local.get $rsp)))
@@ -732,9 +744,16 @@
         $const $const $const $const $const $const $const $const $const $const
         $const $const $const $const $const $const $const $const)
 
-    ;; the words at the addresses hard-coded above must be the ones expected: flags|length, first letter
+    ;; The words at the addresses and codeword bases hard-coded above must be the expected ones:
+    ;; flags|length and the first three letters. The ends of each group are checked, so inserting, removing or
+    ;; moving a group trips it; swapping two names inside a group does not.
     (func $expect (param $cfa i32) (param $want i32)
-        (if (i32.ne (i32.load16_u (i32.sub (local.get $cfa) (i32.const 16))) (local.get $want)) (then (unreachable)))
+        (if (i32.ne (i32.load (i32.sub (local.get $cfa) (i32.const 16))) (local.get $want)) (then (unreachable)))
+    )
+
+    ;; the builtin with codeword c is at dict + 28 * (c - 3), its codeword 20 bytes in
+    (func $expect_at (param $c i32) (param $want i32)
+        (call $expect (i32.add (global.get $dict) (i32.add (i32.mul (i32.sub (local.get $c) (i32.const 3)) (i32.const 28)) (i32.const 20))) (local.get $want))
     )
 
     ;; builtins at a 28-byte stride: link, flags|name[15], codeword, spare cell for data
@@ -756,10 +775,16 @@
         )
         (i32.store (global.get $here_a) (local.get $w))
         (i32.store (global.get $latest_a) (local.get $prev))
-        (call $expect (global.get $exit_cfa) (i32.const 0x4504))                 ;; EXIT
-        (call $expect (global.get $lit_cfa) (i32.const 0x4c03))                  ;; LIT
-        (call $expect (i32.load (global.get $cold)) (i32.const 0x4909))          ;; INTERPRET
-        (call $expect (i32.load offset=4 (global.get $cold)) (i32.const 0x4206)) ;; BRANCH
+        (call $expect (global.get $exit_cfa) (i32.const 0x49584504))               ;; EXIT
+        (call $expect (global.get $lit_cfa) (i32.const 0x54494c03))                ;; LIT
+        (call $expect (i32.load (global.get $cold)) (i32.const 0x544e4909))        ;; INTERPRET
+        (call $expect (i32.load offset=4 (global.get $cold)) (i32.const 0x41524206)) ;; BRANCH
+        (call $expect_at (i32.const 17) (i32.const 0x00002b01))                      ;; +, first of $binop
+        (call $expect_at (i32.const 28) (i32.const 0x003d3e02))                      ;; >=, last of $binop
+        (call $expect_at (i32.const 29) (i32.const 0x002b3102))                      ;; 1+, first of $unop
+        (call $expect_at (i32.const 39) (i32.const 0x564e4906))                      ;; INVERT, last of $unop
+        (call $expect_at (i32.const 80) (i32.const 0x41545305))                      ;; STATE, first of $const
+        (call $expect_at (i32.const 107) (i32.const 0x4e5f4f0a))                     ;; O_NONBLOCK, last of $const
         (local.set $p (global.get $inbuf))
         (loop $len
             (br_if $len (i32.load8_u (local.tee $p (i32.add (local.get $p) (i32.const 1)))))

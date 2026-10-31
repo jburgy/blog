@@ -3,7 +3,8 @@
 ;;
 ;; The continuation k is a closure, as in forth.rkt, and takes one cell in linear memory:
 ;; the ip it captured, with a 2-bit tag in the low bits that selects its code, a funcref
-;; (table index 108 + tag): 0 is $resume, 1 is $halt. Its own k is the next cell up, since
+;; (table index 108 + tag): 0 is $resume, 1 is $halt (2 and 3 resume too, as in
+;; 5th-opt/cps-packed.diff). Its own k is the next cell up, since
 ;; closures are used once and die in LIFO order. There is no return stack: calling a
 ;; closure is a tail call through that funcref.
 ;;
@@ -37,8 +38,8 @@
 ;; stored again, a heap and a collector) are the upgrade path. >R R> RSP@ RSP! RDROP R0
 ;; expose this chain as jonesforth's return stack: one cell per entry holding the value or
 ;; return address as is, so RSP@ 4+ @ is the parent's, and DOES> and jonesforth.f's THROW
-;; work unchanged. EXIT on a >R'd value whose low 2 bits are set would dispatch on them;
-;; code addresses are 4-aligned.
+;; work unchanged. EXIT on a >R'd value whose low 2 bits are set does not jump to it: tag 1
+;; halts, 2 and 3 resume at the value with those bits cleared. Code addresses are 4-aligned.
 ;;
 ;; Cells are 4 bytes (i32) like jonesforth.f and localize.wast, and the dictionary layout
 ;; is 5th.c's on wasm32:
@@ -65,7 +66,7 @@
     (type $prim (func (param i32 i32 i32) (result i32 i32 i32)))   ;; direct: ( ip sp k -- ip sp k )
     (type $ctl  (func (param i32 i32 i32) (result i32)))           ;; CPS: ( ip sp k ) tail-calls the rest
     (type $cont (func (param i32 i32) (result i32)))               ;; a closure's code: ( env sp )
-    (table 110 funcref)
+    (table 112 funcref)
 
     (global $fn_resume i32 (i32.const 108))      ;; table index of $resume, tag 0; $halt follows, tag 1
     (global $s0       i32 (i32.const 0x2000))
@@ -829,11 +830,18 @@
         $const $const $const $const $const $const $const $const $const $const
         $const $const $const $const $const $const $const $const $const $const
         $const $const $const $const $const $const $const $const)
-    (elem (i32.const 108) $resume $halt)
+    (elem (i32.const 108) $resume $halt $resume $resume) ;; tags 2 and 3 never get written; they resume like 0
 
-    ;; the words at the addresses hard-coded above must be the ones expected: flags|length, first letter
+    ;; The words at the addresses and codeword bases hard-coded above must be the expected ones:
+    ;; flags|length and the first three letters. The ends of each group are checked, so inserting, removing or
+    ;; moving a group trips it; swapping two names inside a group does not.
     (func $expect (param $cfa i32) (param $want i32)
-        (if (i32.ne (i32.load16_u (i32.sub (local.get $cfa) (i32.const 16))) (local.get $want)) (then (unreachable)))
+        (if (i32.ne (i32.load (i32.sub (local.get $cfa) (i32.const 16))) (local.get $want)) (then (unreachable)))
+    )
+
+    ;; the builtin with codeword c is at dict + 28 * (c - 3), its codeword 20 bytes in
+    (func $expect_at (param $c i32) (param $want i32)
+        (call $expect (i32.add (global.get $dict) (i32.add (i32.mul (i32.sub (local.get $c) (i32.const 3)) (i32.const 28)) (i32.const 20))) (local.get $want))
     )
 
     ;; builtins at a 28-byte stride: link, flags|name[15], codeword, spare cell for data
@@ -855,10 +863,17 @@
         )
         (i32.store (global.get $here_a) (local.get $w))
         (i32.store (global.get $latest_a) (local.get $prev))
-        (call $expect (global.get $exit_cfa) (i32.const 0x4504))                 ;; EXIT
-        (call $expect (global.get $lit_cfa) (i32.const 0x4c03))                  ;; LIT
-        (call $expect (i32.load (global.get $cold)) (i32.const 0x4909))          ;; INTERPRET
-        (call $expect (i32.load offset=4 (global.get $cold)) (i32.const 0x4206)) ;; BRANCH
+        (call $expect (global.get $exit_cfa) (i32.const 0x49584504))               ;; EXIT
+        (call $expect (global.get $lit_cfa) (i32.const 0x54494c03))                ;; LIT
+        (call $expect (i32.load (global.get $cold)) (i32.const 0x544e4909))        ;; INTERPRET
+        (call $expect (i32.load offset=4 (global.get $cold)) (i32.const 0x41524206)) ;; BRANCH
+        (call $expect_at (i32.const 5) (i32.const 0x45584507))                     ;; EXECUTE, the last control word
+        (call $expect_at (i32.const 18) (i32.const 0x00002b01))                      ;; +, first of $binop
+        (call $expect_at (i32.const 29) (i32.const 0x003d3e02))                      ;; >=, last of $binop
+        (call $expect_at (i32.const 30) (i32.const 0x002b3102))                      ;; 1+, first of $unop
+        (call $expect_at (i32.const 40) (i32.const 0x564e4906))                      ;; INVERT, last of $unop
+        (call $expect_at (i32.const 80) (i32.const 0x41545305))                      ;; STATE, first of $const
+        (call $expect_at (i32.const 107) (i32.const 0x4e5f4f0a))                     ;; O_NONBLOCK, last of $const
         (local.set $p (global.get $inbuf))
         (loop $len
             (br_if $len (i32.load8_u (local.tee $p (i32.add (local.get $p) (i32.const 1)))))

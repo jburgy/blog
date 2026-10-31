@@ -19,11 +19,13 @@ const wasmResponse = (bytes: Uint8Array) => new Response(bytes, { headers: { 'co
 // A finite script: the stream closing is EOF, which `5th`/`6th` exit cleanly on.
 async function runScript(wasm: Uint8Array, ...input: (string | Uint8Array)[]) {
     let out = '';
+    let err = '';
     const code = await runWasiCommand(wasmResponse(wasm), {
         stdin: new Blob(input).stream(),
         stdout: (chunk) => { out += chunk; },
+        stderr: (chunk) => { err += chunk; },
     });
-    return { code, out };
+    return { code, out, err };
 }
 
 // Read per test, not at load: 5th.wasm needs wasi-sdk, and a missing one must only fail its own tests.
@@ -164,8 +166,9 @@ test('jonesforth.wasm: KEY blocks on an open stdin and never treats EOF as a sto
 
 // defun.wast and cps.wast differ only in how the continuation is represented (a return stack of
 // ips vs closures in memory), so one script covers both: IF/BEGIN/WHILE defined by 4th.32.fs,
-// CATCH/THROW and DOES> (which walk and pop the return stack), `>R` run from the prompt, and
-// input that ends inside a `\` comment (which used to spin forever). They exit 0 at EOF.
+// CATCH/THROW and DOES> (which walk and pop the return stack), `>R` run from the prompt, RSP@
+// as a real address (`4+ @` is the parent's entry, as in jonesforth), and input that ends
+// inside a `\` comment (which used to spin forever). They exit 0 at EOF.
 test.for(['defun', 'cps'])('%s.wast: 4th.32.fs runs on it, return-stack words included', async (name) => {
     const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
     const { code, out } = await runScript(await readFile(forthWasmPaths[name]), preamble, [
@@ -176,8 +179,22 @@ test.for(['defun', 'cps'])('%s.wast: 4th.32.fs runs on it, return-stack words in
         ': <BUILDS WORD CREATE DODOES , 0 , ; : DOES> R> LATEST @ >DFA ! ; : CONST <BUILDS , DOES> @ ;',
         '65 CONST FOO FOO EMIT CR',
         '64 >R RSP@ 1 TELL RDROP CR',
+        '65 >R 66 >R RSP@ 4+ @ . RDROP RDROP CR',
         '66 EMIT \\ ends without a newline',
     ].join('\n'));
     expect(code).toBe(0);
-    expect(out.endsWith('3628800 \n0 1 2 3 \n3 2 1 \n77 \nA\n@\nB')).toBe(true);
+    expect(out.endsWith('3628800 \n0 1 2 3 \n3 2 1 \n77 \nA\n@\n65 \nB')).toBe(true);
+}, 20_000);
+
+// A stray EXIT at the prompt pops the root continuation: a clean exit, not a crash. Runaway
+// recursion fills the return stack, which must report it instead of running into the data stack.
+test.for(['defun', 'cps'])('%s.wast: a stray EXIT exits 0 and runaway recursion reports RETURN STACK OVERFLOW', async (name) => {
+    const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
+    const wasm = await readFile(forthWasmPaths[name]);
+    const stray = await runScript(wasm, preamble, '65 EMIT EXIT 66 EMIT\n');
+    expect(stray.code).toBe(0);
+    expect(stray.out.endsWith('A')).toBe(true);
+    const deep = await runScript(wasm, preamble, ': DEEP DUP 0> IF 1- RECURSE THEN ; 5000 DEEP . CR\n');
+    expect(deep.code).toBe(1);
+    expect(deep.err).toContain('RETURN STACK OVERFLOW');
 }, 20_000);
