@@ -72,7 +72,8 @@ def cc_shared(tmp: Path, source: str) -> ctypes.CDLL:
     out = tmp / f"{Path(source).stem}.so"
     subprocess.run(
         [
-            "cc", "-w", "-O3", "-shared", "-fPIC", "-Dmain=demo",
+            "cc", f"@{HERE.parent / 'strict.flags'}", "-O3", "-shared", "-fPIC",
+            "-Dmain=demo", "-Wno-missing-prototypes",
             "-o", str(out), str(HERE / source),
         ],
         check=True,

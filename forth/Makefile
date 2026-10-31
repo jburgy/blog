@@ -1,4 +1,5 @@
-CFLAGS ?= -Wall -Wextra -Os -DNDEBUG -fomit-frame-pointer -Wno-deprecated-declarations -fwrapv -fno-strict-aliasing
+STRICT = @../strict.flags
+CFLAGS ?= $(STRICT) -Os -DNDEBUG -fomit-frame-pointer -fwrapv -fno-strict-aliasing
 
 all: 4th 5th zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig jansforth recurse 4th-rs jansforth-rs
 
@@ -51,14 +52,14 @@ test-native : 4th 5th
 	rustup run nightly cargo test --test native
 
 jansforth recurse recurse-chicken : % : %.c
-	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
+	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) $(STRICT) -o $@ $^
 
 # `make jansforth-NAME` applies jansforth-patches/NAME.diff to jansforth.c and builds the result like jansforth.
 jansforth-%.c : jansforth-patches/%.diff jansforth.c
 	patch -o $@ jansforth.c $<
 
 jansforth-% : jansforth-%.c
-	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) -std=c2x -Wall -Wextra -Wpedantic -Wconversion -D_DEFAULT_SOURCE -o $@ $^
+	$(CC) $(if $(filter Darwin,$(shell uname -s)),,-m32) $(STRICT) -o $@ $^
 
 # `make 5th-NAME` applies 5th-opt/NAME.diff to 5th.c and builds the result with the generic rule above.
 5th-%.c : 5th-opt/%.diff 5th.c

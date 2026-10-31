@@ -23,6 +23,8 @@
 #include <math.h>
 #include <stdbool.h>
 
+void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work);
+
 void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work) {
     int ifact[32];
     const double twopi = 8.0 * atan(1.0);
@@ -250,7 +252,7 @@ void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work)
                 double wr = 0.0, wi = 0.0;
 
                 for (int l = np1; l <= lmax; l += np1tw) {
-                    int m = l;
+                    int lm = l;
                     if (use_twiddle) {
                         double theta = -twopi * (double)l / (double)(4 * mmax);
                         if (isign >= 0) {
@@ -274,7 +276,7 @@ void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work)
                             // numeric values on purpose, so this matches
                             // `I1+IPAR*M` from the original exactly once i1
                             // is the (now 0-based) position.
-                            int kmin = use_twiddle ? i1 + ipar * m : i1;
+                            int kmin = use_twiddle ? i1 + ipar * lm : i1;
                             int kdif = ipar * mmax;
                             for (int kstep = 4 * kdif; kstep <= ntwo; kdif = kstep, kstep = 4 * kdif) {
                                 for (int k1 = kmin; k1 < ntot; k1 += kstep) {
@@ -330,8 +332,8 @@ void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work)
                             }
                         }
 
-                        m += lmax;
-                        if (m > mmax) {
+                        lm += lmax;
+                        if (lm > mmax) {
                             break;
                         }
                         double tempr = wr;

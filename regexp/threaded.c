@@ -16,6 +16,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* labels as values are what makes this threaded code */
+#pragma clang diagnostic ignored "-Wgnu-label-as-value"
+
 enum {
     LPAREN = CHAR_MAX + 1,
     RPAREN, /* This should  */
@@ -38,7 +41,7 @@ static unsigned char *prepare(const char *src)
     escape['t'] = '\t';
     escape['v'] = '\v';
     for (i = 0; (c = "\"()*\\|"[i]); i++)
-        escape[c] = c;
+        escape[c] = (unsigned char)c;
 
     for (i = 0; (c = src[i]); i++) {
 
@@ -69,7 +72,7 @@ static unsigned char *prepare(const char *src)
             default:
                 if (concat)
                     dest[j++] = CONCAT;
-                dest[j++] = c;
+                dest[j++] = (unsigned char)c;
         }
         concat = 1;
         if (nparen < 0)
@@ -93,7 +96,7 @@ static unsigned char *convert(const char *src)
         switch (c) {
 
             case LPAREN:
-                stack[top++] = c;
+                stack[top++] = (unsigned char)c;
                 break;
 
             case RPAREN:
@@ -105,11 +108,11 @@ static unsigned char *convert(const char *src)
                 if (c == RPAREN)
                     --top; /* discard LPAREN */
                 else
-                    stack[top++] = c;
+                    stack[top++] = (unsigned char)c;
                 break;
 
             default:
-                dest[j++] = c;
+                dest[j++] = (unsigned char)c;
                 break;
         }
     }
@@ -179,7 +182,7 @@ static union cell *compile(const unsigned char *src, void *const *op)
     int i, c, top = 0;
     union cell *stack[BUFSIZ], *lambda[BUFSIZ], *code, *pc;
 
-    code = pc = malloc(codelen(src) * sizeof *code);
+    code = pc = malloc((size_t)codelen(src) * sizeof *code);
 
     /* clang-format off */
     for (i = 0; (c = src[i]); i++) {
@@ -236,6 +239,8 @@ static union cell *compile(const unsigned char *src, void *const *op)
 }
 
 #define NEXT goto *(pc++)->label
+
+char *search(union cell **cache, const char *re, char *s);
 
 /*
  * `op`'s addresses (&&JUMP etc.) are only valid for `goto *` from inside

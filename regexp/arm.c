@@ -9,7 +9,6 @@
  * Can be distributed under the MIT license, see bottom of file.
  */
 
-#define _DEFAULT_SOURCE
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -40,7 +39,7 @@ static unsigned char *prepare(const char *src)
     escape['t'] = '\t';
     escape['v'] = '\v';
     for (i = 0; (c = "\"()*\\|"[i]); i++)
-        escape[c] = c;
+        escape[c] = (unsigned char)c;
 
     for (i = 0; (c = src[i]); i++) {
 
@@ -71,7 +70,7 @@ static unsigned char *prepare(const char *src)
             default:
                 if (concat)
                     dest[j++] = CONCAT;
-                dest[j++] = c;
+                dest[j++] = (unsigned char)c;
         }
         concat = 1;
         if (nparen < 0)
@@ -95,7 +94,7 @@ static unsigned char *convert(const char *src)
         switch (c) {
 
             case LPAREN:
-                stack[top++] = c;
+                stack[top++] = (unsigned char)c;
                 break;
 
             case RPAREN:
@@ -107,11 +106,11 @@ static unsigned char *convert(const char *src)
                 if (c == RPAREN)
                     --top; /* discard LPAREN */
                 else
-                    stack[top++] = c;
+                    stack[top++] = (unsigned char)c;
                 break;
 
             default:
-                dest[j++] = c;
+                dest[j++] = (unsigned char)c;
                 break;
         }
     }
@@ -171,6 +170,10 @@ static const uint32_t footer[] = {
 };
 
 typedef char *(*function_t)(char *);
+
+uint32_t *compile(const unsigned char *src);
+function_t study(const char *re);
+void forget(function_t search);
 
 static int codelen(const unsigned char *src)
 {
@@ -238,11 +241,11 @@ uint32_t *compile(const unsigned char *src)
     int i, c, top = 0;
     long pc = sizeof header / sizeof *header, stack[BUFSIZ], s1, s2;
     long lambda[BUFSIZ]; /* Thompson's lambda: the `b' taken on an empty match, or 0 */
-    size_t length = sizeof header + 4 * codelen(src) + sizeof footer;
+    size_t length = sizeof header + 4 * (size_t)codelen(src) + sizeof footer;
     size_t size = mapsize(16 + length);
     unsigned char *base = mmap(NULL, size, PROT_READ | PROT_WRITE,
                                MAP_PRIVATE | MAP_ANON, -1, 0);
-    uint32_t *code = (uint32_t *)(base + 16);
+    uint32_t *code = (uint32_t *)(void *)(base + 16);
 
     if (base == MAP_FAILED)
         return NULL;

@@ -26,7 +26,7 @@ enum {
     KLEENE  /* rules!       */
 };
 
-unsigned char *prepare(const char *src)
+static unsigned char *prepare(const char *src)
 {
     unsigned char escape[CHAR_MAX + 1] = "";
     unsigned char *dest = malloc(2 * (strlen(src) + 1));
@@ -40,7 +40,7 @@ unsigned char *prepare(const char *src)
     escape['t'] = '\t';
     escape['v'] = '\v';
     for (i = 0; (c = "\"()*\\|"[i]); i++)
-        escape[c] = c;
+        escape[c] = (unsigned char)c;
 
     for (i = 0; (c = src[i]); i++) {
 
@@ -71,7 +71,7 @@ unsigned char *prepare(const char *src)
             default:
                 if (concat)
                     dest[j++] = CONCAT;
-                dest[j++] = c;
+                dest[j++] = (unsigned char)c;
         }
         concat = 1;
         if (nparen < 0)
@@ -83,7 +83,7 @@ unsigned char *prepare(const char *src)
     return dest;
 }
 
-unsigned char *convert(const char *src)
+static unsigned char *convert(const char *src)
 { /* http://cs.lasierra.edu/~ehwang/cptg454/postfix.pdf */
     unsigned char stack[BUFSIZ] = "";
     unsigned char *dest = prepare(src);
@@ -95,7 +95,7 @@ unsigned char *convert(const char *src)
         switch (c) {
 
             case LPAREN:
-                stack[top++] = c;
+                stack[top++] = (unsigned char)c;
                 break;
 
             case RPAREN:
@@ -109,11 +109,11 @@ unsigned char *convert(const char *src)
             case KLEENE:
                 while (c <= stack[top - 1])
                     dest[j++] = stack[--top];
-                stack[top++] = c;
+                stack[top++] = (unsigned char)c;
                 break;
 
             default:
-                dest[j++] = c;
+                dest[j++] = (unsigned char)c;
                 break;
         }
     }
@@ -127,14 +127,17 @@ struct instr {
     short address;
 };
 
-struct instr assemble(short operand, short address)
+struct instr *study(const char *re);
+int execute(struct instr *code, const char *src);
+
+static struct instr assemble(int operand, int address)
 {
-    struct instr this = {.operand = operand, .address = address};
+    struct instr this = {.operand = (short)operand, .address = (short)address};
 
     return this;
 }
 
-size_t codelen(const unsigned char *src)
+static size_t codelen(const unsigned char *src)
 {
     size_t i, n = 1; /* one instruction for the trailing STOP */
     int c;
@@ -160,7 +163,7 @@ size_t codelen(const unsigned char *src)
  * follows a node has to hold a JUMP.  That is why KLEENE and ALTERN both
  * open with one.
  */
-struct instr *compile(const unsigned char *src)
+static struct instr *compile(const unsigned char *src)
 {
     int i, c, pc = 0, top = 0;
     int stack[BUFSIZ];
@@ -218,7 +221,7 @@ struct instr *study(const char *re)
     return q;
 }
 
-void dump_code(struct instr *code)
+[[maybe_unused]] static void dump_code(struct instr *code)
 {
     int i, op;
     char *str[] = {"STOP", "JUMP", "MATCH", "BRANCH"};
@@ -233,7 +236,7 @@ void dump_code(struct instr *code)
  * suppressing it is what bounds each list by the number of states --
  * without it (a|a)* doubles its thread count on every character.
  */
-void schedule(short *list, short *n, short state)
+static void schedule(short *list, short *n, short state)
 {
     short i;
 
@@ -272,6 +275,9 @@ int execute(struct instr *code, const char *src)
                 schedule(clist, &cnode, code[pc + 1].address);
                 pc = code[pc + 2].address;
                 continue;
+
+            default:
+                break;
         }
 
         if (shift == cnode) {

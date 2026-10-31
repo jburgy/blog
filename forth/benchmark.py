@@ -19,6 +19,7 @@ import time
 
 
 FORTH_DIR = Path(__file__).resolve().parent
+STRICT = f"@{FORTH_DIR.parent / 'strict.flags'}"
 FIBONACCI_FILE = FORTH_DIR.parent / "talks" / "fibonacci.fs"
 SUCCESS = 0x7F
 FAILURE = 0x80
@@ -237,6 +238,7 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
     targets: list[tuple[str, str, list[str]]] = []
 
     c_flags = [
+        STRICT,
         "-O3",
         "-DNDEBUG",
         "-fomit-frame-pointer",
@@ -249,10 +251,9 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
     build(
         [
             clang,
+            STRICT,
             "-O3",
             "-DNDEBUG",
-            "-std=c2x",
-            "-D_DEFAULT_SOURCE",
             "-o",
             str(native / "jansforth"),
             "jansforth.c",
@@ -261,10 +262,9 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
     build(
         [
             clang,
+            STRICT,
             "-O3",
             "-DNDEBUG",
-            "-std=c2x",
-            "-D_DEFAULT_SOURCE",
             "-o",
             str(native / "recurse"),
             "recurse.c",
@@ -371,9 +371,8 @@ def build_targets(work: Path) -> list[tuple[str, str, list[str]]]:
             [
                 wasi_clang,
                 f"--sysroot={wasi_sysroot}",
+                STRICT,
                 "-O3",
-                "-Wall",
-                "-Wextra",
                 "-fwrapv",
                 "-fno-strict-aliasing",
                 *extra_flags,

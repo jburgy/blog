@@ -7,6 +7,11 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+/* DEFWORD's `.data = {...}` initializes a flexible array member (GNU extension) */
+#pragma clang diagnostic ignored "-Wgnu-flexible-array-initializer"
+/* sbrk is deprecated on macOS but is the only way to emulate SYS_brk */
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 #ifdef NO_LIBC_SYSCALL_NUMS
 #include <stdarg.h>
 
@@ -25,9 +30,9 @@ enum SYS {SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk
 #define DEFCODE_(_link, _flag, _name, _label) \
 intptr_t *_label(struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *); \
 static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = _label}}; \
-intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))
+intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, [[maybe_unused]] union instr_t *target)
 #define DEFCODE(_link, ...) DEFCODE_(&name_##_link, __VA_ARGS__)
-#define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label) { *--sp = (intptr_t)({ _value; }); NEXT; }
+#define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label) { intptr_t value_ = (intptr_t)(_value); *--sp = value_; NEXT; }
 #define DEFWORD(_link, _flag, _name, _label, ...)\
 static struct word_t name_##_label __attribute__((used)) = {.link = &name_##_link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = DOCOL}, .data = {__VA_ARGS__}};
 
@@ -66,7 +71,7 @@ struct word_t {
     union instr_t data[];
 };
 
-int key(void)
+static int key(void)
 {
     int ch = getchar();
 
@@ -75,7 +80,7 @@ int key(void)
     return ch;
 }
 
-intptr_t word(char *word_buffer)
+static intptr_t word(char *word_buffer)
 {
     int ch;
     char *s = word_buffer;
@@ -100,7 +105,7 @@ intptr_t word(char *word_buffer)
 }
 
 /* strtol needs a nul terminator, but Forth strings carry their length: parse a copy (ponytail: first WORD_MAX chars only) */
-intptr_t number(char *s, size_t count, intptr_t base, char **end)
+static intptr_t number(char *s, size_t count, intptr_t base, char **end)
 {
     char copy[WORD_MAX + 1], *stop;
     intptr_t value;
@@ -109,12 +114,12 @@ intptr_t number(char *s, size_t count, intptr_t base, char **end)
         count = WORD_MAX;
     memcpy(copy, s, count);
     copy[count] = '\0';
-    value = strtol(copy, &stop, base);
+    value = strtol(copy, &stop, (int)base);
     *end = s + (stop - copy);
     return value;
 }
 
-struct word_t *find(struct word_t *word, char *name, size_t count)
+static struct word_t *find(struct word_t *word, char *name, size_t count)
 {
     while (word && (((word->flag & (F_HIDDEN | F_LENMASK)) != count) || memcmp(word->name, name, count)))
         word = word->link;
@@ -122,28 +127,28 @@ struct word_t *find(struct word_t *word, char *name, size_t count)
     return word;
 }
 
-union instr_t *code_field_address(struct word_t *word)
+static union instr_t *code_field_address(struct word_t *word)
 {
     size_t offset = offsetof(struct word_t, name) + (word->flag & F_LENMASK);
 
     offset += __SIZEOF_POINTER__ - 1;
-    offset &= -__SIZEOF_POINTER__;
+    offset &= ~(size_t)(__SIZEOF_POINTER__ - 1);
 
     if (offset < offsetof(struct word_t, code))
         offset = offsetof(struct word_t, code);
 
-    return (union instr_t *)((char *)word + offset);
+    return (union instr_t *)(void *)((char *)word + offset);
 }
 
 /* rsp is forth.rkt's continuation chain defunctionalized: one cell per frame, since frames die LIFO and all resume at an ip (cf. frame/apply-k) */
-intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+static intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
 {
     *--rsp = ip;
     ip = target + 1;
     NEXT;
 }
 
-intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+static intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
 {
     *--rsp = ip;
     ip = target[1].word;
@@ -235,7 +240,7 @@ DEFCODE(INCRP, 0, XSTR(__SIZEOF_POINTER__) "-", DECRP)
 {
     sp[0] -= __SIZEOF_POINTER__;
     NEXT;
-};
+}
 DEFCODE(DECRP, 0, "+", ADD) 
 {
     sp[1] += sp[0];
@@ -410,7 +415,7 @@ DEFCODE(FETCHBYTE, 0, "C@C!", CCOPY)
 }
 DEFCODE(CCOPY, 0, "CMOVE", CMOVE)
 {
-    (void)memmove((void *)sp[1], (const void *)sp[2], sp[0]);
+    (void)memmove((void *)sp[1], (const void *)sp[2], (size_t)sp[0]);
     sp += 3;
     NEXT;
 }
@@ -422,27 +427,27 @@ DEFCONST(SZ, 0, "BASE", BASE, &env->base)
 DEFCONST(BASE, 0, "(ARGC)", ARGC, env->argc)
 DEFCONST(ARGC, 0, "VERSION", VERSION, 47)
 DEFCONST(VERSION, 0, "R0", RZ, env->r0)
-DEFCONST(RZ, 0, "DOCOL", _DOCOL, DOCOL)
-DEFCONST(_DOCOL, 0, "DODOES", _DODOES, DODOES)
-DEFCONST(_DODOES, 0, "F_IMMED", __F_IMMED, F_IMMED)
-DEFCONST(__F_IMMED, 0, "F_HIDDEN", __F_HIDDEN, F_HIDDEN)
-DEFCONST(__F_HIDDEN, 0, "F_LENMASK", __F_LENMASK, F_LENMASK)
-DEFCONST(__F_LENMASK, 0, "SYS_EXIT", SYS_EXIT, SYS_exit)
+DEFCONST(RZ, 0, "DOCOL", DOCOL_, DOCOL)
+DEFCONST(DOCOL_, 0, "DODOES", DODOES_, DODOES)
+DEFCONST(DODOES_, 0, "F_IMMED", F_IMMED_, F_IMMED)
+DEFCONST(F_IMMED_, 0, "F_HIDDEN", F_HIDDEN_, F_HIDDEN)
+DEFCONST(F_HIDDEN_, 0, "F_LENMASK", F_LENMASK_, F_LENMASK)
+DEFCONST(F_LENMASK_, 0, "SYS_EXIT", SYS_EXIT, SYS_exit)
 DEFCONST(SYS_EXIT, 0, "SYS_OPEN", SYS_OPEN, SYS_open)
 DEFCONST(SYS_OPEN, 0, "SYS_CLOSE", SYS_CLOSE, SYS_close)
 DEFCONST(SYS_CLOSE, 0, "SYS_READ", SYS_READ, SYS_read)
 DEFCONST(SYS_READ, 0, "SYS_WRITE", SYS_WRITE, SYS_write)
 DEFCONST(SYS_WRITE, 0, "SYS_CREAT", SYS_CREAT, SYS_creat)
 DEFCONST(SYS_CREAT, 0, "SYS_BRK", SYS_BRK, SYS_brk)
-DEFCONST(SYS_BRK, 0, "O_RDONLY", __O_RDONLY, O_RDONLY)
-DEFCONST(__O_RDONLY, 0, "O_WRONLY", __O_WRONLY, O_WRONLY)
-DEFCONST(__O_WRONLY, 0, "O_RDWR", __O_RDWR, O_RDWR)
-DEFCONST(__O_RDWR, 0, "O_CREAT", __O_CREAT, O_CREAT)
-DEFCONST(__O_CREAT, 0, "O_EXCL", __O_EXCL, O_EXCL)
-DEFCONST(__O_EXCL, 0, "O_TRUNC", __O_TRUNC, O_TRUNC)
-DEFCONST(__O_TRUNC, 0, "O_APPEND", __O_APPEND, O_APPEND)
-DEFCONST(__O_APPEND, 0, "O_NONBLOCK", __O_NONBLOCK, O_NONBLOCK)
-DEFCODE(__O_NONBLOCK, 0, ">R", TOR)
+DEFCONST(SYS_BRK, 0, "O_RDONLY", O_RDONLY_, O_RDONLY)
+DEFCONST(O_RDONLY_, 0, "O_WRONLY", O_WRONLY_, O_WRONLY)
+DEFCONST(O_WRONLY_, 0, "O_RDWR", O_RDWR_, O_RDWR)
+DEFCONST(O_RDWR_, 0, "O_CREAT", O_CREAT_, O_CREAT)
+DEFCONST(O_CREAT_, 0, "O_EXCL", O_EXCL_, O_EXCL)
+DEFCONST(O_EXCL_, 0, "O_TRUNC", O_TRUNC_, O_TRUNC)
+DEFCONST(O_TRUNC_, 0, "O_APPEND", O_APPEND_, O_APPEND)
+DEFCONST(O_APPEND_, 0, "O_NONBLOCK", O_NONBLOCK_, O_NONBLOCK)
+DEFCODE(O_NONBLOCK_, 0, ">R", TOR)
 {
     *--rsp = (union instr_t *)*sp++;
     NEXT;
@@ -468,7 +473,7 @@ DEFCODE(DSPFETCH, 0, "DSP!", DSPSTORE)
 DEFCONST(DSPSTORE, 0, "KEY", KEY, key())
 DEFCODE(KEY, 0, "EMIT", EMIT)
 {
-    putchar(*sp++);
+    putchar((int)*sp++);
     fflush(stdout);
     NEXT;
 }
@@ -484,7 +489,7 @@ DEFCODE(WORD, 0, "NUMBER", NUMBER)
     register char *s = (char *)sp[1];
     char *r;
 
-    sp[1] = number(s, c, env->base, &r);
+    sp[1] = number(s, (size_t)c, env->base, &r);
     sp[0] = r - s - c;
     NEXT;
 }
@@ -493,13 +498,16 @@ DEFCODE(NUMBER, 0, "FIND", FIND)
     register intptr_t c = *sp++;
     register char *s = (char *)*sp++;
 
-    *--sp = (intptr_t)find(env->latest, s, c);
+    register struct word_t *w = find(env->latest, s, (size_t)c);
+
+    *--sp = (intptr_t)w;
     NEXT;
 }
 DEFCODE(FIND, 0, ">CFA", TCFA)
 {
     register struct word_t *new = (struct word_t *)*sp++;
-    *--sp = (intptr_t)code_field_address(new);
+    register union instr_t *cfa = code_field_address(new);
+    *--sp = (intptr_t)cfa;
     NEXT;
 }
 DEFWORD(TCFA, 0, ">DFA", TDFA, CODE(TCFA), CODE(INCRP), CODE(EXIT), CODE(EXIT))
@@ -509,15 +517,15 @@ DEFCODE(TDFA, 0, "CREATE", CREATE)
     register char *s = (char *)*sp++;
     register struct word_t *new = (struct word_t *)((intptr_t)(env->here + __SIZEOF_POINTER__ - 1) & -__SIZEOF_POINTER__);
     new->link = env->latest;
-    new->flag = c;
-    memcpy(new->name, s, c);
+    new->flag = (unsigned char)c;
+    memcpy(new->name, s, (size_t)c);
     env->here = (char *)code_field_address(new);
     env->latest = new;
     NEXT;
 }
 DEFCODE(CREATE, 0, ",", COMMA)
 {
-    register union instr_t *p = (union instr_t *)env->here;
+    register union instr_t *p = (union instr_t *)(void *)env->here;
     (p++)->word = (union instr_t *)*sp++;
     env->here = (char *)p;
     NEXT;
@@ -573,7 +581,7 @@ DEFCODE(LITSTRING, 0, "TELL", TELL)
 {
     register intptr_t c = *sp++;
     register char *s = (char *)*sp++;
-    write(STDOUT_FILENO, s, c);
+    write(STDOUT_FILENO, s, (size_t)c);
     NEXT;
 }
 DEFCODE(TELL, 0, "INTERPRET", INTERPRET)
@@ -589,19 +597,19 @@ DEFCODE(TELL, 0, "INTERPRET", INTERPRET)
         write(STDERR_FILENO, "STACK UNDERFLOW\n", sizeof "STACK UNDERFLOW\n" - 1);
         sp = env->s0;
     }
-    p = (union instr_t *)env->here;
+    p = (union instr_t *)(void *)env->here;
     c = word(env->buffer);
-    new = find(env->latest, env->buffer, c);
+    new = find(env->latest, env->buffer, (size_t)c);
     if (new) {
         target = code_field_address(new);
         if ((new->flag & F_IMMED) || !env->state)
             __attribute__((musttail)) return target->code(env, sp, rsp, ip, target);
         (p++)->word = target;
     } else {
-        a = number(env->buffer, c, env->base, &r);
+        a = number(env->buffer, (size_t)c, env->base, &r);
         if (r == env->buffer) {
             write(STDERR_FILENO, errmsg, sizeof errmsg - 1);
-            write(STDERR_FILENO, env->buffer, c);
+            write(STDERR_FILENO, env->buffer, (size_t)c);
             write(STDERR_FILENO, "\n", sizeof "\n" - 1);
         } else if (env->state) {
             (p++)->word = &name_LIT.code;
@@ -630,13 +638,13 @@ DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
     switch (sp[0])
     {
         case SYS_open:
-            sp[3] = openat(AT_FDCWD, (const char *)sp[1], sp[2], (mode_t)sp[3]);
+            sp[3] = openat(AT_FDCWD, (const char *)sp[1], (int)sp[2], (mode_t)sp[3]);
             break;
         case SYS_read:
-            sp[3] = read(sp[1], (void *)sp[2], sp[3]);
+            sp[3] = read((int)sp[1], (void *)sp[2], (size_t)sp[3]);
             break;
         case SYS_write:
-            sp[3] = write(sp[1], (const void *)sp[2], sp[3]);
+            sp[3] = write((int)sp[1], (const void *)sp[2], (size_t)sp[3]);
             break;
         default:
             sp[3] = -1;
@@ -649,11 +657,11 @@ DEFCODE(SYSCALL3, 0, "SYSCALL2", SYSCALL2)
     switch (sp[0])
     {
         case SYS_open:
-            sp[2] = openat(AT_FDCWD, (const char *)sp[1], sp[2]);
+            sp[2] = openat(AT_FDCWD, (const char *)sp[1], (int)sp[2]);
             break;
 #ifndef NO_LIBC_SYSCALL_NUMS
         case SYS_access:
-            sp[2] = access((const char *)sp[1], sp[2]);
+            sp[2] = access((const char *)sp[1], (int)sp[2]);
             break;
 #endif
         default:
@@ -667,20 +675,24 @@ DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1)
     switch (sp[0])
     {
         case SYS_exit:
-            exit(sp[1]);
+            exit((int)sp[1]);
         case SYS_close:
-            sp[1] = close(sp[1]);
+            sp[1] = close((int)sp[1]);
             break;
         case SYS_brk:
+            /* sbrk's increment is int on macOS, intptr_t elsewhere */
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wshorten-64-to-32"
             if (sp[1])
-                sbrk(sp[1] - (intptr_t)sbrk(0));
-            sp[1] = (intptr_t)sbrk(0);
+                sbrk(sp[1] - (intptr_t)(void *)sbrk(0));
+            sp[1] = (intptr_t)(void *)sbrk(0);
+#pragma clang diagnostic pop
             break;
 #ifndef NO_LIBC_SYSCALL_NUMS
         case SYS_setuid:
-            sp[1] = setuid(sp[1]);
+            sp[1] = setuid((uid_t)sp[1]);
             break;
-#endif            
+#endif
         default:
             sp[1] = -1;
     }
@@ -693,7 +705,7 @@ DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0)
     switch (sp[0])
     {
         case SYS_getuid:
-            sp[0] = getuid();
+            sp[0] = (intptr_t)getuid();
             break;
         default:
             sp[0] = -1;

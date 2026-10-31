@@ -104,7 +104,7 @@ enum Builtin {
     BASE,
     VERSION,
     RZ,
-    __DOCOL, 
+    DOCOL_, 
     F_IMMED,
     F_HIDDEN,
     F_LENMASK,
@@ -115,14 +115,14 @@ enum Builtin {
     SYS_WRITE,
     SYS_CREAT,
     SYS_BRK,
-    __O_RDONLY,
-    __O_WRONLY,
-    __O_RDWR,
-    __O_CREAT,
-    __O_EXCL,
-    __O_TRUNC,
-    __O_APPEND,
-    __O_NONBLOCK,
+    O_RDONLY_,
+    O_WRONLY_,
+    O_RDWR_,
+    O_CREAT_,
+    O_EXCL_,
+    O_TRUNC_,
+    O_APPEND_,
+    O_NONBLOCK_,
     TOR,
     FROMR,
     RSPFETCH,
@@ -216,7 +216,7 @@ static int rodata[] = {
     /* BASE       */ [5293] = 5290 << 2, [5294] = 0x53414204, [5295] = 0x00000045, [5296] = BASE,
     /* VERSION    */ [5297] = 5293 << 2, [5298] = 0x52455607, [5299] = 0x4e4f4953, [5300] = VERSION,
     /* R0         */ [5301] = 5297 << 2, [5302] = 0x00305202, [5303] = RZ,
-    /* DOCOL      */ [5304] = 5301 << 2, [5305] = 0x434f4405, [5306] = 0x00004c4f, [5307] = __DOCOL,
+    /* DOCOL      */ [5304] = 5301 << 2, [5305] = 0x434f4405, [5306] = 0x00004c4f, [5307] = DOCOL_,
     /* F_IMMED    */ [5308] = 5304 << 2, [5309] = 0x495f4607, [5310] = 0x44454d4d, [5311] = F_IMMED,
     /* F_HIDDEN   */ [5312] = 5308 << 2, [5313] = 0x485f4608, [5314] = 0x45444449, [5315] = 0x0000004e, [5316] = F_HIDDEN,
     /* F_LENMASK  */ [5317] = 5312 << 2, [5318] = 0x4c5f4609, [5319] = 0x414d4e45, [5320] = 0x00004b53, [5321] = F_LENMASK,
@@ -227,14 +227,14 @@ static int rodata[] = {
     /* SYS_WRITE  */ [5342] = 5337 << 2, [5343] = 0x53595309, [5344] = 0x4952575f, [5345] = 0x00004554, [5346] = SYS_WRITE,
     /* SYS_CREAT  */ [5347] = 5342 << 2, [5348] = 0x53595309, [5349] = 0x4552435f, [5350] = 0x00005441, [5351] = SYS_CREAT,
     /* SYS_BRK    */ [5352] = 5347 << 2, [5353] = 0x53595307, [5354] = 0x4b52425f, [5355] = SYS_BRK,
-    /* O_RDONLY   */ [5356] = 5352 << 2, [5357] = 0x525f4f08, [5358] = 0x4c4e4f44, [5359] = 0x00000059, [5360] = __O_RDONLY,
-    /* O_WRONLY   */ [5361] = 5356 << 2, [5362] = 0x575f4f08, [5363] = 0x4c4e4f52, [5364] = 0x00000059, [5365] = __O_WRONLY,
-    /* O_RDWR     */ [5366] = 5361 << 2, [5367] = 0x525f4f06, [5368] = 0x00525744, [5369] = __O_RDWR,
-    /* O_CREAT    */ [5370] = 5366 << 2, [5371] = 0x435f4f07, [5372] = 0x54414552, [5373] = __O_CREAT,
-    /* O_EXCL     */ [5374] = 5370 << 2, [5375] = 0x455f4f06, [5376] = 0x004c4358, [5377] = __O_EXCL,
-    /* O_TRUNC    */ [5378] = 5374 << 2, [5379] = 0x545f4f07, [5380] = 0x434e5552, [5381] = __O_TRUNC,
-    /* O_APPEND   */ [5382] = 5378 << 2, [5383] = 0x415f4f08, [5384] = 0x4e455050, [5385] = 0x00000044, [5386] = __O_APPEND,
-    /* O_NONBLOCK */ [5387] = 5382 << 2, [5388] = 0x4e5f4f0a, [5389] = 0x4c424e4f, [5390] = 0x004b434f, [5391] = __O_NONBLOCK,
+    /* O_RDONLY   */ [5356] = 5352 << 2, [5357] = 0x525f4f08, [5358] = 0x4c4e4f44, [5359] = 0x00000059, [5360] = O_RDONLY_,
+    /* O_WRONLY   */ [5361] = 5356 << 2, [5362] = 0x575f4f08, [5363] = 0x4c4e4f52, [5364] = 0x00000059, [5365] = O_WRONLY_,
+    /* O_RDWR     */ [5366] = 5361 << 2, [5367] = 0x525f4f06, [5368] = 0x00525744, [5369] = O_RDWR_,
+    /* O_CREAT    */ [5370] = 5366 << 2, [5371] = 0x435f4f07, [5372] = 0x54414552, [5373] = O_CREAT_,
+    /* O_EXCL     */ [5374] = 5370 << 2, [5375] = 0x455f4f06, [5376] = 0x004c4358, [5377] = O_EXCL_,
+    /* O_TRUNC    */ [5378] = 5374 << 2, [5379] = 0x545f4f07, [5380] = 0x434e5552, [5381] = O_TRUNC_,
+    /* O_APPEND   */ [5382] = 5378 << 2, [5383] = 0x415f4f08, [5384] = 0x4e455050, [5385] = 0x00000044, [5386] = O_APPEND_,
+    /* O_NONBLOCK */ [5387] = 5382 << 2, [5388] = 0x4e5f4f0a, [5389] = 0x4c424e4f, [5390] = 0x004b434f, [5391] = O_NONBLOCK_,
     /* >R         */ [5392] = 5387 << 2, [5393] = 0x00523e02, [5394] = TOR,
     /* R>         */ [5395] = 5392 << 2, [5396] = 0x003e5202, [5397] = FROMR,
     /* RSP@       */ [5398] = 5395 << 2, [5399] = 0x50535204, [5400] = 0x00000040, [5401] = RSPFETCH,
@@ -273,7 +273,7 @@ static int rodata[] = {
 };
 static int *memory;
 
-char key(void) {
+static char key(void) {
     static int currkey = 0x4000, buftop = 0x4000;
     ssize_t c;
 
@@ -296,7 +296,7 @@ char key(void) {
     return bytes[currkey++];
 }
 
-int word(void) {
+static int word(void) {
     char ch, *s = bytes + 0x5014;
 
     do
@@ -317,7 +317,7 @@ int word(void) {
     return (int)(s - (bytes + 0x5014)); /* word length, always far under INT_MAX */
 }
 
-int find(int count, int name) {
+static int find(int count, int name) {
     int word = memory[0x1402]; /* LATEST */
 
     while (word && (((bytes[word + 4] & 0x3F) != count) || memcmp(bytes + word + 5, bytes + name, (unsigned)count)))
@@ -331,7 +331,7 @@ struct num_t {
     int remaining;
 };
 
-struct num_t number(int n, int s) {
+static struct num_t number(int n, int s) {
     int digit, res = 0, sign = 1, base = memory[0x1404];
 
     switch (bytes[s]) {
@@ -341,6 +341,8 @@ struct num_t number(int n, int s) {
         case '+':
             --n;
             ++s;
+            break;
+        default:
             break;
     }
 
@@ -362,7 +364,7 @@ struct num_t number(int n, int s) {
     return (struct num_t) { .result = res * sign, .remaining = n };
 }
 
-int code_field_address(int word) {
+static int code_field_address(int word) {
     word += 4;
     word += (bytes[word] & 0x1F) + 4;
     word &= ~3;
@@ -378,7 +380,7 @@ int code_field_address(int word) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
-int do_brk(int requested) {
+static int do_brk(int requested) {
     /* jonesforth's raw brk(2): 0 queries the current break, else grows to
        it, returning the (possibly unchanged, on failure) new break as an
        absolute address -- not POSIX brk()'s 0/-1.  The raw syscall(2)
@@ -399,7 +401,7 @@ int do_brk(int requested) {
     return (int)((sbrk((int)delta) == (void *)-1 ? cur : cur + delta) - bytes);
 }
 
-void *set_up_data_segment(const void *src, size_t n) {
+static void *set_up_data_segment(const void *src, size_t n) {
     void *here = sbrk(0x10000);
     if (here == (void *)-1)
         exit(errno);
@@ -628,7 +630,7 @@ int main(void) {
             case RZ:
                 memory[--sp] = 0x1000 << 2;
                 break;
-            case __DOCOL:
+            case DOCOL_:
                 memory[--sp] = 0;
                 break;
             case F_IMMED:
@@ -661,28 +663,28 @@ int main(void) {
             case SYS_BRK:
                 memory[--sp] = SYS_brk;
                 break;
-            case __O_RDONLY:
+            case O_RDONLY_:
                 memory[--sp] = O_RDONLY;
                 break;
-            case __O_WRONLY:
+            case O_WRONLY_:
                 memory[--sp] = O_WRONLY;
                 break;
-            case __O_RDWR:
+            case O_RDWR_:
                 memory[--sp] = O_RDWR;
                 break;
-            case __O_CREAT:
+            case O_CREAT_:
                 memory[--sp] = O_CREAT;
                 break;
-            case __O_EXCL:
+            case O_EXCL_:
                 memory[--sp] = O_EXCL;
                 break;
-            case __O_TRUNC:
+            case O_TRUNC_:
                 memory[--sp] = O_TRUNC;
                 break;
-            case __O_APPEND:
+            case O_APPEND_:
                 memory[--sp] = O_APPEND;
                 break;
-            case __O_NONBLOCK:
+            case O_NONBLOCK_:
                 memory[--sp] = O_NONBLOCK;
                 break;
             case TOR:
@@ -820,8 +822,9 @@ int main(void) {
                     : do_syscall1(memory[sp], memory[sp + 1]);
                 sp += 1;
                 break;
+            default:
+                break;
         }
         cfa = memory[ip++] >> 2;
     }
-    return cfa;
 }

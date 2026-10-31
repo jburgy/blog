@@ -12,7 +12,7 @@ BEGIN {
     # Every parameter list in 5th.c: types, declarations, and the calls that pass them.
     # The attribute variant comes first so it travels with `target`.
     nl = split("struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *"       \
-        "|struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused))" \
+        "|struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, [[maybe_unused]] union instr_t *target" \
         "|struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target" \
         "|env, sp, rsp, ip + 1, ip->word|env, sp, rsp, ip, ip->word|env, sp, rsp, ip, target" \
         "|&env, env.s0, env.r0, ip, ip->word", lists, "|")

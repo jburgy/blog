@@ -99,6 +99,9 @@ static void node_c(void)
 /* ALTERN(b, c): try c as a real call, then unconditionally tail-jump into
  * b, so both are tested against the same character regardless of whether
  * c matched. */
+/* musttail needs `return f()` in a void function, which ISO C forbids */
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpedantic"
 static void altern_bc(void)
 {
     node_c();                                  /* call node_c */
@@ -112,6 +115,7 @@ static void kleene_bc(void)
     altern_bc();                                /* call altern_bc */
     __attribute__((musttail)) return node_d();  /* jmp  node_d    */
 }
+#pragma clang diagnostic pop
 
 /* 'd' */
 static void node_d(void)

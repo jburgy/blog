@@ -1,8 +1,6 @@
-diff --git a/forth/5th.c b/forth/5th.c
-index 69ecc8e..2a4f426 100644
 --- a/forth/5th.c
 +++ b/forth/5th.c
-@@ -21,11 +21,17 @@ enum SYS {SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk
+@@ -26,11 +26,17 @@
  #define SYS_brk 214
  #endif
  
@@ -17,12 +15,12 @@ index 69ecc8e..2a4f426 100644
 -intptr_t *_label(struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *); \
 +PN intptr_t *_label(struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *); \
  static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = _label}}; \
--intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))
-+PN intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))
+-intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, [[maybe_unused]] union instr_t *target)
++PN intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, [[maybe_unused]] union instr_t *target)
  #define DEFCODE(_link, ...) DEFCODE_(&name_##_link, __VA_ARGS__)
- #define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label) { *--sp = (intptr_t)({ _value; }); NEXT; }
+ #define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label) { intptr_t value_ = (intptr_t)(_value); *--sp = value_; NEXT; }
  #define DEFWORD(_link, _flag, _name, _label, ...)\
-@@ -52,7 +58,7 @@ struct interp_t {
+@@ -57,7 +63,7 @@
  
  /* A Forth instr_t. Code ("words") is a sequence of these. */
  union instr_t {
@@ -31,20 +29,20 @@ index 69ecc8e..2a4f426 100644
      intptr_t literal;
      union instr_t *word;
  };
-@@ -135,14 +141,14 @@ union instr_t *code_field_address(struct word_t *word)
-     return (union instr_t *)((char *)word + offset);
+@@ -141,14 +147,14 @@
  }
  
--intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
-+PN intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+ /* rsp is forth.rkt's continuation chain defunctionalized: one cell per frame, since frames die LIFO and all resume at an ip (cf. frame/apply-k) */
+-static intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
++static PN intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
  {
      *--rsp = ip;
      ip = target + 1;
      NEXT;
  }
  
--intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
-+PN intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+-static intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
++static PN intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
  {
      *--rsp = ip;
      ip = target[1].word;

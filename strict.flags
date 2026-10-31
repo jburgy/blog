@@ -1,0 +1,13 @@
+-std=c2x
+-Weverything
+-Wpedantic
+-Werror
+-Wno-padded
+-Wno-unsafe-buffer-usage
+-Wno-pre-c23-compat
+-Wno-c++-compat
+-Wno-declaration-after-statement
+-Wno-poison-system-directories
+-Wno-disabled-macro-expansion
+-Wno-pre-c11-compat
+-D_DEFAULT_SOURCE

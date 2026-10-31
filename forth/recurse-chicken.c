@@ -464,7 +464,7 @@ static int throw_cfa, marker;
 #define SP_MIN 16 /* lowest data stack cell, with room for what one word pushes */
 #define HERE_MAX (ARENA - 0x1000u) /* dictionary limit; the rest is scratch for PAD */
 
-unsigned char key(void) {
+static unsigned char key(void) {
     static int currkey = 0x4000, buftop = 0x4000;
     ssize_t c;
 
@@ -483,7 +483,7 @@ unsigned char key(void) {
     return (unsigned char)bytes[currkey++];
 }
 
-int word(void) {
+static int word(void) {
     unsigned char ch;
     char *s = bytes + 0x5014;
 
@@ -506,7 +506,7 @@ int word(void) {
     return (int)(s - (bytes + 0x5014)); /* word length, always far under INT_MAX */
 }
 
-int find(int count, int name) {
+static int find(int count, int name) {
     int word = memory[0x1402]; /* LATEST */
 
     while (word && (((bytes[word + 4] & (NAME_HIDDEN | NAME_LEN)) != count) || memcmp(bytes + word + 5, bytes + name, (unsigned)count)))
@@ -520,7 +520,7 @@ struct num_t {
     int remaining;
 };
 
-struct num_t number(int n, int s) {
+static struct num_t number(int n, int s) {
     int digit, sign = 1, base = memory[0x1404];
     unsigned res = 0; /* wraps instead of overflowing */
 
@@ -551,7 +551,7 @@ struct num_t number(int n, int s) {
     return (struct num_t) { .result = (int)(res * (unsigned)sign), .remaining = n };
 }
 
-int code_field_address(int word) {
+static int code_field_address(int word) {
     word += 4;
     word += (bytes[word] & NAME_LEN) + 4;
     word &= ~3;
@@ -560,14 +560,14 @@ int code_field_address(int word) {
 
 static int brk_off = 0x10000;
 
-int do_brk(int requested) {
+static int do_brk(int requested) {
     /* jonesforth's brk(2): returns the (possibly unchanged, on failure) new break as an offset into memory. */
     if (requested > brk_off && requested <= ARENA)
         brk_off = requested;
     return brk_off;
 }
 
-void *set_up_data_segment(const void *src, size_t n) {
+static void *set_up_data_segment(const void *src, size_t n) {
     void *here = calloc(ARENA, 1);
     if (here == NULL)
         exit(ENOMEM);
@@ -576,7 +576,7 @@ void *set_up_data_segment(const void *src, size_t n) {
 }
 
 /* Restart QUIT on an empty return stack: the C stack and every node on it are abandoned. */
-static void quit(int sp) {
+[[noreturn]] static void quit(int sp) {
     heap[0] = (struct frame){.on_heap = true};
     cont = heap;
     resume.ip = QUIT_CFA + 1;
@@ -620,7 +620,7 @@ static int wrap_mul(int x, int y) {
 }
 
 /* Print a diagnostic and restart QUIT with empty stacks and out of compile mode. */
-static void fail(const char *msg) {
+[[noreturn]] static void fail(const char *msg) {
     (void)(write(STDERR_FILENO, msg, strlen(msg)) + 1);
     memory[0x1400] = 0;
     quit(S0_CELL);
@@ -631,7 +631,7 @@ static bool bad_sp(int sp) {
     return (unsigned)(sp - SP_MIN) > (unsigned)(S0_CELL - SP_MIN);
 }
 
-static void stack_fault(int sp) {
+[[noreturn]] static void stack_fault(int sp) {
     fail(sp > S0_CELL ? "STACK UNDERFLOW\n" : "STACK OVERFLOW\n");
 }
 
@@ -1165,6 +1165,8 @@ static void run(int ip, int sp) {
                     ? do_brk(memory[sp + 1])
                     : do_syscall1(memory[sp], memory[sp + 1]);
                 sp += 1;
+                break;
+            default:
                 break;
         }
         cfa = memory[ip++] >> 2;

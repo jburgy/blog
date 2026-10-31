@@ -74,6 +74,7 @@ static int brk(void *addr)
 }
 
 enum SYS {SYS_read, SYS_write, SYS_open, SYS_close, SYS_brk=0x0c, SYS_exit=0x3c, SYS_creat=0x55};
+int syscall(int sysno, ...);
 int syscall(int sysno, ...)
 {
     va_list ap;
@@ -89,6 +90,7 @@ int syscall(int sysno, ...)
     case SYS_brk  : status = (intptr_t)va_arg(ap, void *); status = status ? brk((void *)status) : (intptr_t)sbrk(0); break;
     case SYS_exit : status = va_arg(ap, int); va_end(ap); exit(status);
     case SYS_creat: { const char *path = va_arg(ap, const char *); mode_t mode = va_arg(ap, mode_t); status = creat(path, mode); break; }
+    default: break;
     }
     va_end(ap);
     return status;
@@ -435,7 +437,7 @@ DEFCODE(CCOPY, 0, "CMOVE", CMOVE):
     c = pop();
     r = (char *)pop();
     s = (char *)pop();
-    (void)memmove(r, s, c);
+    (void)memmove(r, s, (size_t)c);
     NEXT;
     intptr_t state;
 DEFCONST(CMOVE, 0, "STATE", STATE, &state);
@@ -488,7 +490,7 @@ DEFCODE(DSPFETCH, 0, "DSP!", DSPSTORE):
     NEXT;
 DEFCONST(DSPSTORE, 0, "KEY", KEY, key());
 DEFCODE(KEY, 0, "EMIT", EMIT):
-    putchar_unlocked(pop());
+    putchar_unlocked((int)pop());
     fflush_unlocked(stdout);
     NEXT;
 DEFCODE(EMIT, 0, "WORD", WORD):

@@ -3,9 +3,11 @@
 import ctypes
 import itertools
 import os
+import platform
 import random
 import re
 import subprocess
+import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -16,6 +18,7 @@ from jit import Pattern
 HERE = Path(__file__).parent
 JONESFORTH = HERE.parent / "jonesforth"
 CC = os.environ.get("CC", "cc")
+STRICT = f"@{HERE.parent / 'strict.flags'}"
 SANITIZE = ["-g", "-O1", "-fsanitize=address,undefined", "-fno-sanitize-recover=all"]
 
 THREADED = re.compile(
@@ -47,7 +50,7 @@ def earliest_end(pattern: str, s: str) -> int:
 
 def build(tmp: Path, source: str, *flags: str) -> str:
     out = str(tmp / Path(source).stem)
-    subprocess.run([CC, "-w", *flags, "-o", out, str(HERE / source)], check=True)
+    subprocess.run([CC, STRICT, *flags, "-o", out, str(HERE / source)], check=True)
     return out
 
 
@@ -55,6 +58,19 @@ def run(exe: str) -> str:
     return subprocess.run(
         [exe], capture_output=True, check=True, text=True, timeout=60
     ).stdout
+
+
+@pytest.mark.parametrize("source", ["arm.c", "cps.c", "x86.c"])
+def test_strict_syntax(source: str) -> None:
+    """Sources no other test builds (arm64/x86 codegen) still pass strict.flags."""
+    target: list[str] = []
+    if source == "x86.c" and platform.machine() not in ("x86_64", "AMD64"):
+        if sys.platform != "darwin":
+            pytest.skip("x86.c needs an x86 target")
+        target = ["--target=x86_64-apple-macos"]
+    subprocess.run(
+        [CC, STRICT, *target, "-fsyntax-only", str(HERE / source)], check=True
+    )
 
 
 @pytest.mark.parametrize(
@@ -131,8 +147,9 @@ def random_cases(seed: int, n: int = 3000) -> Iterator[tuple[str, str, str]]:
 
 def shared(tmp: Path, source: str) -> ctypes.CDLL:
     out = str(tmp / f"{Path(source).stem}.so")
-    flags = ["-O1", "-shared", "-fPIC", "-Dmain=demo"]
-    subprocess.run([CC, "-w", *flags, "-o", out, str(HERE / source)], check=True)
+    # -Dmain=demo leaves a non-static demo() without a prototype
+    flags = ["-O1", "-shared", "-fPIC", "-Dmain=demo", "-Wno-missing-prototypes"]
+    subprocess.run([CC, STRICT, *flags, "-o", out, str(HERE / source)], check=True)
     return ctypes.CDLL(out)
 
 

@@ -6,7 +6,7 @@
  #include <stddef.h>
  #include <stdint.h>
  #include <stdio.h>
-@@ -21,11 +22,38 @@
+@@ -26,11 +27,38 @@
  #define SYS_brk 214
  #endif
  
@@ -43,12 +43,12 @@
 -intptr_t *_label(struct interp_t *, intptr_t *, union instr_t **, union instr_t *, union instr_t *); \
 +intptr_t *_label(struct interp_t *, intptr_t *, struct node *, union instr_t *, union instr_t *); \
  static struct word_t name_##_label __attribute__((used)) = {.link = _link, .flag = _flag | ((sizeof _name) - 1), .name = _name, .code = {.code = _label}}; \
--intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))
-+intptr_t *_label(struct interp_t *env, intptr_t *sp, struct node *rsp, union instr_t *ip, union instr_t *target __attribute__((unused)))
+-intptr_t *_label(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, [[maybe_unused]] union instr_t *target)
++intptr_t *_label(struct interp_t *env, intptr_t *sp, struct node *rsp, union instr_t *ip, [[maybe_unused]] union instr_t *target)
  #define DEFCODE(_link, ...) DEFCODE_(&name_##_link, __VA_ARGS__)
- #define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label) { *--sp = (intptr_t)({ _value; }); NEXT; }
+ #define DEFCONST(_link, _flag, _name, _label, _value) DEFCODE(_link, _flag, _name, _label) { intptr_t value_ = (intptr_t)(_value); *--sp = value_; NEXT; }
  #define DEFWORD(_link, _flag, _name, _label, ...)\
-@@ -45,19 +73,48 @@
+@@ -50,19 +78,48 @@
      intptr_t *argc;
      intptr_t *s0;
      intptr_t base;
@@ -99,11 +99,12 @@
  struct word_t {
      struct word_t *link;
      unsigned char flag;
-@@ -135,16 +192,72 @@
-     return (union instr_t *)((char *)word + offset);
+@@ -140,17 +197,72 @@
+     return (union instr_t *)(void *)((char *)word + offset);
  }
  
--intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+-/* rsp is forth.rkt's continuation chain defunctionalized: one cell per frame, since frames die LIFO and all resume at an ip (cf. frame/apply-k) */
+-static intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
 +/* Chicken's minor GC: copy the live nodes off the C stack, leaving room for `extra` more; heap nodes never point back at it. */
 +static __attribute__((noinline)) struct node *evacuate(struct node *f, size_t extra)
  {
@@ -138,7 +139,7 @@
 +    return m;
 +}
 +
-+intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, struct node *rsp, union instr_t *ip, union instr_t *target)
++static intptr_t *DOCOL(struct interp_t *env, intptr_t *sp, struct node *rsp, union instr_t *ip, union instr_t *target)
 +{
 +    struct node node = {rsp, (intptr_t)ip};
 +
@@ -147,9 +148,9 @@
      NEXT;
  }
  
--intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
+-static intptr_t *DODOES(struct interp_t *env, intptr_t *sp, union instr_t **rsp, union instr_t *ip, union instr_t *target)
 +/* jonesforth's THROW, but walking the whole chain instead of RSP@'s window; no CATCH found means the Forth definition runs. */
-+intptr_t *THROW(struct interp_t *env, intptr_t *sp, struct node *rsp, union instr_t *ip, union instr_t *target)
++static intptr_t *THROW(struct interp_t *env, intptr_t *sp, struct node *rsp, union instr_t *ip, union instr_t *target)
  {
 -    *--rsp = ip;
 +    struct node *m = rsp;
@@ -168,7 +169,7 @@
 +    return DOCOL(env, sp, rsp, ip, target);
 +}
 +
-+intptr_t *DODOES(struct interp_t *env, intptr_t *sp, struct node *rsp, union instr_t *ip, union instr_t *target)
++static intptr_t *DODOES(struct interp_t *env, intptr_t *sp, struct node *rsp, union instr_t *ip, union instr_t *target)
 +{
 +    struct node node = {rsp, (intptr_t)ip};
 +
@@ -176,7 +177,7 @@
      ip = target[1].word;
      *--sp = (intptr_t)&target[2];
      NEXT;
-@@ -357,7 +470,8 @@
+@@ -363,7 +475,8 @@
  }
  DEFCODE(INVERT, 0, "EXIT", EXIT)
  {
@@ -186,9 +187,9 @@
      NEXT;
  }
  DEFCONST(EXIT, 0, "LIT", LIT, (ip++)->literal)
-@@ -443,19 +557,52 @@
- DEFCONST(__O_APPEND, 0, "O_NONBLOCK", __O_NONBLOCK, O_NONBLOCK)
- DEFCODE(__O_NONBLOCK, 0, ">R", TOR)
+@@ -449,19 +562,52 @@
+ DEFCONST(O_APPEND_, 0, "O_NONBLOCK", O_NONBLOCK_, O_NONBLOCK)
+ DEFCODE(O_NONBLOCK_, 0, ">R", TOR)
  {
 -    *--rsp = (union instr_t *)*sp++;
 +    struct node node = {rsp, *sp++};
@@ -218,7 +219,7 @@
  DEFCODE(RSPFETCH, 0, "RSP!", RSPSTORE)
  {
 -    rsp = (union instr_t **)*sp++;
-+    int m = shown(rsp), e = env->r0 - (intptr_t *)*sp++;
++    int m = shown(rsp), e = (int)(env->r0 - (intptr_t *)*sp++);
 +
 +    if (e <= 0) /* R0 RSP! empties the chain, however deep */
 +        rsp = heap;
@@ -228,7 +229,7 @@
 +        for (; m > e; --m)
 +            rsp = rsp->parent;
 +        if (m < e) {
-+            struct node *p = evacuate(rsp, e - m);
++            struct node *p = evacuate(rsp, (size_t)(e - m));
 +
 +            for (int i = e - m; i--; ++p)
 +                p[1] = (struct node){p, env->r0[i - e]};
@@ -244,10 +245,10 @@
      NEXT;
  }
  DEFCONST(RDROP, 0, "DSP@", DSPFETCH, (intptr_t)sp)
-@@ -510,6 +657,10 @@
+@@ -519,6 +665,10 @@
      new->link = env->latest;
-     new->flag = c;
-     memcpy(new->name, s, c);
+     new->flag = (unsigned char)c;
+     memcpy(new->name, s, (size_t)c);
 +    if (c == 5 && !throw_word && !memcmp(s, "THROW", 5))
 +        throw_word = new;
 +    if (c == 16 && !marker && !memcmp(s, "EXCEPTION-MARKER", 16))
@@ -255,7 +256,7 @@
      env->here = (char *)code_field_address(new);
      env->latest = new;
      NEXT;
-@@ -540,6 +691,8 @@
+@@ -549,6 +699,8 @@
  {
      register struct word_t *new = (typeof(new))*sp++;
      new->flag ^= F_HIDDEN;
@@ -264,7 +265,7 @@
      NEXT;
  }
  DEFWORD(HIDDEN, 0, "HIDE", HIDE, CODE(WORD), CODE(FIND), CODE(HIDDEN), CODE(EXIT))
-@@ -556,7 +709,7 @@
+@@ -565,7 +717,7 @@
  DEFCODE(BRANCH, 0, "0BRANCH", ZBRANCH)
  {
      if (!*sp++)
@@ -273,7 +274,7 @@
      ++ip;
      NEXT;
  }
-@@ -594,7 +747,7 @@
+@@ -603,7 +755,7 @@
      if (new) {
          target = code_field_address(new);
          if ((new->flag & F_IMMED) || !env->state)
@@ -281,8 +282,8 @@
 +            return target->code(env, sp, rsp, ip, target);
          (p++)->word = target;
      } else {
-         a = number(env->buffer, c, env->base, &r);
-@@ -622,7 +775,7 @@
+         a = number(env->buffer, (size_t)c, env->base, &r);
+@@ -631,7 +783,7 @@
  DEFCODE(CHAR, 0, "EXECUTE", EXECUTE)
  {
      target = (union instr_t *)*sp++;
@@ -291,7 +292,7 @@
  }
  DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3)
  {
-@@ -705,7 +858,7 @@
+@@ -718,7 +870,7 @@
  {
      enum { N = 0x100 };
      intptr_t stack[N];
@@ -300,7 +301,7 @@
      char *memory = sbrk(0x10000);
      if (memory == (char *)-1)
          return 1;
-@@ -715,12 +868,18 @@
+@@ -728,12 +880,18 @@
          .argc = (intptr_t *)&argv[-1],
          .s0 = stack + N,
          .base = 10,
@@ -322,4 +323,3 @@
 +    resume.ip->word->code(&env, resume.sp, resume.rsp, resume.ip + 1, resume.ip->word); /* returns only via longjmp; EOF calls exit() */
      return 0;
  }
-\ No newline at end of file
