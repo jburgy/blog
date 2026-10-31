@@ -247,8 +247,10 @@ def jonesforth(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str], str]
         pytest.skip("jonesforth submodule is not checked out")
 
     exe = tmp_path_factory.mktemp("jonesforth") / "jonesforth"
-    # jonesforth's own -Wl,-Ttext,0 faults on current binutils; the Makefile omits it
-    argv = [CC, "-m32", "-nostdlib", "-static", "-o", str(exe), "jonesforth.S"]
+    # jonesforth's own -Wl,-Ttext,0 faults on current binutils; the Makefile omits it.
+    # clang's integrated assembler rejects jonesforth.S's `.set link,...` reassignments.
+    gas = ["-fno-integrated-as"] if "clang" in CC else []
+    argv = [CC, "-m32", *gas, "-nostdlib", "-static", "-o", str(exe), "jonesforth.S"]
     try:
         subprocess.run(argv, cwd=JONESFORTH, check=True, capture_output=True)
     except (OSError, subprocess.CalledProcessError) as exc:

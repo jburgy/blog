@@ -60,17 +60,13 @@ coverage/
 # binaries
 *.o
 *.a
-*.com*
-*.zip
-ape.lds
-cosmopolitan.h
-*.c.gcov
 
 node_modules
 
 forth/web/4th.wasm
 regexp/web/forth.wasm
 forth/4th
+forth/5th
 forth/jansforth
 forth/recurse
 fourt2py/wasm/fourt.wasm

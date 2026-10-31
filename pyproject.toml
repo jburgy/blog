@@ -70,7 +70,6 @@ puzzlekit = { git = "https://github.com/jburgy/puzzlekit.git", branch = "main" }
 [tool.ruff]
 exclude = [
     ".venv",
-    "emsdk-cache",
 ]
 
 [tool.ruff.lint]
@@ -81,6 +80,5 @@ python = ".venv"
 
 [tool.ty.src]
 exclude = [
-    "emsdk-cache",
     "**/*.ipynb",
 ]

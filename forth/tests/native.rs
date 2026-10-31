@@ -140,7 +140,7 @@ FOO EMIT
         #[case] preamble: &str,
         #[case] input: &str,
         #[case] expected: &str,
-        #[values("./4th", "./5th.ll")] program: &str,
+        #[values("./4th", "./5th")] program: &str,
     ) {
         let mut child = Command::new(program)
             .stdin(Stdio::piped())

@@ -68,6 +68,12 @@ jobs:
           workspaces: forth
       - run: make web
 
+      # cargo needs nightly for 4th.rs's `become`, and the harness drives the C
+      # binaries. Plain `clang` would be wasi-sdk's (first on PATH), a wasm32 compiler.
+      - run: make test-native
+        env:
+          CC: /usr/bin/clang
+
       - run: npm run test
 
       - uses: codecov/codecov-action@v7
