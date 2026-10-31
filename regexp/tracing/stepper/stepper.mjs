@@ -6,6 +6,9 @@ const LATEST = 0x5008;
 const HERE = 0x5004;
 const DSTACK_TOP = 0x2000;
 const RSTACK_TOP = 0x4000;
+// Runaway loops (`BEGIN 0 UNTIL`) would otherwise record forever.
+const MAX_NEXTS = 200_000;
+const LIMIT = Symbol('step limit');
 
 /** Dictionary entries, oldest first: { addr, name, cfa }. */
 function dictionary(dv, bytes) {
@@ -20,8 +23,9 @@ function dictionary(dv, bytes) {
 
 /**
  * Compile `definition`, then run `expression` and record each NEXT that executes
- * inside the code `definition` compiled.
- * @returns {{ steps, words, output, lo, hi, dv }}
+ * inside the code `definition` compiled. Gives up after MAX_NEXTS NEXTs of any
+ * kind and flags `truncated`; `output` is then only what `definition` printed.
+ * @returns {{ steps, words, output, truncated, lo, hi, dv }}
  */
 export async function record(wasm, preamble, definition, expression) {
     let hook = () => {};
@@ -39,20 +43,35 @@ export async function record(wasm, preamble, definition, expression) {
 
     const within = (a) => a >= lo && a < hi;
     const steps = [];
+    let nexts = 0;
     hook = (cfa, ip, sp, rsp) => {
+        if (++nexts > MAX_NEXTS) throw LIMIT;
         const rs = stack(rsp, RSTACK_TOP);
         if (within(ip - 4) || rs.some(within)) steps.push({ cfa, ip: ip - 4, ds: stack(sp, DSTACK_TOP), rs });
     };
-    const output = compiled + forth.eval(expression);
+    let output = compiled;
+    let truncated = false;
+    try {
+        output += forth.eval(expression);
+    } catch (error) {
+        if (error !== LIMIT) throw error;
+        truncated = true;
+    }
     hook = () => {};
 
-    return { steps, words, output, lo, hi, dv: dv() };
+    return { steps, words, output, truncated, lo, hi, dv: dv() };
 }
 
 /** The word whose body contains `addr`, with the offset in cells. */
 export function locate(words, addr) {
     const w = words.findLast((w) => w.addr <= addr);
     return w ? { word: w, cell: (addr - w.cfa) / 4 } : null;
+}
+
+/** `locate` as text; return-stack cells hold plain numbers too (`>R`), shown as is. */
+export function label(words, addr) {
+    const l = locate(words, addr);
+    return l ? `${l.word.name}+${l.cell}` : String(addr);
 }
 
 /** Body of `word` decoded cell by cell: { addr, text, literal }. */

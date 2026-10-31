@@ -6,6 +6,8 @@ RESISTOR_NETWORK = $(addprefix resistor-network/,index.html demo.mjs lattice.mjs
 SLIP = $(addprefix slip/,index.html demo.css demo.mjs worker.mjs)
 
 .DEFAULT_GOAL := all
+# A failed `patch -o` leaves a partial output file that make would call up to date.
+.DELETE_ON_ERROR:
 all :
 
 # Each rule below adds its output to `all` and to CLEAN, which `clean` removes.
@@ -102,8 +104,8 @@ regexp/web/forth.wasm : ../forth/wasm/tabulate.wast
 	@mkdir -p $(@D)
 	npx -y --package wabt wat2wasm --enable-multi-memory -o $@ $<
 
-# The stepper page records every NEXT of a tabulate.wast patched to call trace.step.
-STEPPER = $(addprefix regexp/tracing/stepper/,index.html stepper.mjs)
+# The stepper panel (a demo on /blog/) records every NEXT of a tabulate.wast patched to call trace.step.
+STEPPER = $(addprefix regexp/tracing/stepper/,demo.css demo.mjs stepper.mjs)
 
 stepper : $(STEPPER) regexp/tracing/stepper/traced.wasm regexp/web/forth.mjs jonesforth/jonesforth.f
 all : stepper

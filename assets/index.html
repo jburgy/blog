@@ -9,9 +9,12 @@
 		href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🫕</text></svg>">
 	<link rel="stylesheet" href="https://esm.sh/@xterm/xterm@5.5.0/css/xterm.css" crossorigin="anonymous">
 	<link rel="stylesheet" href="./slip/demo.css">
+	<link rel="stylesheet" href="./regexp/tracing/stepper/demo.css">
 	<style>
 		:root {
 			color-scheme: light dark;
+			--line: rgba(128, 128, 128, .4);
+			--mono: Menlo, Consolas, monospace;
 		}
 
 		body {
@@ -32,11 +35,11 @@
 		}
 
 		code {
-			font-family: Menlo, Consolas, monospace;
+			font-family: var(--mono);
 		}
 
 		details {
-			border: 1px solid rgba(128, 128, 128, .4);
+			border: 1px solid var(--line);
 			border-radius: .25rem;
 			padding: .5rem .75rem;
 			margin-bottom: .5rem;
@@ -60,7 +63,7 @@
 		.test-status {
 			margin: .35rem 0 0;
 			font-size: .8rem;
-			font-family: Menlo, Consolas, monospace;
+			font-family: var(--mono);
 			opacity: .6;
 		}
 
@@ -77,24 +80,35 @@
 		}
 
 		.repl {
-			border: 1px solid rgba(128, 128, 128, .4);
+			border: 1px solid var(--line);
 			border-radius: .25rem;
 			padding: .5rem;
 			overflow-x: auto;
 		}
 
-		/* ising/index.html's demo-specific rules, scoped under .demo--ising
-		   so they can't leak into any other inlined demo. */
-		.demo--ising svg[data-role="lattice"] {
+		/* ising/index.html's and resistor-network/index.html's demo-specific
+		   rules, scoped under .demo--ising and .demo--resistor-network so they
+		   can't leak into any other inlined demo. The two share a layout: an
+		   SVG, a row of controls, and a slider with a critical-point tick. */
+		.demo--ising svg[data-role="lattice"],
+		.demo--resistor-network svg[data-role="network"] {
 			display: block;
 			width: 100%;
-			max-width: 512px;
 			height: auto;
-			border: 1px solid rgba(128, 128, 128, .4);
+			border: 1px solid var(--line);
 			border-radius: .25rem;
 		}
 
-		.demo--ising .controls {
+		.demo--ising svg[data-role="lattice"] {
+			max-width: 512px;
+		}
+
+		.demo--resistor-network svg[data-role="network"] {
+			max-width: 640px;
+		}
+
+		.demo--ising .controls,
+		.demo--resistor-network .controls {
 			display: flex;
 			flex-wrap: wrap;
 			align-items: center;
@@ -102,18 +116,21 @@
 			margin-top: .75rem;
 		}
 
-		.demo--ising .temperature {
+		.demo--ising .temperature,
+		.demo--resistor-network .probability {
 			display: inline-flex;
 			align-items: center;
 			gap: .4rem;
 		}
 
-		.demo--ising .temperature__track {
+		.demo--ising .temperature__track,
+		.demo--resistor-network .probability__track {
 			position: relative;
 			display: inline-block;
 		}
 
-		.demo--ising .critical-tick {
+		.demo--ising .critical-tick,
+		.demo--resistor-network .critical-tick {
 			position: absolute;
 			top: 50%;
 			width: 2px;
@@ -124,21 +141,11 @@
 			pointer-events: none;
 		}
 
-		.demo--ising input[type="range"] {
+		.demo--ising input[type="range"],
+		.demo--resistor-network input[type="range"] {
 			display: block;
 			width: 10rem;
 			vertical-align: middle;
-		}
-
-		/* resistor-network/index.html's demo-specific rules, scoped under
-		   .demo--resistor-network. */
-		.demo--resistor-network svg[data-role="network"] {
-			display: block;
-			width: 100%;
-			max-width: 640px;
-			height: auto;
-			border: 1px solid rgba(128, 128, 128, .4);
-			border-radius: .25rem;
 		}
 
 		.demo--resistor-network g[data-role="edge"] {
@@ -163,7 +170,7 @@
 			gap: 2px;
 			height: 6rem;
 			margin-top: .75rem;
-			border: 1px solid rgba(128, 128, 128, .4);
+			border: 1px solid var(--line);
 			border-radius: .25rem;
 			padding: .25rem;
 		}
@@ -176,42 +183,6 @@
 
 		.demo--resistor-network .histogram .bin:last-child {
 			background: #e63946;
-		}
-
-		.demo--resistor-network .controls {
-			display: flex;
-			flex-wrap: wrap;
-			align-items: center;
-			gap: 1rem;
-			margin-top: .75rem;
-		}
-
-		.demo--resistor-network .probability {
-			display: inline-flex;
-			align-items: center;
-			gap: .4rem;
-		}
-
-		.demo--resistor-network .probability__track {
-			position: relative;
-			display: inline-block;
-		}
-
-		.demo--resistor-network .critical-tick {
-			position: absolute;
-			top: 50%;
-			width: 2px;
-			height: .6rem;
-			background: currentColor;
-			opacity: .5;
-			transform: translate(-50%, -50%);
-			pointer-events: none;
-		}
-
-		.demo--resistor-network input[type="range"] {
-			display: block;
-			width: 10rem;
-			vertical-align: middle;
 		}
 
 		/* fourt2py/web/index.html's demo-specific rules, scoped under
@@ -229,7 +200,7 @@
 		.demo--fourt2py .scope-wrap {
 			border-radius: .25rem;
 			overflow: hidden;
-			border: 1px solid rgba(128, 128, 128, .4);
+			border: 1px solid var(--line);
 			background: #000;
 		}
 
@@ -240,7 +211,7 @@
 		}
 
 		.demo--fourt2py .chart-wrap {
-			border: 1px solid rgba(128, 128, 128, .4);
+			border: 1px solid var(--line);
 			border-radius: .25rem;
 			padding: .25rem 0;
 		}
@@ -282,7 +253,7 @@
 			fill: currentColor;
 			opacity: .6;
 			text-anchor: middle;
-			font-family: Menlo, Consolas, monospace;
+			font-family: var(--mono);
 		}
 
 		.demo--fourt2py .controls {
@@ -319,7 +290,7 @@
 
 		.demo--regexp .examples button {
 			font: inherit;
-			font-family: Menlo, Consolas, monospace;
+			font-family: var(--mono);
 			cursor: pointer;
 			margin: 0 .35rem .35rem 0;
 			padding: .15rem .45rem;
@@ -358,7 +329,7 @@
 		}
 
 		.demo--regexp .query input {
-			font-family: Menlo, Consolas, monospace;
+			font-family: var(--mono);
 			text-transform: none;
 			letter-spacing: normal;
 		}
@@ -379,7 +350,7 @@
 		}
 
 		.demo--regexp .subject {
-			border: 1px solid rgba(128, 128, 128, .4);
+			border: 1px solid var(--line);
 			border-radius: .25rem;
 			padding: 1rem;
 			text-align: justify;
@@ -400,6 +371,16 @@
 		Demos built from <a href="https://github.com/jburgy/blog">jburgy/blog</a>, latest first. Each entry links
 		to the source it is built from; open it to run the demo in place.
 	</p>
+
+	<details data-module="./regexp/tracing/stepper/demo.mjs">
+		<summary><a
+				href="https://github.com/jburgy/blog/blob/main/regexp/tracing/trace-step.diff"><code>regexp/tracing/trace-step.diff</code></a>
+			&mdash; <span class="desc">A <code>trace.step</code> hook patched into the hand-written WebAssembly
+				Forth's <code>$next</code> loop: record a word, then scrub through every <code>NEXT</code> and
+				watch the threaded code, data stack and return stack</span></summary>
+		<p>No post yet.</p>
+		<div class="demo demo--stepper" data-role="panel"></div>
+	</details>
 
 	<details data-module="./slip/demo.mjs">
 		<summary><a href="https://github.com/jburgy/blog/blob/main/slip/src/eliza.rs"><code>slip/src/eliza.rs</code></a>
@@ -594,47 +575,49 @@
 		// Each <details> mounts its demo at most once, the first time it's
 		// opened -- a dozen live demos (seven of them a WebAssembly
 		// REPL apiece) booting unconditionally on page load would be wasteful.
-		for (const details of document.querySelectorAll('details[data-wasm]')) {
-			details.addEventListener('toggle', () => {
-				if (!details.open || details.dataset.started) return;
-				details.dataset.started = '1';
-				const { wasm, preamble } = details.dataset;
-				// data-wasm/data-preamble resolve against the page, like data-module.
-				const repl = new REPL(
-					new URL(wasm, location.href),
-					new URL(preamble, location.href),
-					details.querySelector('[data-role="terminal"]'),
-				);
-				const expected = replReady[wasm];
-				smokeTest(details, `prints ${JSON.stringify(expected)}`, () => waitFor(() => repl.output.includes(expected)), 60000);
-			});
+		function mountOnOpen(selector, mount) {
+			for (const details of document.querySelectorAll(selector)) {
+				details.addEventListener('toggle', () => {
+					if (!details.open || details.dataset.started) return;
+					details.dataset.started = '1';
+					mount(details);
+				});
+			}
 		}
 
-		for (const details of document.querySelectorAll('details[data-module]')) {
-			details.addEventListener('toggle', () => {
-				if (!details.open || details.dataset.started) return;
-				details.dataset.started = '1';
-				let controller;
-				smokeTest(details, 'demo loads', async () => {
-					const { createPanel, attach } = await import(details.dataset.module);
-					const panel = createPanel(document);
-					details.querySelector('[data-role="panel"]').append(panel);
-					controller = await attach(panel);
-				}).then(() => {
-					if (details.dataset.demo === 'regexp' && controller) {
-						const { run, input } = controller;
-						input.value = 'l(a|o)b';
-						run();
-						for (const button of details.querySelectorAll('.examples button')) {
-							button.addEventListener('click', () => {
-								input.value = button.textContent;
-								run();
-							});
-						}
+		mountOnOpen('details[data-wasm]', (details) => {
+			const { wasm, preamble } = details.dataset;
+			// data-wasm/data-preamble resolve against the page, like data-module.
+			const repl = new REPL(
+				new URL(wasm, location.href),
+				new URL(preamble, location.href),
+				details.querySelector('[data-role="terminal"]'),
+			);
+			const expected = replReady[wasm];
+			smokeTest(details, `prints ${JSON.stringify(expected)}`, () => waitFor(() => repl.output.includes(expected)), 60000);
+		});
+
+		mountOnOpen('details[data-module]', (details) => {
+			let controller;
+			smokeTest(details, 'demo loads', async () => {
+				const { createPanel, attach } = await import(details.dataset.module);
+				const panel = createPanel(document);
+				details.querySelector('[data-role="panel"]').append(panel);
+				controller = await attach(panel);
+			}).then(() => {
+				if (details.dataset.demo === 'regexp' && controller) {
+					const { run, input } = controller;
+					input.value = 'l(a|o)b';
+					run();
+					for (const button of details.querySelectorAll('.examples button')) {
+						button.addEventListener('click', () => {
+							input.value = button.textContent;
+							run();
+						});
 					}
-				});
+				}
 			});
-		}
+		});
 	</script>
 </body>
 
