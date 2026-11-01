@@ -19,8 +19,6 @@ dev = [
     "ampl-module-highs>=20251015",
     "amplpy>=0.15.2",
     "interpreters-pep-734",
-    "jupyter>=1.1.1",
-    "matplotlib",
     "meson",
     "meson-python",
     "ninja",

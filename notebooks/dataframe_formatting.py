@@ -2,6 +2,7 @@
 # requires-python = ">=3.13"
 # dependencies = [
 #     "jinja2",
+#     "marimo",
 #     "matplotlib==3.10.3",
 #     "numpy==2.3.1",
 #     "pandas==2.3.0",

@@ -1,11 +1,11 @@
 {
   "type": "module",
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "mocha": "^12.0.2",
     "mocha-headless-chrome": "^5.1.0",
     "uwasi": "^1.6.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "scripts": {
     "build": "${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot @../strict.flags -fwrapv -fno-strict-aliasing -DNO_LIBC_SYSCALL_NUMS -mtail-call -o 5th.wasm 5th.c",

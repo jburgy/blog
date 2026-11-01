@@ -1,3 +1,13 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "marimo",
+#     "matplotlib",
+#     "numpy",
+#     "scipy",
+# ]
+# ///
+
 # pyright: reportAttributeAccessIssue=false, reportInvalidTypeForm=false, reportPrivateImportUsage=false
 
 import marimo  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
