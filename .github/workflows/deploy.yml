@@ -38,14 +38,15 @@ jobs:
           workspaces: |
             forth
             slip
-      # Same key as javascript.yml: `zig build` (6th-wasi.wasm) pays LLVM codegen from scratch otherwise
+      # `zig build` (6th-wasi.wasm) pays LLVM codegen from scratch otherwise. Own prefix, not
+      # javascript.yml's: a hit never re-saves, so the first workflow to save would pin the contents.
       - uses: actions/cache@v6
         with:
           path: |
             forth/.zig-cache
             ~/.cache/zig
-          key: zig-cache-${{ hashFiles('forth/*.zig') }}
-          restore-keys: zig-cache-
+          key: zig-cache-wasi-${{ hashFiles('forth/*.zig') }}
+          restore-keys: zig-cache-wasi-
       - run: make --jobs=4
       - uses: actions/upload-pages-artifact@v5
         with:
