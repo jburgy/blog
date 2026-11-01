@@ -46,15 +46,6 @@ jobs:
             ~/.cache/zig
           key: zig-cache-${{ hashFiles('forth/*.zig') }}
           restore-keys: zig-cache-
-      - name: DIAG zig timing
-        working-directory: forth
-        run: |
-          uvx --from ziglang==0.17.0 python -c 'import ziglang;print(ziglang.__file__)'
-          du -sh .zig-cache ~/.cache/zig || true
-          for i in 1 2; do
-            /usr/bin/time -v uvx --from ziglang==0.17.0 python-zig build install-6th -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call -Doptimize=ReleaseSmall --summary all 2>&1 | grep -vE '^\s+(Page|Swaps|File sys|Socket|Signals|Average|Major|Minor|Voluntary|Involuntary|Exit|Percent|Command being)' || true
-            du -sh .zig-cache ~/.cache/zig || true
-          done
       - run: make --jobs=4
       - uses: actions/upload-pages-artifact@v5
         with:
