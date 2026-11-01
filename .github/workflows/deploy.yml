@@ -25,6 +25,10 @@ jobs:
         with:
           version: '34'
       - uses: astral-sh/setup-uv@v7
+        with:
+          # v7 defaults prune-cache to true, which discards the downloaded
+          # ziglang wheel before saving, so uvx re-downloads it every run
+          prune-cache: false
       - uses: dtolnay/rust-toolchain@nightly
         with:
           targets: wasm32-wasip1, wasm32-unknown-unknown
@@ -45,6 +49,7 @@ jobs:
       - name: DIAG zig timing
         working-directory: forth
         run: |
+          uvx --from ziglang==0.17.0 python -c 'import ziglang;print(ziglang.__file__)'
           du -sh .zig-cache ~/.cache/zig || true
           for i in 1 2; do
             /usr/bin/time -v uvx --from ziglang==0.17.0 python-zig build install-6th -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call -Doptimize=ReleaseSmall --summary all 2>&1 | grep -vE '^\s+(Page|Swaps|File sys|Socket|Signals|Average|Major|Minor|Voluntary|Involuntary|Exit|Percent|Command being)' || true
