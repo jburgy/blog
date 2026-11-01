@@ -1,11 +1,13 @@
 """Check the portable C derivatives of Thompson's compiler against re."""
 
 import ctypes
+import importlib
 import itertools
 import os
 import platform
 import random
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
@@ -278,21 +280,48 @@ def test_copypatch_against_re(
     assert not bad, bad[:5]
 
 
-def test_copypatch_x86_64(tmp_path: Path) -> None:
-    """The committed stencils_x86_64.h, run natively or under Rosetta."""
-    if platform.machine() == "x86_64":
-        run(build(tmp_path, "copypatch/copypatch.c"))
-        return
-    if sys.platform != "darwin":
-        pytest.skip("needs an x86-64 host or Rosetta")
+def test_copypatch_table(tmp_path: Path) -> None:
+    """The committed stencils for the host ISA, through copypatch.c's own table."""
+    run(build(tmp_path, "copypatch/copypatch.c"))
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin" or platform.machine() != "arm64",
+    reason="x86-64 stencils only run here under Rosetta",
+)
+def test_copypatch_rosetta(tmp_path: Path) -> None:  # pragma: no cover -- not on CI
     exe = build(tmp_path, "copypatch/copypatch.c", "-arch", "x86_64")
-    try:
-        run_x86 = subprocess.run(["arch", "-x86_64", exe], capture_output=True)
-    except OSError:
+    out = subprocess.run(["arch", "-x86_64", exe], capture_output=True)
+    if b"Bad CPU type" in out.stderr:
         pytest.skip("no Rosetta")
-    if b"Bad CPU type" in run_x86.stderr:
-        pytest.skip("no Rosetta")
-    assert run_x86.returncode == 0, run_x86.stderr
+    assert out.returncode == 0, out.stderr
+
+
+@pytest.mark.skipif(not shutil.which("clang"), reason="needs a cross-compiler")
+@pytest.mark.parametrize("arch", ["aarch64", "x86_64"])
+def test_copypatch_gen(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    arch: str,
+) -> None:
+    """make builds stencils_<arch>.o with the real flags; gen.py makes a header."""
+    work = tmp_path / "copypatch"
+    ignore = shutil.ignore_patterns("stencils_*.h")
+    shutil.copytree(HERE / "copypatch", work, ignore=ignore)
+    obj = work / f"stencils_{arch}.o"
+    subprocess.run(["make", "-C", str(work), obj.name], check=True)
+
+    monkeypatch.syspath_prepend(str(work))
+    gen = importlib.import_module("gen")
+    gen.main(str(obj), arch)
+    out = capsys.readouterr().out
+    for name in ["ch", "alt", "star", "accept", "search"]:
+        assert f"static const struct stencil stencil_{name} =" in out
+
+    other = "x86_64" if arch == "aarch64" else "aarch64"
+    with pytest.raises(SystemExit, match=f"object is not {other}"):
+        gen.main(str(obj), other)
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])

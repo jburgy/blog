@@ -15,10 +15,11 @@ x86_64_FLAGS = -fcf-protection=none
 
 all: $(ARCHS:%=stencils_%.h)
 
-stencils_%.h: stencils.c state.h gen.py
-	$(CLANG) --target=$*-linux-gnu $(STENCIL_FLAGS) $($*_FLAGS) -c -o $@.o stencils.c
-	python3 gen.py $@.o $* > $@
-	rm $@.o
+stencils_%.o: stencils.c state.h
+	$(CLANG) --target=$*-linux-gnu $(STENCIL_FLAGS) $($*_FLAGS) -c -o $@ stencils.c
+
+stencils_%.h: stencils_%.o gen.py
+	python3 gen.py $< $* > $@
 
 # Regenerate unconditionally, then fail if the committed headers differ: make's
 # timestamp check can miss an edit, and a stale header would be tested as if current.
