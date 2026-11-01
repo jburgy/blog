@@ -18,7 +18,7 @@ app = marimo.App()
 @app.cell
 def _():
     from colorsys import rgb_to_hls
-    from matplotlib import colormaps, colors  # pyright: ignore[reportAttributeAccessIssue, reportMissingModuleSource]
+    from matplotlib import colormaps, colors  # pyright: ignore[reportAttributeAccessIssue, reportMissingModuleSource]  # ty: ignore[unresolved-import]
     import numpy as np
     import pandas as pd
 

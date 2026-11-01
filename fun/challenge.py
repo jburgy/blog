@@ -28,7 +28,7 @@ from xmlrpc import client
 from zipfile import ZipFile
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw  # ty: ignore[unresolved-import]
 
 
 def asurl(name: str, ext: str = "html", parent: str = "def") -> str:

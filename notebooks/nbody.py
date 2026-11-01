@@ -95,13 +95,13 @@ def _():
 def _(m, np, xs):
     import marimo as mo  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
     import numpy.typing as npt
-    from matplotlib import animation, pyplot as plt
+    from matplotlib import animation, pyplot as plt  # ty: ignore[unresolved-import]
 
     def update_lines(
         num: int, xs: npt.NDArray[np.float32], lines: list[plt.Line2D]
     ) -> list[plt.Line2D]:
         for i, line in enumerate(lines):
-            line.set_data_3d(xs[i, :, : num * 100 : 100])  # ty: ignore[unresolved-attribute]
+            line.set_data_3d(xs[i, :, : num * 100 : 100])
         return lines
 
     # Attaching 3D axis to the figure
@@ -124,7 +124,7 @@ def _(m, np, xs):
         fargs=(xs.T, lines),
         interval=30,
     )
-    mo.mpl.interactive(ani._fig)  # ty: ignore[unresolved-attribute]
+    mo.mpl.interactive(ani._fig)
     return
 
 
