@@ -2,6 +2,7 @@
 -Weverything
 -Wpedantic
 -Werror
+-Wno-unknown-warning-option
 -Wno-padded
 -Wno-unsafe-buffer-usage
 -Wno-pre-c23-compat
