@@ -21,8 +21,14 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - uses: bytecodealliance/setup-wasi-sdk-action@main
+      - uses: bytecodealliance/setup-wasi-sdk-action@v1.0.0
+        with:
+          version: '34'
       - uses: astral-sh/setup-uv@v7
+        with:
+          # v7 defaults prune-cache to true, which discards the downloaded
+          # ziglang wheel before saving, so uvx re-downloads it every run
+          prune-cache: false
       - uses: dtolnay/rust-toolchain@nightly
         with:
           targets: wasm32-wasip1, wasm32-unknown-unknown

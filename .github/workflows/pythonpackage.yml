@@ -26,17 +26,16 @@ jobs:
           # (ziglang is 93MiB) before saving, forcing a re-download every run
           prune-cache: false
           python-version: ${{ matrix.python-version }}
-      # progress/ (zig build, ~1 min) is not needed by any test
-      - run: uv sync -C setup-args=-Dprogress=false
+      # progress/ (zig build, ~1 min) is not needed by any test, and neither is
+      # the 93MB ziglang wheel: no test shells out to zig
+      - run: uv sync --no-install-package ziglang -C setup-args=-Dprogress=false
       - uses: astral-sh/ruff-action@v4.1.0
         with:
           version: "latest"
       - run: uvx ruff check
       - run: uvx ty check --python .venv
-      - run: |
-          sudo apt-get update
-          # clang's -m32 still takes its 32-bit libgcc and headers from gcc-multilib
-          sudo apt-get install -y gcc-multilib
+      # clang's -m32 still takes its 32-bit libgcc and headers from gcc-multilib
+      - run: sudo apt-get install -y --no-install-recommends gcc-multilib
       # a re-sync would drop -Dprogress=false
       - run: uv run --no-sync pytest --cov --cov-report=xml
         env:
