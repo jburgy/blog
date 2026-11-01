@@ -23,6 +23,8 @@
 #include <math.h>
 #include <stdbool.h>
 
+void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work);
+
 void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work) {
     int ifact[32];
     const double twopi = 8.0 * atan(1.0);
@@ -250,7 +252,7 @@ void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work)
                 double wr = 0.0, wi = 0.0;
 
                 for (int l = np1; l <= lmax; l += np1tw) {
-                    int m = l;
+                    m = l;
                     if (use_twiddle) {
                         double theta = -twopi * (double)l / (double)(4 * mmax);
                         if (isign >= 0) {

@@ -1,5 +1,3 @@
-diff --git a/forth/jansforth.c b/forth/jansforth.c
-index cb4d5eb..4d01df7 100644
 --- a/forth/jansforth.c
 +++ b/forth/jansforth.c
 @@ -5,7 +5,7 @@
@@ -11,7 +9,7 @@ index cb4d5eb..4d01df7 100644
  
  #ifdef __APPLE__
  #define SYS_creat 24
-@@ -136,22 +136,18 @@ enum Builtin {
+@@ -136,22 +136,18 @@
      NUMBER,
      FIND,
      TCFA,
@@ -34,7 +32,7 @@ index cb4d5eb..4d01df7 100644
      CHAR,
      EXECUTE,
      SYSCALL3,
-@@ -159,118 +155,6 @@ enum Builtin {
+@@ -159,118 +155,6 @@
      SYSCALL1,
  };
  
@@ -95,7 +93,7 @@ index cb4d5eb..4d01df7 100644
 -    /* BASE       */ [5293] = 5290 << 2, [5294] = 0x53414204, [5295] = 0x00000045, [5296] = BASE,
 -    /* VERSION    */ [5297] = 5293 << 2, [5298] = 0x52455607, [5299] = 0x4e4f4953, [5300] = VERSION,
 -    /* R0         */ [5301] = 5297 << 2, [5302] = 0x00305202, [5303] = RZ,
--    /* DOCOL      */ [5304] = 5301 << 2, [5305] = 0x434f4405, [5306] = 0x00004c4f, [5307] = __DOCOL,
+-    /* DOCOL      */ [5304] = 5301 << 2, [5305] = 0x434f4405, [5306] = 0x00004c4f, [5307] = DOCOL_,
 -    /* F_IMMED    */ [5308] = 5304 << 2, [5309] = 0x495f4607, [5310] = 0x44454d4d, [5311] = F_IMMED,
 -    /* F_HIDDEN   */ [5312] = 5308 << 2, [5313] = 0x485f4608, [5314] = 0x45444449, [5315] = 0x0000004e, [5316] = F_HIDDEN,
 -    /* F_LENMASK  */ [5317] = 5312 << 2, [5318] = 0x4c5f4609, [5319] = 0x414d4e45, [5320] = 0x00004b53, [5321] = F_LENMASK,
@@ -106,14 +104,14 @@ index cb4d5eb..4d01df7 100644
 -    /* SYS_WRITE  */ [5342] = 5337 << 2, [5343] = 0x53595309, [5344] = 0x4952575f, [5345] = 0x00004554, [5346] = SYS_WRITE,
 -    /* SYS_CREAT  */ [5347] = 5342 << 2, [5348] = 0x53595309, [5349] = 0x4552435f, [5350] = 0x00005441, [5351] = SYS_CREAT,
 -    /* SYS_BRK    */ [5352] = 5347 << 2, [5353] = 0x53595307, [5354] = 0x4b52425f, [5355] = SYS_BRK,
--    /* O_RDONLY   */ [5356] = 5352 << 2, [5357] = 0x525f4f08, [5358] = 0x4c4e4f44, [5359] = 0x00000059, [5360] = __O_RDONLY,
--    /* O_WRONLY   */ [5361] = 5356 << 2, [5362] = 0x575f4f08, [5363] = 0x4c4e4f52, [5364] = 0x00000059, [5365] = __O_WRONLY,
--    /* O_RDWR     */ [5366] = 5361 << 2, [5367] = 0x525f4f06, [5368] = 0x00525744, [5369] = __O_RDWR,
--    /* O_CREAT    */ [5370] = 5366 << 2, [5371] = 0x435f4f07, [5372] = 0x54414552, [5373] = __O_CREAT,
--    /* O_EXCL     */ [5374] = 5370 << 2, [5375] = 0x455f4f06, [5376] = 0x004c4358, [5377] = __O_EXCL,
--    /* O_TRUNC    */ [5378] = 5374 << 2, [5379] = 0x545f4f07, [5380] = 0x434e5552, [5381] = __O_TRUNC,
--    /* O_APPEND   */ [5382] = 5378 << 2, [5383] = 0x415f4f08, [5384] = 0x4e455050, [5385] = 0x00000044, [5386] = __O_APPEND,
--    /* O_NONBLOCK */ [5387] = 5382 << 2, [5388] = 0x4e5f4f0a, [5389] = 0x4c424e4f, [5390] = 0x004b434f, [5391] = __O_NONBLOCK,
+-    /* O_RDONLY   */ [5356] = 5352 << 2, [5357] = 0x525f4f08, [5358] = 0x4c4e4f44, [5359] = 0x00000059, [5360] = O_RDONLY_,
+-    /* O_WRONLY   */ [5361] = 5356 << 2, [5362] = 0x575f4f08, [5363] = 0x4c4e4f52, [5364] = 0x00000059, [5365] = O_WRONLY_,
+-    /* O_RDWR     */ [5366] = 5361 << 2, [5367] = 0x525f4f06, [5368] = 0x00525744, [5369] = O_RDWR_,
+-    /* O_CREAT    */ [5370] = 5366 << 2, [5371] = 0x435f4f07, [5372] = 0x54414552, [5373] = O_CREAT_,
+-    /* O_EXCL     */ [5374] = 5370 << 2, [5375] = 0x455f4f06, [5376] = 0x004c4358, [5377] = O_EXCL_,
+-    /* O_TRUNC    */ [5378] = 5374 << 2, [5379] = 0x545f4f07, [5380] = 0x434e5552, [5381] = O_TRUNC_,
+-    /* O_APPEND   */ [5382] = 5378 << 2, [5383] = 0x415f4f08, [5384] = 0x4e455050, [5385] = 0x00000044, [5386] = O_APPEND_,
+-    /* O_NONBLOCK */ [5387] = 5382 << 2, [5388] = 0x4e5f4f0a, [5389] = 0x4c424e4f, [5390] = 0x004b434f, [5391] = O_NONBLOCK_,
 -    /* >R         */ [5392] = 5387 << 2, [5393] = 0x00523e02, [5394] = TOR,
 -    /* R>         */ [5395] = 5392 << 2, [5396] = 0x003e5202, [5397] = FROMR,
 -    /* RSP@       */ [5398] = 5395 << 2, [5399] = 0x50535204, [5400] = 0x00000040, [5401] = RSPFETCH,
@@ -152,13 +150,13 @@ index cb4d5eb..4d01df7 100644
 -};
  static int *memory;
  
- char key(void) {
-@@ -317,10 +201,10 @@ int word(void) {
+ static char key(void) {
+@@ -317,10 +201,10 @@
      return (int)(s - (bytes + 0x5014)); /* word length, always far under INT_MAX */
  }
  
--int find(int count, int name) {
-+int find(size_t count, const char *name) {
+-static int find(int count, int name) {
++static int find(size_t count, const char *name) {
      int word = memory[0x1402]; /* LATEST */
  
 -    while (word && (((bytes[word + 4] & 0x3F) != count) || memcmp(bytes + word + 5, bytes + name, (unsigned)count)))
@@ -166,7 +164,7 @@ index cb4d5eb..4d01df7 100644
          word = memory[word >> 2];
  
      return word;
-@@ -369,6 +253,80 @@ int code_field_address(int word) {
+@@ -371,6 +255,80 @@
      return word;
  }
  
@@ -247,14 +245,14 @@ index cb4d5eb..4d01df7 100644
  /* sbrk(2) is deprecated on both Linux and macOS, but there is no portable,
     non-deprecated replacement for "query/grow the data segment break by a
     given amount", which is exactly what jonesforth.f's BRK/MORECORE need; see
-@@ -399,12 +357,14 @@ int do_brk(int requested) {
+@@ -401,12 +359,14 @@
      return (int)((sbrk((int)delta) == (void *)-1 ? cur : cur + delta) - bytes);
  }
  
--void *set_up_data_segment(const void *src, size_t n) {
+-static void *set_up_data_segment(const void *src, size_t n) {
 -    void *here = sbrk(0x10000);
 -    if (here == (void *)-1)
-+int set_up_data_segment(void) {
++static int set_up_data_segment(void) {
 +    void *segment = sbrk(0x10000);
 +    if (segment == (void *)-1)
          exit(errno);
@@ -266,7 +264,7 @@ index cb4d5eb..4d01df7 100644
  }
  
  #pragma GCC diagnostic pop
-@@ -412,13 +372,10 @@ void *set_up_data_segment(const void *src, size_t n) {
+@@ -414,13 +374,10 @@
  int main(void) {
      register int sp = 0x0800;
      register int rsp = 0x1000;
@@ -281,7 +279,7 @@ index cb4d5eb..4d01df7 100644
      while (1) {
          switch (memory[cfa]) {
              case DOCOL:
-@@ -723,7 +680,7 @@ int main(void) {
+@@ -725,7 +682,7 @@
                  memory[sp + 0] = num.remaining;
                  break;
              case FIND:
@@ -290,7 +288,7 @@ index cb4d5eb..4d01df7 100644
                  ++sp;
                  break;
              case TCFA:
-@@ -774,7 +731,7 @@ int main(void) {
+@@ -776,7 +733,7 @@
                  break;
              case INTERPRET:
                  a = word();

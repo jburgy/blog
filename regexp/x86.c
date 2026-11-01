@@ -39,7 +39,7 @@ static unsigned char *prepare(const char *src)
     escape['t'] = '\t';
     escape['v'] = '\v';
     for (i = 0; (c = "\"()*\\|"[i]); i++)
-        escape[c] = c;
+        escape[c] = (unsigned char)c;
 
     for (i = 0; (c = src[i]); i++) {
 
@@ -70,7 +70,7 @@ static unsigned char *prepare(const char *src)
             default:
                 if (concat)
                     dest[j++] = CONCAT;
-                dest[j++] = c;
+                dest[j++] = (unsigned char)c;
         }
         concat = 1;
         if (nparen < 0)
@@ -94,7 +94,7 @@ static unsigned char *convert(const char *src)
         switch (c) {
 
             case LPAREN:
-                stack[top++] = c;
+                stack[top++] = (unsigned char)c;
                 break;
 
             case RPAREN:
@@ -106,11 +106,11 @@ static unsigned char *convert(const char *src)
                 if (c == RPAREN)
                     --top; /* discard LPAREN */
                 else
-                    stack[top++] = c;
+                    stack[top++] = (unsigned char)c;
                 break;
 
             default:
-                dest[j++] = c;
+                dest[j++] = (unsigned char)c;
                 break;
         }
     }
@@ -122,7 +122,7 @@ static unsigned char *convert(const char *src)
 static void *xalloc(size_t size)
 {
     void *p;
-    size_t pagesize = sysconf(_SC_PAGESIZE);
+    size_t pagesize = (size_t)sysconf(_SC_PAGESIZE);
 
     size = (size + pagesize - 1) & ~(pagesize - 1);
     if (posix_memalign(&p, pagesize, size))
@@ -206,12 +206,13 @@ enum {
     JMP = 0xEB
 };
 
-unsigned char *compile(const unsigned char *src)
+static unsigned char *compile(const unsigned char *src)
 {
-    int i, c, pc = sizeof header, top = 0;
+    int i, c, top = 0;
+    unsigned long pc = sizeof header;
     unsigned long stack[BUFSIZ], tmp, fail = 0x2F, nnode = 0x30;
     unsigned long lambda[BUFSIZ]; /* Thompson's lambda: rel32 of the jmp taken on an empty match, or 0 */
-    unsigned long length = sizeof header + codelen(src) + sizeof footer;
+    unsigned long length = sizeof header + (unsigned long)codelen(src) + sizeof footer;
     unsigned char *code = xalloc(length);
 
     memmove(code, header, sizeof header);
@@ -224,7 +225,7 @@ unsigned char *compile(const unsigned char *src)
                 lambda[top] = 0;
                 stack[top] = pc + 1;
                 code[pc + 0] = JMP;     code[pc + 1] = 0x00;
-                code[pc + 2] = CMP;     code[pc + 3] = c;
+                code[pc + 2] = CMP;     code[pc + 3] = (unsigned char)c;
                 code[pc + 4] = JNZ;     code[pc + 5] = (fail - (pc + 6)) & 0xFF;
                 tmp = nnode - (pc + 11);
                 code[pc + 6] = CALL;    memcpy(code + pc + 7, &tmp, sizeof tmp);
@@ -283,6 +284,8 @@ unsigned char *compile(const unsigned char *src)
     return code;
 }
 
+function_t study(const char *re);
+
 function_t study(const char *re)
 {
     unsigned char *p = convert(re);
@@ -290,7 +293,7 @@ function_t study(const char *re)
 
     if (p)
         free(p), p = NULL;
-    return (function_t)q;
+    return (function_t)(void *)q;
 }
 
 #pragma clang diagnostic push
@@ -323,10 +326,10 @@ int main(void)
         function_t search = study(test[i].r);
         char *t;
 
-        printf("search(%p) %s %s\n", search, test[i].r, test[i].s);
+        printf("search(%p) %s %s\n", (void *)search, test[i].r, test[i].s);
         t = search(test[i].s);
         if (t)
-            printf("match found after %d bytes\n", t - test[i].s);
+            printf("match found after %td bytes\n", t - test[i].s);
         else
             printf("match not found\n");
         free((void *)search);

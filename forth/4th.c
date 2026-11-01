@@ -5,7 +5,7 @@
 #include <stddef.h>  /* size_t, offsetof */
 #include <stdint.h>  /* intptr_t, uintptr_t */
 #include <stdio.h>  /* EOF, getchar_unlocked, putchar_unlocked */
-#include <stdlib.h>  /* exit, strtol, syscall */
+#include <stdlib.h>  /* exit, strtol */
 #include <string.h>  /* memcmp, memmove, memcpy */
 #include <sys/syscall.h>  /* SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk */
 #include <unistd.h>  /* read, write, intptr_t */
@@ -47,8 +47,6 @@ code_##_label
 #define STACK_SIZE (0x4000 / __SIZEOF_POINTER__) /* Number of elements in each stack */
 
 #ifdef __wasi__
-#include <stdarg.h>
-
 /* wasi-libc has sbrk() (relative growth) but not Linux's brk() (absolute
  * address), which 4th.fs's BRK/MORECORE words need (see GET-BRK + cells).
  * Emulate it the classic way: ask sbrk() for the delta from the current
@@ -74,25 +72,6 @@ static int brk(void *addr)
 }
 
 enum SYS {SYS_read, SYS_write, SYS_open, SYS_close, SYS_brk=0x0c, SYS_exit=0x3c, SYS_creat=0x55};
-int syscall(int sysno, ...)
-{
-    va_list ap;
-    va_start(ap, sysno);
-    int status = -1;
-
-    switch(sysno)
-    {
-    case SYS_read : { int fd = va_arg(ap, int); void *buf = va_arg(ap, void *); size_t n = va_arg(ap, size_t); status = read(fd, buf, n); break; }
-    case SYS_write: { int fd = va_arg(ap, int); const void *buf = va_arg(ap, const void *); size_t n = va_arg(ap, size_t); status = write(fd, buf, n); break; }
-    case SYS_open : { const char *path = va_arg(ap, const char *); int flags = va_arg(ap, int); mode_t mode = va_arg(ap, mode_t); status = open(path, flags, mode); break; }
-    case SYS_close: status = close(va_arg(ap, int)); break;
-    case SYS_brk  : status = (intptr_t)va_arg(ap, void *); status = status ? brk((void *)status) : (intptr_t)sbrk(0); break;
-    case SYS_exit : status = va_arg(ap, int); va_end(ap); exit(status);
-    case SYS_creat: { const char *path = va_arg(ap, const char *); mode_t mode = va_arg(ap, mode_t); status = creat(path, mode); break; }
-    }
-    va_end(ap);
-    return status;
-}
 #endif
 
 #ifdef __APPLE__
@@ -435,7 +414,7 @@ DEFCODE(CCOPY, 0, "CMOVE", CMOVE):
     c = pop();
     r = (char *)pop();
     s = (char *)pop();
-    (void)memmove(r, s, c);
+    (void)memmove(r, s, (size_t)c);
     NEXT;
     intptr_t state;
 DEFCONST(CMOVE, 0, "STATE", STATE, &state);
@@ -488,7 +467,7 @@ DEFCODE(DSPFETCH, 0, "DSP!", DSPSTORE):
     NEXT;
 DEFCONST(DSPSTORE, 0, "KEY", KEY, key());
 DEFCODE(KEY, 0, "EMIT", EMIT):
-    putchar_unlocked(pop());
+    putchar_unlocked((int)pop());
     fflush_unlocked(stdout);
     NEXT;
 DEFCODE(EMIT, 0, "WORD", WORD):
@@ -607,22 +586,51 @@ DEFCODE(EXECUTE, 0, "SYSCALL3", SYSCALL3):
     b = pop();
     c = pop();
     d = pop();
-    push(syscall((int)a, b, c, d));
+    switch (a) {
+    case SYS_open:  push(open((const char *)b, (int)c, (mode_t)d)); break;
+    case SYS_read:  push(read((int)b, (void *)c, (size_t)d)); break;
+    case SYS_write: push(write((int)b, (const void *)c, (size_t)d)); break;
+    default:        push(-1);
+    }
     NEXT;
 DEFCODE(SYSCALL3, 0, "SYSCALL2", SYSCALL2):
     a = pop();
     b = pop();
     c = pop();
-    push(syscall((int)a, b, c));
+    switch (a) {
+    case SYS_open:  push(open((const char *)b, (int)c)); break;
+    case SYS_creat: push(creat((const char *)b, (mode_t)c)); break;
+#ifndef __wasi__
+    case SYS_access: push(access((const char *)b, (int)c)); break;
+#endif
+    default:        push(-1);
+    }
     NEXT;
 DEFCODE(SYSCALL2, 0, "SYSCALL1", SYSCALL1):
     a = pop();
     b = pop();
-    push(syscall((int)a, b));
+    switch (a) {
+    case SYS_exit:  exit((int)b);
+    case SYS_close: push(close((int)b)); break;
+    case SYS_brk:   /* like jonesforth's raw brk: a non-zero argument asks to grow, the result is the break */
+        if (b)
+            (void)brk((void *)b);
+        push((intptr_t)sbrk(0));
+        break;
+#ifndef __wasi__
+    case SYS_setuid: push(setuid((uid_t)b)); break;
+#endif
+    default:        push(-1);
+    }
     NEXT;
 DEFCODE(SYSCALL1, 0, "SYSCALL0", SYSCALL0):
     a = pop();
-    push(syscall((int)a));
+    switch (a) {
+#ifndef __wasi__
+    case SYS_getuid: push((intptr_t)getuid()); break;
+#endif
+    default:         push(-1);
+    }
     NEXT;
 
     static void *cold_start[] = {CODE(QUIT)};

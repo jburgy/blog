@@ -273,6 +273,19 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
 unless you override it (`make CC=clang`); `5th.c` needs `__attribute__((musttail))`,
 so it takes clang or GCC 15+.
 
+Every C build in the repo (here, [`regexp/`](../regexp/), [`fourt2py/wasm/`](../fourt2py/wasm/fourt.c),
+`assets/Makefile`'s wasi builds) reads [`strict.flags`](../strict.flags): `-Weverything -Wpedantic -Werror`
+with `-std=c2x`, so it needs clang. Clang response files have no comments, so the exceptions are
+recorded here. They are `-Wno-unknown-warning-option` (so one list works across clang versions: CI's clang
+lacks `-Wpre-c11-compat`), `-Wno-padded` (struct layout is not a bug), `-Wno-unsafe-buffer-usage`
+(C++-only guidance), `-Wno-pre-c23-compat`, `-Wno-pre-c11-compat` and `-Wno-c++-compat`
+(the code is C23, not C++), `-Wno-declaration-after-statement` (C23 allows it),
+`-Wno-poison-system-directories` (fires on the host's `/usr/local/include`) and
+`-Wno-disabled-macro-expansion` (libc's own `stdout`/`memchr` macros). Anything specific to one file is a
+`#pragma clang diagnostic` next to the code that needs it: `5th.c` (flexible-array
+initializers in `DEFWORD`, `sbrk` deprecation and its `int` increment on macOS), `threaded.c` (labels as values),
+`cps.c` (`musttail` returns a void call).
+
 | command | covers |
 | --- | --- |
 | `make` | 4th, 5th, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and both Rust binaries |
