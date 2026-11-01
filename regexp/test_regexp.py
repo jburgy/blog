@@ -65,6 +65,7 @@ def run(exe: str) -> str:
     [
         ("arm.c", []),
         ("cps.c", []),
+        ("copypatch/copypatch.c", []),
         pytest.param(  # a 32-bit JIT
             "x86.c",
             ["-m32"],
@@ -207,6 +208,26 @@ def switched(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], i
 
 
 @pytest.fixture(scope="module")
+def copypatch(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], int]:
+    lib = shared(tmp_path_factory.mktemp("copypatch"), "copypatch/copypatch.c")
+    lib.study.argtypes = [ctypes.c_char_p]
+    lib.study.restype = ctypes.c_void_p
+    lib.forget.argtypes = [ctypes.c_void_p]
+    matcher = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p)
+
+    def search(pattern: str, s: str) -> int:
+        code = lib.study(pattern.encode())
+        buf = ctypes.create_string_buffer(s.encode())
+        try:
+            end = matcher(code)(buf)
+        finally:
+            lib.forget(code)
+        return -1 if end is None else end - ctypes.addressof(buf)
+
+    return search
+
+
+@pytest.fixture(scope="module")
 def bytecode(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], bool]:
     lib = shared(tmp_path_factory.mktemp("bytecode"), "bytecode.c")
     lib.study.argtypes = [ctypes.c_char_p]
@@ -243,6 +264,35 @@ def test_switched_against_re(switched: Callable[[str, str], int], seed: int) -> 
         if switched(pattern, s) != earliest_end(py, s)
     ]
     assert not bad, bad[:5]
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_copypatch_against_re(
+    copypatch: Callable[[str, str], int], seed: int
+) -> None:
+    bad = [
+        (pattern, s)
+        for pattern, py, s in random_cases(seed)
+        if copypatch(pattern, s) != earliest_end(py, s)
+    ]
+    assert not bad, bad[:5]
+
+
+def test_copypatch_x86_64(tmp_path: Path) -> None:
+    """The committed stencils_x86_64.h, run natively or under Rosetta."""
+    if platform.machine() == "x86_64":
+        run(build(tmp_path, "copypatch/copypatch.c"))
+        return
+    if sys.platform != "darwin":
+        pytest.skip("needs an x86-64 host or Rosetta")
+    exe = build(tmp_path, "copypatch/copypatch.c", "-arch", "x86_64")
+    try:
+        run_x86 = subprocess.run(["arch", "-x86_64", exe], capture_output=True)
+    except OSError:
+        pytest.skip("no Rosetta")
+    if b"Bad CPU type" in run_x86.stderr:
+        pytest.skip("no Rosetta")
+    assert run_x86.returncode == 0, run_x86.stderr
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])
