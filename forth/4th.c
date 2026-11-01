@@ -74,8 +74,8 @@ static int brk(void *addr)
 }
 
 enum SYS {SYS_read, SYS_write, SYS_open, SYS_close, SYS_brk=0x0c, SYS_exit=0x3c, SYS_creat=0x55};
-int syscall(int sysno, ...);
-int syscall(int sysno, ...)
+/* wasi-libc has no syscall(); the SYSCALLn words below call this stand-in. */
+static int syscall(int sysno, ...)
 {
     va_list ap;
     va_start(ap, sysno);
