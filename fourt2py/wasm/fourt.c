@@ -252,7 +252,7 @@ void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work)
                 double wr = 0.0, wi = 0.0;
 
                 for (int l = np1; l <= lmax; l += np1tw) {
-                    int lm = l;
+                    m = l;
                     if (use_twiddle) {
                         double theta = -twopi * (double)l / (double)(4 * mmax);
                         if (isign >= 0) {
@@ -276,7 +276,7 @@ void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work)
                             // numeric values on purpose, so this matches
                             // `I1+IPAR*M` from the original exactly once i1
                             // is the (now 0-based) position.
-                            int kmin = use_twiddle ? i1 + ipar * lm : i1;
+                            int kmin = use_twiddle ? i1 + ipar * m : i1;
                             int kdif = ipar * mmax;
                             for (int kstep = 4 * kdif; kstep <= ntwo; kdif = kstep, kstep = 4 * kdif) {
                                 for (int k1 = kmin; k1 < ntot; k1 += kstep) {
@@ -332,8 +332,8 @@ void fourt_(double *data, int *nn, int ndim, int isign, int iform, double *work)
                             }
                         }
 
-                        lm += lmax;
-                        if (lm > mmax) {
+                        m += lmax;
+                        if (m > mmax) {
                             break;
                         }
                         double tempr = wr;
