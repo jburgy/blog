@@ -56,8 +56,8 @@ jobs:
           path: |
             forth/.zig-cache
             ~/.cache/zig
-          key: zig-cache-test-${{ hashFiles('forth/*.zig') }}
-          restore-keys: zig-cache-test-
+          key: zig-cache-${{ hashFiles('forth/*.zig') }}
+          restore-keys: zig-cache-
       - run: zig build test
       - uses: bytecodealliance/setup-wasi-sdk-action@v1.0.0
         with:
