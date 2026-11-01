@@ -21,7 +21,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-      - uses: bytecodealliance/setup-wasi-sdk-action@main
+      - uses: bytecodealliance/setup-wasi-sdk-action@v1.0.0
+        with:
+          version: '34'
       - uses: astral-sh/setup-uv@v7
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -32,14 +34,16 @@ jobs:
           workspaces: |
             forth
             slip
-      # Same key as javascript.yml: `zig build` (6th-wasi.wasm) pays LLVM codegen from scratch otherwise
+      # `zig build install-6th` (6th-wasi.wasm) pays LLVM codegen from scratch (~90s) otherwise.
+      # Own key prefix, not javascript.yml's: whichever workflow saved first won the shared key,
+      # and a hit never re-saves, so this job never got the wasi artifacts cached.
       - uses: actions/cache@v6
         with:
           path: |
             forth/.zig-cache
             ~/.cache/zig
-          key: zig-cache-${{ hashFiles('forth/*.zig') }}
-          restore-keys: zig-cache-
+          key: zig-cache-wasi-${{ hashFiles('forth/*.zig') }}
+          restore-keys: zig-cache-wasi-
       - run: make --jobs=4
       - uses: actions/upload-pages-artifact@v5
         with:
