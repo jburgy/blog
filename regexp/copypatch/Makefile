@@ -1,9 +1,11 @@
 # Stencils are always compiled as freestanding ELF objects, whatever the host
 # is: ELF has relocation types for absolute immediates on every ISA, Mach-O
 # arm64 does not.  The generated stencils_<arch>.h files are committed, so
-# building copypatch.c needs only a C compiler; clang and python3 are for
-# regenerating them.
+# building copypatch.c needs only a C compiler; clang and llvm-readobj (with
+# python3) are for regenerating them.
 CLANG ?= clang
+LLVM_READOBJ ?= llvm-readobj
+export LLVM_READOBJ
 ARCHS = aarch64 x86_64
 STRICT = @../../strict.flags
 
@@ -19,7 +21,7 @@ stencils_%.o: stencils.c state.h
 	$(CLANG) --target=$*-linux-gnu $(STENCIL_FLAGS) $($*_FLAGS) -c -o $@ $<
 
 stencils_%.h: gen.py stencils_%.o
-	python3 $^ $* > $@
+	python3 $^ $* > $@.tmp && mv $@.tmp $@
 
 # `./copypatch` runs the built-in tests; `./copypatch RE... < file` highlights
 copypatch: copypatch.c state.h $(wildcard stencils_*.h)
@@ -43,6 +45,6 @@ check: drift copypatch
 	fi
 
 clean:
-	rm -f copypatch copypatch.x86_64 *.o
+	rm -f copypatch copypatch.x86_64 *.o *.tmp
 
 .PHONY: all drift check clean

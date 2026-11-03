@@ -320,7 +320,10 @@ def test_copypatch_rosetta(tmp_path: Path) -> None:  # pragma: no cover -- not o
     assert out.returncode == 0, out.stderr
 
 
-@pytest.mark.skipif(not shutil.which("clang"), reason="needs a cross-compiler")
+@pytest.mark.skipif(
+    not (shutil.which("clang") and shutil.which("llvm-readobj")),
+    reason="needs clang to cross-compile and llvm-readobj to read the object",
+)
 @pytest.mark.parametrize("arch", ["aarch64", "x86_64"])
 def test_copypatch_gen(
     tmp_path: Path,

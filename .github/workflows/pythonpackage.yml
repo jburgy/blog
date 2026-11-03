@@ -34,8 +34,9 @@ jobs:
           version: "latest"
       - run: uvx ruff check
       - run: uvx ty check --python .venv
-      # clang's -m32 still takes its 32-bit libgcc and headers from gcc-multilib
-      - run: sudo apt-get install -y --no-install-recommends gcc-multilib
+      # clang's -m32 still takes its 32-bit libgcc and headers from gcc-multilib;
+      # llvm only adds the unversioned llvm-readobj that copypatch/gen.py runs
+      - run: sudo apt-get install -y --no-install-recommends gcc-multilib llvm
       # a re-sync would drop -Dprogress=false
       - run: uv run --no-sync pytest --cov --cov-report=xml
         env:
