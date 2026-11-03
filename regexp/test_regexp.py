@@ -1,11 +1,13 @@
 """Check the portable C derivatives of Thompson's compiler against re."""
 
 import ctypes
+import importlib
 import itertools
 import os
 import platform
 import random
 import re
+import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
@@ -65,6 +67,7 @@ def run(exe: str) -> str:
     [
         ("arm.c", []),
         ("cps.c", []),
+        ("copypatch/copypatch.c", []),
         pytest.param(  # a 32-bit JIT
             "x86.c",
             ["-m32"],
@@ -207,6 +210,26 @@ def switched(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], i
 
 
 @pytest.fixture(scope="module")
+def copypatch(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], int]:
+    lib = shared(tmp_path_factory.mktemp("copypatch"), "copypatch/copypatch.c")
+    lib.study.argtypes = [ctypes.c_char_p]
+    lib.study.restype = ctypes.c_void_p
+    lib.forget.argtypes = [ctypes.c_void_p]
+    matcher = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p)
+
+    def search(pattern: str, s: str) -> int:
+        code = lib.study(pattern.encode())
+        buf = ctypes.create_string_buffer(s.encode())
+        try:
+            end = matcher(code)(buf)
+        finally:
+            lib.forget(code)
+        return -1 if end is None else end - ctypes.addressof(buf)
+
+    return search
+
+
+@pytest.fixture(scope="module")
 def bytecode(tmp_path_factory: pytest.TempPathFactory) -> Callable[[str, str], bool]:
     lib = shared(tmp_path_factory.mktemp("bytecode"), "bytecode.c")
     lib.study.argtypes = [ctypes.c_char_p]
@@ -243,6 +266,88 @@ def test_switched_against_re(switched: Callable[[str, str], int], seed: int) -> 
         if switched(pattern, s) != earliest_end(py, s)
     ]
     assert not bad, bad[:5]
+
+
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_copypatch_against_re(
+    copypatch: Callable[[str, str], int], seed: int
+) -> None:
+    bad = [
+        (pattern, s)
+        for pattern, py, s in random_cases(seed)
+        if copypatch(pattern, s) != earliest_end(py, s)
+    ]
+    assert not bad, bad[:5]
+
+
+def test_copypatch_table(tmp_path: Path) -> None:
+    """The committed stencils for the host ISA, through copypatch.c's own table."""
+    run(build(tmp_path, "copypatch/copypatch.c"))
+
+
+def test_copypatch_grep(tmp_path: Path) -> None:
+    """Given patterns, copypatch copies stdin and colors every match green."""
+    exe = build(tmp_path, "copypatch/copypatch.c")
+
+    def grep(*patterns: str, text: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [exe, *patterns], input=text, capture_output=True, text=True, timeout=60
+        )
+
+    def green(s: str) -> str:
+        return f"\x1b[32m{s}\x1b[0m"
+
+    # several matches per line, from several patterns, and a line that never matches
+    out = grep("a(b|c)*d", "yy", text="abcd-yy-abd\nnone\n")
+    assert out.stdout == f"{green('abcd')}-{green('yy')}-{green('abd')}\nnone\n"
+    # a line is cut at 1023 characters; the rest of it is not read as another line
+    out = grep("a", text="a" * 2000 + "\nb")
+    assert out.stdout == green("a" * 1023) + "\nb\n"
+    out = grep("a(", text="a\n")
+    assert (out.returncode, out.stdout) == (1, "")
+    assert "cannot compile a(" in out.stderr
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin" or platform.machine() != "arm64",
+    reason="x86-64 stencils only run here under Rosetta",
+)
+def test_copypatch_rosetta(tmp_path: Path) -> None:  # pragma: no cover -- not on CI
+    exe = build(tmp_path, "copypatch/copypatch.c", "-arch", "x86_64")
+    out = subprocess.run(["arch", "-x86_64", exe], capture_output=True)
+    if b"Bad CPU type" in out.stderr:
+        pytest.skip("no Rosetta")
+    assert out.returncode == 0, out.stderr
+
+
+@pytest.mark.skipif(
+    not (shutil.which("clang") and shutil.which("llvm-readobj")),
+    reason="needs clang to cross-compile and llvm-readobj to read the object",
+)
+@pytest.mark.parametrize("arch", ["aarch64", "x86_64"])
+def test_copypatch_gen(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    arch: str,
+) -> None:
+    """make builds stencils_<arch>.o with the real flags; gen.py makes a header."""
+    work = tmp_path / "copypatch"
+    ignore = shutil.ignore_patterns("stencils_*.h")
+    shutil.copytree(HERE / "copypatch", work, ignore=ignore)
+    obj = work / f"stencils_{arch}.o"
+    subprocess.run(["make", "-C", str(work), obj.name], check=True)
+
+    monkeypatch.syspath_prepend(str(work))
+    gen = importlib.import_module("gen")
+    gen.main(str(obj), arch)
+    out = capsys.readouterr().out
+    for name in ["ch", "alt", "star", "accept", "search"]:
+        assert f"static const struct stencil stencil_{name} =" in out
+
+    other = "x86_64" if arch == "aarch64" else "aarch64"
+    with pytest.raises(SystemExit, match=f"object is not {other}"):
+        gen.main(str(obj), other)
 
 
 @pytest.mark.parametrize("seed", [1, 2, 3])

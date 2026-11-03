@@ -73,6 +73,23 @@ instructions into `mmap(PROT_EXEC)` memory and calls the result directly.
 | [arm.c](arm.c) | C | arm64 | hand-encoded instruction words; runs natively here |
 | [x86.c](x86.c) | C | x86-64 | hand-encoded instruction words; needs Rosetta on this arm64 host |
 | [jit.py](jit.py) | Python | arm64 *or* x86-64 | `Arm64`/`X86_64` bytearray/list encoders, picked at runtime by `platform.machine()`; called through `ctypes.CFUNCTYPE` |
+| [copypatch/](copypatch/) | C | arm64 *or* x86-64 | [copy-and-patch](https://en.wikipedia.org/wiki/Copy-and-patch): the nodes are plain C in `stencils.c`, compiled ahead of time for each ISA; the matcher `memcpy`s their bytes and patches the holes |
+
+`copypatch/` is the portable answer to `arm.c`/`x86.c`. `stencils.c` is `cps.c`'s
+node functions with their operands (`ID`, `C`) and continuations (`OUT`, `LEFT`,
+`RIGHT`, `BODY`) left as `extern` symbols. `make` compiles it to a freestanding
+**ELF** object per ISA — ELF even on macOS, because Mach-O arm64 has no relocation
+for an absolute immediate — and `gen.py` turns each object's `.text` and
+relocation table into `stencils_<arch>.h`, which is committed so that building
+`copypatch.c` needs only a C compiler. `study()` returns the matcher itself as a
+callable `const char *(*)(const char *)`, as `x86.c` does, because the driver loop
+is one more stencil; `forget()` releases it. At run time the only per-ISA code is
+`patch()`'s four relocation formulas (64-bit absolute, 32-bit PC-relative, arm64
+`B`/`BL`, arm64 `MOVZ`/`MOVK`); the parser and the dangling-continuation
+"patch lists" never see an instruction. Neither `lambda[]` nor `strip()` is
+needed: every character and star stencil marks itself in `state->seen[]`.
+Run `make check` in that directory; on macOS it also runs the x86-64 build under
+Rosetta.
 
 `arm.c` and `x86.c` share the same node layouts and the same `lambda[]`
 pointer-per-fragment revision as `threaded.c`/`switched.c` above (see the
