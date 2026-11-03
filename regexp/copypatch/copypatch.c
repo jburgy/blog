@@ -45,15 +45,17 @@ enum reloc {
 };
 
 /* The symbols stencils.c declares extern. */
-enum sym { H_ID,
-           H_C,
-           H_OUT,
-           H_LEFT,
-           H_RIGHT,
-           H_BODY,
-           H_NID,
-           H_START,
-           NSYM };
+enum sym {
+    H_ID,
+    H_C,
+    H_OUT,
+    H_LEFT,
+    H_RIGHT,
+    H_BODY,
+    H_NID,
+    H_START,
+    NSYM,
+};
 
 struct hole {
     unsigned at;
@@ -78,8 +80,10 @@ struct stencil {
 #endif
 
 /* ponytail: the matcher keeps 24 bytes per node on the stack; move its lists to the heap to lift this */
-enum { MAX_DEPTH = 256,
-       MAX_NODES = 4096 };
+enum {
+    MAX_DEPTH = 256,
+    MAX_NODES = 4096,
+};
 
 /* What study() returns; like x86.c's, it is the matcher itself.  HEADER bytes
  * before it sit the mapping's size and the matcher's offset in it, for forget(). */
@@ -322,7 +326,7 @@ void forget(function_t search)
     }
 }
 
-int main(void)
+static int test(void)
 {
     static const struct {
         const char *re, *s;
@@ -390,4 +394,90 @@ int main(void)
         free(re);
     }
     return failures != 0;
+}
+
+/* Flag in `hit` the characters of `line` that `search` matches.  A match is the
+ * one search() reports: it ends first and, among those, starts last.
+ * ponytail: finding each start probes backwards, quadratic in the line length. */
+static void mark(function_t search, char *line, char *hit)
+{
+    size_t i = 0;
+
+    while (line[i]) {
+        const char *end = search(line + i);
+        size_t e, j;
+        char saved;
+
+        if (!end)
+            return;
+        e = (size_t)(end - line);
+        if (e == i) { /* empty match */
+            i++;
+            continue;
+        }
+        saved = line[e];
+        line[e] = '\0'; /* only matches ending by e can succeed now */
+        for (j = e - 1; j > i && !search(line + j); j--)
+            ;
+        line[e] = saved;
+        memset(hit + j, 1, e - j);
+        i = e;
+    }
+}
+
+static void print(const char *line, const char *hit)
+{
+    bool on = false;
+
+    for (size_t i = 0; line[i]; i++) {
+        bool h = hit[i] != 0;
+
+        if (h != on)
+            fputs(h ? "\x1b[32m" : "\x1b[0m", stdout);
+        on = h;
+        putchar(line[i]);
+    }
+    if (on)
+        fputs("\x1b[0m", stdout);
+    putchar('\n');
+}
+
+/* Without arguments, run the built-in tests.  Otherwise each argument is a
+ * regular expression: copy standard input to standard output with everything
+ * any of them matches in green, like `grep --color` that keeps every line. */
+int main(int argc, char **argv)
+{
+    function_t *searches;
+    char line[1024];
+    int status = 0;
+
+    if (argc < 2)
+        return test();
+    searches = calloc((size_t)argc, sizeof *searches);
+    if (!searches)
+        return 1;
+    for (int i = 1; i < argc; i++) {
+        searches[i] = study(argv[i]);
+        if (!searches[i]) {
+            fprintf(stderr, "%s: cannot compile %s\n", argv[0], argv[i]);
+            status = 1;
+        }
+    }
+    while (!status && fgets(line, sizeof line, stdin)) {
+        char hit[sizeof line] = "";
+        size_t n = strcspn(line, "\n");
+
+        if (line[n] == '\n')
+            line[n] = '\0';
+        else if (n == sizeof line - 1) /* too long: drop the rest of the line */
+            for (int c = getchar(); c != '\n' && c != EOF; c = getchar())
+                ;
+        for (int i = 1; i < argc; i++)
+            mark(searches[i], line, hit);
+        print(line, hit);
+    }
+    for (int i = 1; i < argc; i++)
+        forget(searches[i]);
+    free(searches);
+    return status;
 }

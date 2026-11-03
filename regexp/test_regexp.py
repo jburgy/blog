@@ -285,6 +285,29 @@ def test_copypatch_table(tmp_path: Path) -> None:
     run(build(tmp_path, "copypatch/copypatch.c"))
 
 
+def test_copypatch_grep(tmp_path: Path) -> None:
+    """Given patterns, copypatch copies stdin and colors every match green."""
+    exe = build(tmp_path, "copypatch/copypatch.c")
+
+    def grep(*patterns: str, text: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [exe, *patterns], input=text, capture_output=True, text=True, timeout=60
+        )
+
+    def green(s: str) -> str:
+        return f"\x1b[32m{s}\x1b[0m"
+
+    # several matches per line, from several patterns, and a line that never matches
+    out = grep("a(b|c)*d", "yy", text="abcd-yy-abd\nnone\n")
+    assert out.stdout == f"{green('abcd')}-{green('yy')}-{green('abd')}\nnone\n"
+    # a line is cut at 1023 characters; the rest of it is not read as another line
+    out = grep("a", text="a" * 2000 + "\nb")
+    assert out.stdout == green("a" * 1023) + "\nb\n"
+    out = grep("a(", text="a\n")
+    assert (out.returncode, out.stdout) == (1, "")
+    assert "cannot compile a(" in out.stderr
+
+
 @pytest.mark.skipif(
     sys.platform != "darwin" or platform.machine() != "arm64",
     reason="x86-64 stencils only run here under Rosetta",

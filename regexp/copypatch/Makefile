@@ -16,25 +16,33 @@ x86_64_FLAGS = -fcf-protection=none
 all: $(ARCHS:%=stencils_%.h)
 
 stencils_%.o: stencils.c state.h
-	$(CLANG) --target=$*-linux-gnu $(STENCIL_FLAGS) $($*_FLAGS) -c -o $@ stencils.c
+	$(CLANG) --target=$*-linux-gnu $(STENCIL_FLAGS) $($*_FLAGS) -c -o $@ $<
 
-stencils_%.h: stencils_%.o gen.py
-	python3 gen.py $< $* > $@
+stencils_%.h: gen.py stencils_%.o
+	python3 $^ $* > $@
+
+# `./copypatch` runs the built-in tests; `./copypatch RE... < file` highlights
+copypatch: copypatch.c state.h $(wildcard stencils_*.h)
+	$(CC) $(STRICT) -o $@ $<
+
+copypatch.x86_64: copypatch.c state.h $(wildcard stencils_*.h)
+	$(CC) $(STRICT) -arch x86_64 -o $@ $<
 
 # Regenerate unconditionally, then fail if the committed headers differ: make's
 # timestamp check can miss an edit, and a stale header would be tested as if current.
 # Output depends on the clang version, so run this where the headers were made.
-# macOS can run the x86-64 build under Rosetta; elsewhere only the host ISA runs
-check:
+drift:
 	$(MAKE) -B all
 	git diff --exit-code -- $(ARCHS:%=stencils_%.h)
-	$(CC) $(STRICT) -o copypatch copypatch.c && ./copypatch > /dev/null
+
+# macOS can run the x86-64 build under Rosetta; elsewhere only the host ISA runs
+check: drift copypatch
+	./copypatch > /dev/null
 	@if [ "$$(uname)" = Darwin ]; then \
-		$(CC) $(STRICT) -arch x86_64 -o copypatch.x86_64 copypatch.c && \
-		arch -x86_64 ./copypatch.x86_64 > /dev/null; \
+		$(MAKE) copypatch.x86_64 && arch -x86_64 ./copypatch.x86_64 > /dev/null; \
 	fi
 
 clean:
 	rm -f copypatch copypatch.x86_64 *.o
 
-.PHONY: all check clean
+.PHONY: all drift check clean
