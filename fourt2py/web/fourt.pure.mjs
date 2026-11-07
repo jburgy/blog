@@ -56,10 +56,6 @@ export function fourt(data, nn, ndim, isign, iform, work) {
     for (let idim = 0 | 0; (idim | 0) < (ndim | 0); idim = (idim + 1) | 0) {
         let n = nn[idim] | 0;
         np2 = Math.imul(np1, n) | 0;
-        if ((n | 0) < 1) {
-            normalize(data, nn, ndim, isign);
-            return;
-        }
         if ((n | 0) === 1) {
             // Nothing to transform along this dimension.
             np0 = np1;
