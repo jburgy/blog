@@ -2,7 +2,7 @@
 // out of the jonesforth.wasm post (bur.gy/2025/11/29/how-many-roads.html) so
 // `5th.wasm`/`6th.wasm` wasi builds can drive a browser REPL the same way.
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -198,3 +198,48 @@ test.for(['defun', 'cps'])('%s.wast: a stray EXIT exits 0 and runaway recursion 
     expect(deep.code).toBe(1);
     expect(deep.err).toContain('RETURN STACK OVERFLOW');
 }, 20_000);
+
+// Inline WAT, assembled on demand: the error paths below need guests that misbehave on purpose.
+async function compileWat(name: string, wat: string) {
+    const watPath = join(tmpDir, `${name}.wat`);
+    const wasmPath = join(tmpDir, `${name}.wasm`);
+    await writeFile(watPath, wat);
+    await wat2wasm(['-o', wasmPath, watPath]);
+    return readFile(wasmPath);
+}
+
+// Each errno is stored as a byte at 100.. and written to stdout: fd_read on a non-stdin fd is
+// BADF (8), a zero-length fd_read doesn't block on the (empty) stdin and returns 0, and
+// fd_pread/fd_pwrite answer ENOSYS (52) beyond stdio but ESPIPE (70) for it. Then proc_exit(7).
+test('guest-visible errnos for fd_read/fd_pread edge cases, and the proc_exit code is returned', async () => {
+    const wasm = await compileWat('errnos', `(module
+        (import "wasi_snapshot_preview1" "fd_read" (func $fd_read (param i32 i32 i32 i32) (result i32)))
+        (import "wasi_snapshot_preview1" "fd_pread" (func $fd_pread (param i32 i32 i32 i64 i32) (result i32)))
+        (import "wasi_snapshot_preview1" "fd_pwrite" (func $fd_pwrite (param i32 i32 i32 i64 i32) (result i32)))
+        (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+        (import "wasi_snapshot_preview1" "proc_exit" (func $proc_exit (param i32)))
+        (memory (export "memory") 1)
+        (func (export "_start")
+            (i32.store8 (i32.const 100) (call $fd_read (i32.const 3) (i32.const 0) (i32.const 0) (i32.const 200)))
+            (i32.store8 (i32.const 101) (call $fd_read (i32.const 0) (i32.const 0) (i32.const 0) (i32.const 200)))
+            (i32.store8 (i32.const 102) (call $fd_pread (i32.const 3) (i32.const 0) (i32.const 0) (i64.const 0) (i32.const 200)))
+            (i32.store8 (i32.const 103) (call $fd_pread (i32.const 0) (i32.const 0) (i32.const 0) (i64.const 0) (i32.const 200)))
+            (i32.store8 (i32.const 104) (call $fd_pwrite (i32.const 3) (i32.const 0) (i32.const 0) (i64.const 0) (i32.const 200)))
+            (i32.store (i32.const 0) (i32.const 100))
+            (i32.store (i32.const 4) (i32.const 5))
+            (drop (call $fd_write (i32.const 1) (i32.const 0) (i32.const 1) (i32.const 200)))
+            (call $proc_exit (i32.const 7))))`);
+    const { code, out } = await runScript(wasm);
+    expect(code).toBe(7);
+    expect([...out].map((c) => c.charCodeAt(0))).toEqual([8, 0, 52, 70, 52]);
+});
+
+test('a module without _start is rejected', async () => {
+    const wasm = await compileWat('no-start', '(module (memory (export "memory") 1))');
+    await expect(runScript(wasm)).rejects.toThrow('not a WASI command');
+});
+
+test('a guest trap other than proc_exit propagates', async () => {
+    const wasm = await compileWat('trap', '(module (memory (export "memory") 1) (func (export "_start") unreachable))');
+    await expect(runScript(wasm)).rejects.toThrow(WebAssembly.RuntimeError);
+});
