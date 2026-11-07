@@ -199,6 +199,8 @@ export class REPL {
     dispose() {
         if (this.#disposed) return;
         this.#disposed = true;
+        // ghostty-web frees its wasm terminal without wiping it; the next Terminal can reuse that memory and show stale rows.
+        this.#xterm.clear();
         this.#xterm.dispose();
     }
 }
