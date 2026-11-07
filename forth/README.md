@@ -194,7 +194,7 @@ bytecodealliance/setup-wasi-sdk-action), nightly Rust with the
   xterm-pty; [wasm/wasi-repl.mjs](wasm/wasi-repl.mjs)
   (`class REPL`, constructed as `new REPL(module, preamble, container)`, all
   three strict: a `URL`, a
-  `URL`, an `Element`) does the line editing against `xterm.js`, shared by
+  `URL`, an `Element`) does the line editing against `ghostty-web`, shared by
   `html/4th.html`, `html/5th.html`, and `html/6th.html`, and published
   standalone via `assets/Makefile`'s own `wasi-repl.mjs` target -- not just
   a side effect of building `4th-wasi.wasm`/`5th-wasi.wasm`/`6th-wasi.wasm`

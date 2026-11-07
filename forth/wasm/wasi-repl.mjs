@@ -1,14 +1,16 @@
 // Main-thread bootstrap for the no-pty WASI browser demos
 // (html/4th.html, html/5th.html, html/6th.html, and bur.gy's how-many-roads
-// post's tabbed jonesforth.wasm/4th/5th/6th switcher): mounts xterm.js, runs
+// post's tabbed jonesforth.wasm/4th/5th/6th switcher): mounts ghostty-web, runs
 // the guest with wasi-command.mjs's runWasiCommand (JSPI, so `read()` just
 // suspends it -- no Worker), and uses xterm-readline for line editing rather
 // than hand-rolling a weaker one. Still no real pty, unlike the old
 // xterm-pty-based demos those posts used before migrating to this module (see
 // forth/README.md's "Toolkits, briefly" section).
-import { Terminal } from "https://esm.sh/@xterm/xterm@5.5.0";
+import { init, Terminal } from "https://esm.sh/ghostty-web@0.4.0";
 import { Readline } from "https://esm.sh/xterm-readline@1.1.2";
 import { runWasiCommand } from "./wasi-command.mjs";
+
+await init();
 
 /**
  * One guest run's I/O: the stdin source handed to `ReadableStream` and the
@@ -119,7 +121,7 @@ export class REPL {
         this.#module = module;
         const xterm = this.#xterm;
         // xterm-readline redraws a line as many tiny write() calls (erase, text, "\r", cursor move);
-        // coalesce them per tick so xterm.js never renders the half-drawn "cursor at column 0" state.
+        // coalesce them per tick so ghostty-web never renders the half-drawn "cursor at column 0" state.
         // FIXME: drop once strtok/xterm-readline emits each redraw as one write (no upstream issue yet).
         const write0 = xterm.write.bind(xterm);
         let pending = "";
@@ -134,6 +136,11 @@ export class REPL {
             pending += data;
             if (callback) callbacks.push(callback);
         };
+        // ghostty-web differs from xterm.js: no tabStopWidth (xterm-readline then assumes a 0x0 terminal) ...
+        xterm.options.tabStopWidth = 8;
+        // ... and a custom key handler returns true to swallow the key, not to let the terminal have it.
+        const attach = xterm.attachCustomKeyEventHandler.bind(xterm);
+        xterm.attachCustomKeyEventHandler = (handler) => attach((event) => !handler(event));
         xterm.loadAddon(this.#rl);
         xterm.open(container);
 
@@ -176,7 +183,7 @@ export class REPL {
     }
 
     /**
-     * Feeds Readline's pending `read()` through xterm.js's own `paste()` --
+     * Feeds Readline's pending `read()` through ghostty-web's own `paste()` --
      * still no simulated keystrokes. Two separate calls, not one
      * `text + "\r"`: Readline's own paste handling (readline.js's readPaste)
      * deliberately turns an Enter *inside* a multi-character paste into a
