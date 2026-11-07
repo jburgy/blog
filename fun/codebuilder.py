@@ -49,7 +49,7 @@ True
 import dis
 import re
 from dis import (
-    _nb_ops,  # ty: ignore[unresolved-import]  # pyright: ignore[reportAttributeAccessIssue]
+    _nb_ops,  # ty: ignore[import-not-found]  # pyright: ignore[reportAttributeAccessIssue]
     stack_effect,
 )
 from enum import IntFlag
@@ -57,7 +57,7 @@ from functools import partialmethod
 from itertools import accumulate
 from opcode import (
     EXTENDED_ARG,
-    _inline_cache_entries as CACHE_ENTRIES,  # ty: ignore[unresolved-import]  # pyright: ignore[reportAttributeAccessIssue]
+    _inline_cache_entries as CACHE_ENTRIES,  # ty: ignore[import-not-found]  # pyright: ignore[reportAttributeAccessIssue]
     cmp_op,
     hasarg,
     hascompare,

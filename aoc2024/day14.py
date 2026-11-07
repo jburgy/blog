@@ -9,7 +9,7 @@
 import re
 
 import numpy as np
-from PIL import Image  # ty: ignore[unresolved-import]
+from PIL import Image  # ty: ignore[import-not-found]
 from scipy import ndimage
 
 

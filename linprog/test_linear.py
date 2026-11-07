@@ -16,7 +16,7 @@ from scipy import optimize
 from linprog import affine, linear
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "simplex"))
-from simplex import smplx, smplx_py  # noqa: E402  # ty: ignore[unresolved-import]
+from simplex import smplx, smplx_py  # noqa: E402  # ty: ignore[import-not-found]
 
 SOLVERS = [smplx_py] + ([smplx] if smplx is not smplx_py else [])
 

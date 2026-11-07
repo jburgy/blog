@@ -3,7 +3,7 @@ import sys
 
 import numpy as np
 import pytest
-from simplex import Status, crout1, smplx, smplx_py  # ty: ignore[unresolved-import]
+from simplex import Status, crout1, smplx, smplx_py  # ty: ignore[import-not-found]
 
 SOLVERS = [smplx_py] + ([smplx] if smplx is not smplx_py else [])
 slow = pytest.mark.skipif(

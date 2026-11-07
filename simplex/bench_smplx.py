@@ -5,7 +5,7 @@ import argparse
 from timeit import repeat
 
 import numpy as np
-from simplex import crout1, smplx, smplx_py  # ty: ignore[unresolved-import]
+from simplex import crout1, smplx, smplx_py  # ty: ignore[import-not-found]
 from test_smplx import data, nutrients
 
 

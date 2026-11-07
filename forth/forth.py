@@ -67,14 +67,14 @@ from argparse import ArgumentParser
 from ast import literal_eval
 from dis import (
     COMPILER_FLAG_NAMES,
-    _nb_ops,  # ty: ignore[unresolved-import]  # pyright: ignore[reportAttributeAccessIssue]
+    _nb_ops,  # ty: ignore[import-not-found]  # pyright: ignore[reportAttributeAccessIssue]
     dis,
     get_instructions,
     show_code,
     stack_effect,
 )
 from opcode import (
-    _inline_cache_entries as CACHE_ENTRIES,  # ty: ignore[unresolved-import]  # pyright: ignore[reportAttributeAccessIssue]
+    _inline_cache_entries as CACHE_ENTRIES,  # ty: ignore[import-not-found]  # pyright: ignore[reportAttributeAccessIssue]
     cmp_op,
     opmap,
     opname,
@@ -259,7 +259,7 @@ class ForthCompiler(metaclass=ForthCompilerMeta):
 
     def emit_define(self, word):
         self.func_name = word
-        self.emit_default = self.emit_literal  # ty: ignore[invalid-assignment]
+        self.emit_default = self.emit_literal
         return b""
 
     def _stacksize(self):

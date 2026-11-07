@@ -15,6 +15,6 @@ class CORSRequestHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    from http.server import test  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-import]
+    from http.server import test  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[import-not-found]
 
     test(HandlerClass=CORSRequestHandler, ServerClass=HTTPServer)

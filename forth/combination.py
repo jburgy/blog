@@ -15,7 +15,7 @@
 """
 
 from dis import dis
-from forth import ForthCompiler  # ty: ignore[unresolved-import]
+from forth import ForthCompiler  # ty: ignore[import-not-found]
 
 
 def index(mask: int) -> int:

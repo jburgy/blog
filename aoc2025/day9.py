@@ -7,7 +7,7 @@
 from itertools import combinations
 
 import numpy as np
-import shapely  # pyright: ignore[reportMissingModuleSource]  # ty: ignore[unresolved-import]
+import shapely  # pyright: ignore[reportMissingModuleSource]  # ty: ignore[import-not-found]
 
 
 def first_half(tiles: np.ndarray) -> int:

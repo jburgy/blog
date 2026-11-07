@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from functools import _NOT_FOUND  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-import]
+from functools import _NOT_FOUND  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[import-not-found]
 from functools import cached_property, lru_cache, partial, wraps
 from timeit import timeit
 from typing import Any, Iterator, Self

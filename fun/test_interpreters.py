@@ -3,7 +3,7 @@
 # ///
 
 try:
-    from concurrent import interpreters  # ty: ignore[unresolved-import]
+    from concurrent import interpreters  # ty: ignore[import-not-found]
 except ImportError:
     import _interpreters as interpreters  # pyright: ignore[reportMissingImports]
 

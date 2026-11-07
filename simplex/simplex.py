@@ -469,6 +469,6 @@ def crout1(a: Matrix, iend: int, index: Index, scratch: Matrix) -> bool:
 
 
 try:  # the Fortran SMPLX is much faster on small problems
-    from _simplex import smplx  # ty: ignore[unresolved-import]
+    from _simplex import smplx  # ty: ignore[import-not-found]
 except ImportError:
     smplx = smplx_py

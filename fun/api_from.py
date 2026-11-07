@@ -20,8 +20,8 @@ from importlib.util import module_from_spec
 from inspect import getmembers, isfunction
 from pkgutil import walk_packages
 
-from fastapi import FastAPI  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
-from starlette.responses import JSONResponse  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
+from fastapi import FastAPI  # pyright: ignore[reportMissingImports]  # ty: ignore[import-not-found]
+from starlette.responses import JSONResponse  # pyright: ignore[reportMissingImports]  # ty: ignore[import-not-found]
 
 
 class _PandasJsonResponse(JSONResponse):

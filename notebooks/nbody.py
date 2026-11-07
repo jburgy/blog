@@ -10,7 +10,7 @@
 
 # pyright: reportAttributeAccessIssue=false, reportInvalidTypeForm=false, reportPrivateImportUsage=false
 
-import marimo  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
+import marimo  # pyright: ignore[reportMissingImports]  # ty: ignore[import-not-found]
 
 __generated_with = "0.14.8"
 app = marimo.App(width="medium")
@@ -93,9 +93,9 @@ def _():
 
 @app.cell
 def _(m, np, xs):
-    import marimo as mo  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
+    import marimo as mo  # pyright: ignore[reportMissingImports]  # ty: ignore[import-not-found]
     import numpy.typing as npt
-    from matplotlib import animation, pyplot as plt  # ty: ignore[unresolved-import]
+    from matplotlib import animation, pyplot as plt  # ty: ignore[import-not-found]
 
     def update_lines(
         num: int, xs: npt.NDArray[np.float32], lines: list[plt.Line2D]
