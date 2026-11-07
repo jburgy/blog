@@ -9,7 +9,7 @@
 # ]
 # ///
 
-import marimo  # pyright: ignore[reportMissingImports]  # ty: ignore[unresolved-import]
+import marimo  # pyright: ignore[reportMissingImports]  # ty: ignore[import-not-found]
 
 __generated_with = "0.14.8"
 app = marimo.App()
@@ -18,7 +18,7 @@ app = marimo.App()
 @app.cell
 def _():
     from colorsys import rgb_to_hls
-    from matplotlib import colormaps, colors  # pyright: ignore[reportAttributeAccessIssue, reportMissingModuleSource]  # ty: ignore[unresolved-import]
+    from matplotlib import colormaps, colors  # pyright: ignore[reportAttributeAccessIssue, reportMissingModuleSource]  # ty: ignore[import-not-found]
     import numpy as np
     import pandas as pd
 

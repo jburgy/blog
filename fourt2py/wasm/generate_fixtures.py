@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from fourt2py import fourt  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-import]
+from fourt2py import fourt  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[import-not-found]
 
 HERE = Path(__file__).parent
 TOLERANCE = {"atol": 1e-9, "rtol": 1e-6}

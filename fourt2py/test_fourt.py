@@ -1,6 +1,6 @@
 import numpy as np
 
-from fourt2py import fourt  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[unresolved-import]
+from fourt2py import fourt  # pyright: ignore[reportAttributeAccessIssue]  # ty: ignore[import-not-found]
 
 
 def test_fourt():
