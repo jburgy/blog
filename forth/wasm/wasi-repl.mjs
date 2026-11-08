@@ -145,6 +145,8 @@ export class REPL {
         // ghostty-web focuses an absolutely positioned hidden textarea on click; unless the container is
         // its containing block, that textarea sits at the page origin and focusing it scrolls to the top.
         if (getComputedStyle(container).position === "static") container.style.position = "relative";
+        // ghostty-web makes the container contenteditable and focuses it, so the browser would draw a blinking text caret at its top-left.
+        container.style.caretColor = "transparent";
         xterm.open(container);
 
         // Cyan input vs. default-colored output, via xterm-readline's Highlighter hook.
