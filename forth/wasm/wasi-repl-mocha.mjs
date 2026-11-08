@@ -7,7 +7,7 @@
 // describe/it. Named *-mocha.mjs, not *.spec.mjs/*.test.mjs: this only runs
 // inside a browser (mocha, loaded from a CDN by the page) -- vitest's
 // default test-file glob would otherwise pick this up and try to execute it
-// directly in Node, where wasi-repl.mjs's own browser-only imports (xterm.js,
+// directly in Node, where wasi-repl.mjs's own browser-only imports (ghostty-web,
 // a Worker, ...) can't resolve/run.
 //
 // `waitFor` is exported too: index.html's own lazy, per-<details> smoke
