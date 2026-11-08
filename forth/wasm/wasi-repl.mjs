@@ -142,6 +142,9 @@ export class REPL {
         const attach = xterm.attachCustomKeyEventHandler.bind(xterm);
         xterm.attachCustomKeyEventHandler = (handler) => attach((event) => !handler(event));
         xterm.loadAddon(this.#rl);
+        // ghostty-web focuses an absolutely positioned hidden textarea on click; unless the container is
+        // its containing block, that textarea sits at the page origin and focusing it scrolls to the top.
+        if (getComputedStyle(container).position === "static") container.style.position = "relative";
         xterm.open(container);
 
         // Cyan input vs. default-colored output, via xterm-readline's Highlighter hook.
