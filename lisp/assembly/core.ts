@@ -119,7 +119,9 @@ function PrintList(x: T): void {
       PrintChar(tSpace);
       PrintObject(Car(x));
     } else {
-      PrintChar(0x2219);
+      PrintChar(0xe2); // U+2219 as UTF-8: putchar writes bytes
+      PrintChar(0x88);
+      PrintChar(0x99);
       PrintObject(x);
       break;
     }

@@ -157,7 +157,9 @@
             (then
                 (if (i32.lt_u (local.get $x) (global.get $M))
                     (then
-                        (call $putchar (i32.const 0x2219))
+                        (call $putchar (i32.const 0xE2)) ;; U+2219 as UTF-8: putchar writes bytes
+                        (call $putchar (i32.const 0x88))
+                        (call $putchar (i32.const 0x99))
                         (call $print (local.get $x))
                     )
                     (else

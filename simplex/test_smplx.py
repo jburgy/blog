@@ -351,7 +351,7 @@ def test_import_fallback(monkeypatch):
     monkeypatch.setitem(sys.modules, "_simplex", None)
     try:
         importlib.reload(simplex)
-        assert simplex.smplx is simplex.smplx_py  # ty: ignore[unresolved-attribute]
+        assert simplex.smplx is simplex.smplx_py  # ty: ignore[missing-attribute]
     finally:
         monkeypatch.delitem(sys.modules, "_simplex", raising=False)
         importlib.reload(simplex)

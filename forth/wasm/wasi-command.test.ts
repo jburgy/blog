@@ -6,7 +6,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { afterAll, beforeAll, expect, test } from 'vitest';
+import { afterAll, beforeAll, expect, test, vi } from 'vitest';
 import { runWasiCommand } from './wasi-command.mjs';
 import { runSession } from './wasi-command.test-helper.mjs';
 
@@ -184,6 +184,33 @@ test.for(['defun', 'cps'])('%s.wast: 4th.32.fs runs on it, return-stack words in
     ].join('\n'));
     expect(code).toBe(0);
     expect(out.endsWith('3628800 \n0 1 2 3 \n3 2 1 \n77 \nA\n@\n65 \nB')).toBe(true);
+}, 20_000);
+
+// defun.wast writes each EMIT as its own fd_write, so U+2219 (E2 88 99) arrives as three writes. stdout
+// is decoded as one stream: the character comes out whole, and the two incomplete writes produce no chunk.
+test('defun.wast: a character written a byte at a time is decoded whole', async () => {
+    const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
+    const chunks: string[] = [];
+    const code = await runWasiCommand(wasmResponse(await readFile(forthWasmPaths.defun)), {
+        stdin: new Blob([preamble, '226 EMIT 136 EMIT 153 EMIT\n']).stream(),
+        stdout: (chunk) => { chunks.push(chunk); },
+    });
+    expect(code).toBe(0);
+    expect(chunks).toContain('\u2219');
+    expect(chunks).not.toContain('');
+}, 20_000);
+
+test('runWasiCommand: stdout defaults to console.log', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => { });
+    try {
+        const preamble = await readFile(join(import.meta.dirname, '../4th.32.fs'));
+        await runWasiCommand(wasmResponse(await readFile(forthWasmPaths.defun)), {
+            stdin: new Blob([preamble, '65 EMIT\n']).stream(),
+        });
+        expect(log).toHaveBeenCalledWith(expect.stringContaining('A'));
+    } finally {
+        log.mockRestore();
+    }
 }, 20_000);
 
 // A stray EXIT at the prompt pops the root continuation: a clean exit, not a crash. Runaway

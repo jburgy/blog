@@ -5,8 +5,8 @@
     except it leverages the v8 runtime for RegExp, Symbol, and classes (Cons)
 */
 
-import { createInterface } from 'node:readline';
-import { env, stdin as input, stdout as output } from 'node:process';
+import { readFileSync } from 'node:fs';
+import { env, exit, stdout as output } from 'node:process';
 
 const kT = Symbol.for('T');
 const kQuote = Symbol.for('QUOTE');
@@ -23,8 +23,7 @@ const syntax = new RegExp(Object.entries(
     {
         LEFT_PAREN: /\(/,
         RIGHT_PARENT: /\)/,
-        NUMBER: /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/,
-        SYMBOL: /[a-zA-Z]\w*/,
+        SYMBOL: /[^\s()]+/,
     }
 ).map(([name, { source }]) => `(?<${name}>${source})`).join('|'), 'g');
 
@@ -54,24 +53,23 @@ function GetList(tokens) {
 function GetObject([type, value], tokens) {
     switch (type) {
         case 'LEFT_PAREN': return GetList(tokens);
-        case 'NUMBER': return parseFloat(value);
-        case 'SYMBOL': return Symbol.for(value);
+        case 'SYMBOL': return value === 'NIL' ? null : Symbol.for(value);
     }
     throw new Error(`Unexpected token: ${type}`);
 }
 
 function Read(tokens) {
     const { done, value } = tokens.next();
-    return done ? value : GetObject(value, tokens);
+    return done ? exit() : GetObject(value, tokens);
 }
 
 
 function PrintObject(x) {
-    return Array.isArray(x)
-        ? `(${x.map(PrintObject).join(' ')})`
-        : typeof x === 'symbol'
-            ? Symbol.keyFor(x)
-            : String(null);
+    return x === null
+        ? 'NIL'
+        : Array.isArray(x)
+            ? `(${x.map(PrintObject).join(' ')})`
+            : Symbol.keyFor(x);
 }
 
 /*───────────────────────────────────────────────────────────────────────────│─╗
@@ -79,11 +77,11 @@ function PrintObject(x) {
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
 function Car(x) {
-    return x[0];
+    return x?.[0] ?? null;
 }
 
 function Cdr(x) {
-    return x.slice(1);
+    return x?.length > 1 ? x.slice(1) : null;
 }
 
 function Cons(x, y) {
@@ -93,19 +91,18 @@ function Cons(x, y) {
 function Pairlis(x, y, a) {
     trace('Pairlis', x, y, a);
     const m = new Map(a.entries());
-    console.log(x, y);
-    x.forEach((key, i) => m.set(key, y[i]))
+    x?.forEach((key, i) => m.set(key, y?.[i] ?? null))
     return m;
 }
 
 function Assoc(x, y) {
     trace('Assoc', x, y);
-    return y.has(x) ? y.get(x) : [];
+    return y.has(x) ? y.get(x) : null;
 }
 
 function Evcon(c, a) {
     trace('Evcon', c, a);
-    return Eval(Cdr(c.find(x => Eval(Car(x), a))), a);
+    return Eval(Car(Cdr(c.find(x => Eval(Car(x), a)))), a);
 }
 
 function Apply(f, x, a) {
@@ -114,45 +111,34 @@ function Apply(f, x, a) {
         case null: return null;
         case kEq: return Car(x) === Car(Cdr(x)) ? kT : null;
         case kCons: return Cons(Car(x), Car(Cdr(x)));
-        case kAtom: return Array.isArray(x) ? null : kT;
+        case kAtom: return Array.isArray(Car(x)) ? null : kT;
         case kCar: return Car(Car(x));
         case kCdr: return Cdr(Car(x));
-        case kRead: return Read();  /* FIXME: needs token generator */
+        case kRead: return Read(tokens);
         case kPrint:
-            console.log(PrintObject(x))
+            output.write(x ? PrintObject(Car(x)) : '\n');
             return null;
     }
-    return f instanceof Function
-        ? f(x)
-        : Array.isArray(f)
-            ? Eval(Car(Cdr(Cdr(f))), Pairlis(Car(Cdr(f)), x, a))
-            : Apply(Eval(f, a), x, a);
+    return Array.isArray(f)
+        ? Eval(Car(Cdr(Cdr(f))), Pairlis(Car(Cdr(f)), x, a))
+        : Apply(Eval(f, a), x, a);
 }
 
 function Eval(e, a) {
     trace('Eval', e, a)
-    return Number.isFinite(e)
-        ? e
-        : !Array.isArray(e)
-            ? Assoc(e, a)
-            : Car(e) === kQuote
-                ? Car(Cdr(e))
-                : Car(e) === kCond
-                    ? Evcon(Cdr(e), a)
-                    : Apply(Car(e), Cdr(e).map(x => Eval(x, a)), a);
+    return !Array.isArray(e)
+        ? Assoc(e, a)
+        : Car(e) === kQuote
+            ? Car(Cdr(e))
+            : Car(e) === kCond
+                ? Evcon(Cdr(e), a)
+                : Apply(Car(e), Cdr(e)?.map(x => Eval(x, a)) ?? null, a);
 }
 
-const rl = createInterface({ input, output });
-rl.setPrompt('> ');
-rl.on('line', (line) => {
-    const a = new Map(
-        [
-            [Symbol.for("SUM"), x => x.reduce((a, b) => a + b, 0.0)],
-            [Symbol.for("PROD"), x => x.reduce((a, b) => a * b, 1.0)],
-        ]
-    )
-    const result = Eval(Read(tokenize(line)), a);
-    console.log(PrintObject(result));
-    rl.prompt();
-});
-rl.prompt();
+// Like core.ts, a stream of expressions: they may span lines and (READ) takes the next one.
+// That needs stdin up front, so on a TTY nothing is evaluated until Ctrl-D: pipe a file in instead.
+const tokens = tokenize(readFileSync(0, 'utf8'));
+for (let t; !(t = tokens.next()).done;) {
+    output.write('* ');
+    output.write(`${PrintObject(Eval(GetObject(t.value, tokens), new Map()))}\n`);
+}
