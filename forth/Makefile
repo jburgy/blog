@@ -34,9 +34,6 @@ web/4th.wasm : 4th.rs
 		rustup run nightly cargo build --release --target wasm32-wasip1 --features web
 	cp target/web/wasm32-wasip1/release/4th.wasm $@
 
-serve-web : web/4th.wasm
-	python3 -m http.server --directory . 8000
-
 # The demo's JS, WASI layer and re-entrant eval loop are all testable in node;
 # only the terminal rendering would need a browser, and that is wterm's problem.
 test-web : web/4th.wasm
