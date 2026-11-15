@@ -5,8 +5,7 @@
     except it leverages the v8 runtime for RegExp, Symbol, and classes (Cons)
 */
 
-import { readFileSync } from 'node:fs';
-import { env, exit, stdout as output } from 'node:process';
+import { readSync, writeSync } from 'node:fs';
 
 const kT = Symbol.for('T');
 const kQuote = Symbol.for('QUOTE');
@@ -27,7 +26,7 @@ const syntax = new RegExp(Object.entries(
     }
 ).map(([name, { source }]) => `(?<${name}>${source})`).join('|'), 'g');
 
-const trace = env.DEBUG ? console.log : () => { };
+const trace = process.env.DEBUG ? console.log : () => { };
 
 function* tokenize(line) {
     for (const { groups } of line.matchAll(syntax)) {
@@ -60,7 +59,7 @@ function GetObject([type, value], tokens) {
 
 function Read(tokens) {
     const { done, value } = tokens.next();
-    return done ? exit() : GetObject(value, tokens);
+    return done ? process.exit() : GetObject(value, tokens);
 }
 
 
@@ -116,7 +115,7 @@ function Apply(f, x, a) {
         case kCdr: return Cdr(Car(x));
         case kRead: return Read(tokens);
         case kPrint:
-            output.write(x ? PrintObject(Car(x)) : '\n');
+            writeSync(1, x ? PrintObject(Car(x)) : '\n');
             return null;
     }
     return Array.isArray(f)
@@ -135,10 +134,24 @@ function Eval(e, a) {
                 : Apply(Car(e), Cdr(e)?.map(x => Eval(x, a)) ?? null, a);
 }
 
-// Like core.ts, a stream of expressions: they may span lines and (READ) takes the next one.
-// That needs stdin up front, so on a TTY nothing is evaluated until Ctrl-D: pipe a file in instead.
-const tokens = tokenize(readFileSync(0, 'utf8'));
-for (let t; !(t = tokens.next()).done;) {
-    output.write('* ');
-    output.write(`${PrintObject(Eval(GetObject(t.value, tokens), new Map()))}\n`);
+// Like core.ts, a stream of expressions: they may span lines and (READ) takes the next one. Blocking
+// reads rather than process.stdin keep Eval synchronous; on a TTY each Enter delivers one line.
+// Output goes through writeSync too, and `process` is the global, not `import ... from 'node:process'`:
+// either one constructs process.stdin/stdout, which makes a shared TTY non-blocking so readSync fails with EAGAIN.
+function* readTokens() {
+    const buf = Buffer.alloc(4096);
+    const decoder = new TextDecoder();
+    let pending = '';
+    for (let n; (n = readSync(0, buf)) > 0;) {
+        pending += decoder.decode(buf.subarray(0, n), { stream: true });
+        const lines = pending.split('\n');
+        pending = lines.pop();
+        for (const line of lines) yield* tokenize(line);
+    }
+    yield* tokenize(pending);
+}
+
+const tokens = readTokens();
+for (let t; writeSync(1, '* '), !(t = tokens.next()).done;) {
+    writeSync(1, `${PrintObject(Eval(GetObject(t.value, tokens), new Map()))}\n`);
 }
