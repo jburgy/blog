@@ -67,7 +67,7 @@ function PrintObject(x) {
     return x === null
         ? 'NIL'
         : Array.isArray(x)
-            ? `(${x.map(PrintObject).join(' ')})`
+            ? `(${x.slice(0, -1).map(PrintObject).join(' ')}${x.at(-1) === null ? '' : '∙' + PrintObject(x.at(-1))})`
             : Symbol.keyFor(x);
 }
 
@@ -80,17 +80,17 @@ function Car(x) {
 }
 
 function Cdr(x) {
-    return x?.length > 1 ? x.slice(1) : null;
+    return x?.length > 2 ? x.slice(1) : x?.[1] ?? null;
 }
 
 function Cons(x, y) {
-    return Array.isArray(y) ? [x, ...y] : [x];
+    return Array.isArray(y) ? [x, ...y] : [x, y];
 }
 
 function Pairlis(x, y, a) {
     trace('Pairlis', x, y, a);
     const m = new Map(a.entries());
-    x?.forEach((key, i) => m.set(key, y?.[i] ?? null))
+    x?.slice(0, -1).forEach((key, i) => m.set(key, y?.[i] ?? null))
     return m;
 }
 
