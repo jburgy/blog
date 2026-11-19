@@ -35,6 +35,10 @@ test("evaluates and prints", async () => {
     expect(out).toBe("* (A B C)\n* (1 Z)\n* Y\n* ");
 });
 
+test("prints a dotted pair's bullet as U+2219", async () => {
+    expect(await runSession(wasm, "(CONS (QUOTE A) (QUOTE B))")).toBe("* (A∙B)\n* ");
+});
+
 test("eliza.lisp matches the AssemblyScript build", async () => {
     const eliza = await read("../eliza.lisp");
     const conversation = [

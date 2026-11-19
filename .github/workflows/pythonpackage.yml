@@ -33,10 +33,12 @@ jobs:
         with:
           version: "latest"
       - run: uvx ruff check
-      - run: uvx ty check --python .venv
+      # pinned: ty renames lint rules between releases, and the `ty: ignore[...]` comments name them
+      - run: uvx ty@0.0.104 check --python .venv
       # clang's -m32 still takes its 32-bit libgcc and headers from gcc-multilib;
       # llvm only adds the unversioned llvm-readobj that copypatch/gen.py runs
-      - run: sudo apt-get install -y --no-install-recommends gcc-multilib llvm
+      # apt-get update first: the runner image's package index can be older than the mirror, whose superseded .debs 404
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc-multilib llvm
       # a re-sync would drop -Dprogress=false
       - run: uv run --no-sync pytest --cov --cov-report=xml
         env:

@@ -75,7 +75,7 @@ MakeFunctionFlags = IntFlag(
     "MakeFunctionFlags",
     " ".join(
         flag.upper()
-        for flag in dis.FUNCTION_ATTR_FLAGS  # ty: ignore[unresolved-attribute]  # pyright: ignore[reportAttributeAccessIssue]
+        for flag in dis.FUNCTION_ATTR_FLAGS  # ty: ignore[missing-attribute]  # pyright: ignore[reportAttributeAccessIssue]
     ),
 )
 

@@ -14,3 +14,7 @@ const wasm = await readFile(join(import.meta.dirname, "../build/lisp-wasi.wasm")
 test("lisp-wasi.wasm evaluates (QUOTE (A B))", async () => {
     expect(await runSession(wasm, "(QUOTE (A B))")).toMatch(/\(A B\)/);
 });
+
+test("lisp-wasi.wasm prints a dotted pair's bullet as U+2219", async () => {
+    expect(await runSession(wasm, "(CONS (QUOTE A) (QUOTE B))")).toBe("* (A∙B)\n* ");
+});

@@ -82,6 +82,19 @@ function streamRead(stdin) {
 }
 
 /**
+ * uwasi decodes every fd_write on its own, which mangles a character a guest writes a byte at a time;
+ * take the raw bytes (`outputBuffers`) and decode them as a stream instead.
+ * @param {(chunk: string) => void} write
+ */
+function utf8Sink(write) {
+    const decoder = new TextDecoder();
+    return (bytes) => {
+        const text = decoder.decode(bytes, { stream: true });
+        if (text) write(text);
+    };
+}
+
+/**
  * @param {Response | Promise<Response>} source compiled WASI command (`_start`),
  *   served as `application/wasm`: what `WebAssembly.instantiateStreaming` takes
  * @param {object} [options]
@@ -104,7 +117,7 @@ export async function runWasiCommand(source, { stdin = new Blob().stream(), stdo
             useRandom(),
             useProc(),
             noSeek(),
-            useStdio({ stdout, stderr }),
+            useStdio({ stdout: utf8Sink(stdout ?? console.log), stderr: utf8Sink(stderr ?? console.error), outputBuffers: true }),
             // After useStdio, so this fd_read overrides its: useStdio's `stdin` is sync
             // (can't suspend) and its fd_read fills the whole buffer (no short reads).
             streamRead(stdin),

@@ -69,9 +69,9 @@ def assemble(func: Callable):
         else:
             codestring.append(0)
     code = CodeType(  # pyright: ignore[reportCallIssue]
-        func.__code__.co_argcount,  # ty: ignore[unresolved-attribute]
-        func.__code__.co_posonlyargcount,  # ty: ignore[unresolved-attribute]
-        func.__code__.co_kwonlyargcount,  # ty: ignore[unresolved-attribute]
+        func.__code__.co_argcount,  # ty: ignore[missing-attribute]
+        func.__code__.co_posonlyargcount,  # ty: ignore[missing-attribute]
+        func.__code__.co_kwonlyargcount,  # ty: ignore[missing-attribute]
         len(varnames),
         0,  # stacksize
         COMPILER_FLAGS["OPTIMIZED"]
@@ -81,12 +81,12 @@ def assemble(func: Callable):
         _tuple_from_dict(consts),
         _tuple_from_dict(names),
         _tuple_from_dict(varnames),
-        func.__code__.co_filename,  # ty: ignore[unresolved-attribute]
-        func.__code__.co_name,  # ty: ignore[unresolved-attribute]
-        func.__code__.co_firstlineno,  # ty: ignore[unresolved-attribute]
+        func.__code__.co_filename,  # ty: ignore[missing-attribute]
+        func.__code__.co_name,  # ty: ignore[missing-attribute]
+        func.__code__.co_firstlineno,  # ty: ignore[missing-attribute]
         bytes(lnotab),
     )
-    return FunctionType(code, func.__globals__)  # ty: ignore[unresolved-attribute]
+    return FunctionType(code, func.__globals__)  # ty: ignore[missing-attribute]
 
 
 def fibonacci(n: int) -> int:
