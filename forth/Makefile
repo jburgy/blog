@@ -2,7 +2,8 @@ STRICT = @../strict.flags
 CFLAGS ?= $(STRICT) -Os -DNDEBUG -fomit-frame-pointer -fwrapv -fno-strict-aliasing
 CXX ?= clang++
 CXX := $(if $(filter default,$(origin CXX)),clang++,$(CXX))
-CXXFLAGS ?= -std=c++20 -Os -DNDEBUG -fomit-frame-pointer -fwrapv
+CXXFLAGS ?= -std=c++20 -Wall -Wextra -Wpedantic -Werror \
+	-Os -fwrapv
 
 all: 4th 5th 5th-cpp zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig jansforth recurse 4th-rs jansforth-rs
 
@@ -18,7 +19,7 @@ jansforth-rs: Cargo.toml jansforth.rs
 	$(CC) $(CFLAGS) -mstackrealign -o $@ $^
 
 5th-cpp: 5th.cpp
-	$(CXX) $(CXXFLAGS) -mstackrealign -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
 zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig : 6th.zig jansforth.zig labeled.zig hybrid.zig build.zig
 	zig build
