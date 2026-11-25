@@ -3,6 +3,7 @@
 // references are resolved by name in consteval code (a mistyped word name fails to compile).
 // build: clang++ -std=c++20 -Os -fwrapv -mstackrealign -o 5th 5th.cpp
 #include <algorithm>
+#include <charconv>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -111,14 +112,9 @@ static intptr_t word(char *buf) {
     return s - buf;
 }
 
-// strtol needs a nul terminator but Forth strings carry a length: parse a bounded copy
 static intptr_t number(const char *s, size_t c, intptr_t base, const char *&end) {
-    char copy[WORD_MAX + 1], *stop;
-    c = std::min(c, WORD_MAX);
-    memcpy(copy, s, c);
-    copy[c] = '\0';
-    intptr_t v = strtol(copy, &stop, (int)base);
-    end = s + (stop - copy);
+    intptr_t v = 0;
+    end = std::from_chars(s, s + std::min(c, WORD_MAX), v, (int)base).ptr;
     return v;
 }
 
