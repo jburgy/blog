@@ -16,6 +16,12 @@
 #include <unistd.h>
 #include <utility>
 
+#ifdef __APPLE__
+#define SYS_creat 24
+#define SYS_brk 214
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 static_assert(sizeof(void *) == 8, "word names such as 8+ assume 64-bit cells");
 
 struct Interp;
@@ -110,12 +116,6 @@ static intptr_t word(char *buf) {
         ch = key();
     } while (ch > ' ');
     return s - buf;
-}
-
-static intptr_t number(const char *s, size_t c, intptr_t base, const char *&end) {
-    intptr_t v = 0;
-    end = std::from_chars(s, s + std::min(c, WORD_MAX), v, (int)base).ptr;
-    return v;
 }
 
 static Hdr *find(Hdr *w, const char *name, size_t c) {
@@ -227,9 +227,10 @@ using L = List<
     P<"EMIT", [](M &m) { putchar((int)*m.s++); fflush(stdout); }>,
     P<"WORD", [](M &m) { *--m.s = (intptr_t)m.e.buffer; *--m.s = word(m.e.buffer); }>,
     P<"NUMBER", [](M &m) {
-        auto c = m.s[0]; auto s = (const char *)m.s[1]; const char *r;
-        m.s[1] = number(s, (size_t)c, m.e.base, r);
-        m.s[0] = r - s - c;
+        auto c = m.s[0]; auto s = (const char *)m.s[1];
+        m.s[1] = 0;
+        auto result = std::from_chars(s, s + std::min<size_t>(c, WORD_MAX), m.s[1], (int)m.e.base);
+        m.s[0] = result.ec == std::errc{} ? result.ptr - s - c : -c;
     }>,
     P<"FIND", [](M &m) { auto c = m.s[0]; m.s[1] = (intptr_t)find(m.e.latest, (char *)m.s[1], (size_t)c); ++m.s; }>,
     P<">CFA", [](M &m) { m.s[0] = (intptr_t)cfa((Hdr *)m.s[0]); }>,
@@ -267,11 +268,13 @@ using L = List<
             if ((w->flag & F_IMMED) || !e.state) { m.jmp = t; return; }
             (p++)->word = t;
         } else {
-            const char *r;
-            auto a = number(e.buffer, (size_t)c, e.base, r);
-            if (r == e.buffer) { err("PARSE ERROR: ", 13); err(e.buffer, (size_t)c); err("\n", 1); }
-            else if (e.state) { (p++)->word = e.lit; (p++)->lit = a; }
-            else *--m.s = a;
+            intptr_t value = 0;
+            auto result = std::from_chars(e.buffer, e.buffer + c, value, (int)e.base);
+            if (result.ec != std::errc{}) {
+                err("PARSE ERROR: ", 13); err(e.buffer, (size_t)c); err("\n", 1);
+            }
+            else if (e.state) { (p++)->word = e.lit; (p++)->lit = value; }
+            else *--m.s = value;
         }
         e.here = (char *)p;
     }>,
