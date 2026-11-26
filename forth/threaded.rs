@@ -53,14 +53,18 @@ const F_LENMASK: u8 = 0x1f;
 const F_HIDDEN: u8 = 0x20;
 const F_IMMED: u8 = 0x80;
 
-#[cfg(not(feature = "fifth"))]
 const fn align_cell(value: usize) -> usize {
+    (value + CELL - 1) & !(CELL - 1)
+}
+
+#[cfg(not(feature = "fifth"))]
+const fn align_header(value: usize) -> usize {
     value
 }
 
 #[cfg(feature = "fifth")]
-const fn align_cell(value: usize) -> usize {
-    (value + CELL - 1) & !(CELL - 1)
+const fn align_header(value: usize) -> usize {
+    align_cell(value)
 }
 
 /// Layout of `Interp::memory`. Both stacks grow downwards from their `*_TOP`.
@@ -238,21 +242,21 @@ impl Interp {
 
     /// Code field address of the dictionary entry at `node`.
     fn to_cfa(&self, node: usize) -> usize {
-        align_cell(node + W_NAME + (self.memory[node + W_FLAG] & F_LENMASK) as usize)
+        align_header(node + W_NAME + (self.memory[node + W_FLAG] & F_LENMASK) as usize)
     }
 
     /// Append a dictionary header for the `len` name bytes at `addr`, leaving
     /// `HERE` pointing at the (not yet written) code field.
     fn create_header(&mut self, addr: usize, len: usize) {
         assert!(len <= F_LENMASK as usize, "name too long");
-        let here = align_cell(self.read_cell(header::HERE) as usize);
+        let here = align_header(self.read_cell(header::HERE) as usize);
         // Word header: link (4), flag+len (1), name bytes
         let link = self.read_cell(header::LATEST);
         self.write_cell(here, link);
         self.memory[here + W_FLAG] = len as u8;
         self.memory.copy_within(addr..addr + len, here + W_NAME);
         self.write_cell(header::LATEST, here as Cell);
-        self.write_cell(header::HERE, align_cell(here + W_NAME + len) as Cell);
+        self.write_cell(header::HERE, align_header(here + W_NAME + len) as Cell);
     }
 
     /// Append one cell at `HERE` (the `,` of the Forth dictionary).
@@ -271,13 +275,13 @@ impl Interp {
 
     /// Append a word that pushes `value` (jonesforth's `defconst`/`defvar`).
     fn add_const(&mut self, name: &[u8], value: Cell) {
-        self.add_word(name, primitive_index(do_const) as Cell);
+        self.add_word(name, primitive_index(b"$DOCONST") as Cell);
         self.comma(value);
     }
 
     /// Append a colon definition whose body is a list of code field addresses.
     fn add_colon(&mut self, name: &[u8], immediate: bool, body: &[Cell]) {
-        self.add_word(name, primitive_index(docol) as Cell);
+        self.add_word(name, primitive_index(b"$DOCOL") as Cell);
         for &cell in body {
             self.comma(cell);
         }
@@ -289,8 +293,8 @@ impl Interp {
 
     /// Build the initial dictionary.
     fn initialize_dictionary(&mut self) {
-        for (code, (name, _)) in PRIMITIVES.iter().enumerate() {
-            if !name.is_empty() {
+        for (code, name) in PRIMITIVE_NAMES.iter().enumerate() {
+            if !name.starts_with(b"$") {
                 self.add_word(name, code as Cell);
             }
         }
@@ -298,8 +302,8 @@ impl Interp {
         // jonesforth names the cell-step words after the cell size, which is the
         // whole reason 4th.fs and 4th.32.fs disagree. Four bytes here, so `4+`.
         for (name, code) in [
-            (format!("{CELL}+"), primitive_index(incrp) as Cell),
-            (format!("{CELL}-"), primitive_index(decrp) as Cell),
+            (format!("{CELL}+"), primitive_index(b"$INCRP") as Cell),
+            (format!("{CELL}-"), primitive_index(b"$DECRP") as Cell),
         ] {
             self.add_word(name.as_bytes(), code);
         }
@@ -316,9 +320,9 @@ impl Interp {
             (b"S0", header::S0 as Cell),
             (b"BASE", header::BASE as Cell),
             (b"R0", header::RETURN_STACK_TOP as Cell),
-            (b"DOCOL", primitive_index(docol) as Cell),
+            (b"DOCOL", primitive_index(b"$DOCOL") as Cell),
             #[cfg(feature = "fifth")]
-            (b"DODOES", primitive_index(dodoes) as Cell),
+            (b"DODOES", primitive_index(b"$DODOES") as Cell),
             (b"F_IMMED", F_IMMED as Cell),
             (b"F_HIDDEN", F_HIDDEN as Cell),
             (b"F_LENMASK", F_LENMASK as Cell),
@@ -412,7 +416,7 @@ impl Interp {
         // Read the primitive index from the target word's code field.
         let code = self.read_cell(tgt).unsigned_abs() as usize;
         // Tail‑call the primitive.
-        become PRIMITIVES[code].1(self, sp, rsp, ip + CELL, tgt);
+        become PRIMITIVES[code](self, sp, rsp, ip + CELL, tgt);
     }
 
     /// Start the interpreter at the given instruction pointer. Used to run a
@@ -575,7 +579,14 @@ fn errno(error: io::Error) -> Cell {
 // ---------------------------------------------------------------------------
 
 /// Static table of primitive function pointers.
-static PRIMITIVES: &[(&[u8], PrimitiveFn)] = &[
+macro_rules! primitive_table {
+    ($($(#[$attr:meta])* ($name:expr, $code:expr)),* $(,)?) => {
+        static PRIMITIVE_NAMES: &[&[u8]] = &[$($(#[$attr])* $name),*];
+        static PRIMITIVES: &[PrimitiveFn] = &[$($(#[$attr])* $code),*];
+    };
+}
+
+primitive_table! {
     (b"EXIT", exit),
     (b"LIT", lit),
     (b"BRANCH", branch),
@@ -597,7 +608,7 @@ static PRIMITIVES: &[(&[u8], PrimitiveFn)] = &[
     (b"'", tick),
     (b">R", to_r),
     (b"R>", from_r),
-    (b"R@", r_fetch),
+    (b"$RFETCH", r_fetch),
     (b"RSP@", rsp_fetch),
     (b"RSP!", rsp_store),
     (b"RDROP", r_drop),
@@ -624,8 +635,8 @@ static PRIMITIVES: &[(&[u8], PrimitiveFn)] = &[
     (b"?DUP", qdup),
     (b"1+", incr),
     (b"1-", decr),
-    (b"", incrp),
-    (b"", decrp),
+    (b"$INCRP", incrp),
+    (b"$DECRP", decrp),
     (b"+", add),
     (b"-", sub),
     (b"*", mul),
@@ -647,10 +658,10 @@ static PRIMITIVES: &[(&[u8], PrimitiveFn)] = &[
     (b"XOR", xor),
     (b"INVERT", invert),
     (b".", dot),
-    (b"", docol),
-    (b"", do_const),
+    (b"$DOCOL", docol),
+    (b"$DOCONST", do_const),
     #[cfg(feature = "fifth")]
-    (b"", dodoes),
+    (b"$DODOES", dodoes),
     (b"EXECUTE", execute),
     (b"CHAR", char),
     (b"INTERPRET", interpret),
@@ -658,12 +669,12 @@ static PRIMITIVES: &[(&[u8], PrimitiveFn)] = &[
     (b"SYSCALL1", syscall::<1>),
     (b"SYSCALL2", syscall::<2>),
     (b"SYSCALL3", syscall::<3>),
-];
+}
 
-fn primitive_index(code: PrimitiveFn) -> usize {
-    PRIMITIVES
+fn primitive_index(name: &[u8]) -> usize {
+    PRIMITIVE_NAMES
         .iter()
-        .position(|(_, candidate)| std::ptr::fn_addr_eq(*candidate, code))
+        .position(|candidate| *candidate == name)
         .expect("primitive not registered")
 }
 
@@ -1165,7 +1176,7 @@ fn execute(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, _target: usize
     let (cfa, new_sp) = pop(interp, sp);
     let cfa = cfa as usize;
     let code = interp.read_cell(cfa) as usize;
-    become PRIMITIVES[code].1(interp, new_sp, rsp, ip, cfa);
+    become PRIMITIVES[code](interp, new_sp, rsp, ip, cfa);
 }
 
 fn char(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, target: usize) -> ! {
@@ -1193,7 +1204,7 @@ fn interpret(interp: &mut Interp, sp: usize, rsp: usize, ip: usize, target: usiz
         let immediate = interp.memory[node + W_FLAG] & F_IMMED != 0;
         if immediate || interp.read_cell(header::STATE) == 0 {
             let code = interp.read_cell(cfa) as usize;
-            become PRIMITIVES[code].1(interp, sp, rsp, ip, cfa);
+            become PRIMITIVES[code](interp, sp, rsp, ip, cfa);
         }
         interp.comma(cfa as Cell);
         become interp.next(sp, rsp, ip, target);
@@ -1487,13 +1498,13 @@ mod tests {
     fn find_agrees_with_the_primitive_table() {
         let i = interp();
         for (name, code) in [
-            ("DUP", dup as PrimitiveFn),
-            ("+", add as PrimitiveFn),
-            ("/MOD", divmod as PrimitiveFn),
-            ("EXECUTE", execute as PrimitiveFn),
-            ("EXIT", exit as PrimitiveFn),
-            (";", docol as PrimitiveFn),
-            ("BASE", do_const as PrimitiveFn),
+            ("DUP", b"DUP".as_slice()),
+            ("+", b"+"),
+            ("/MOD", b"/MOD"),
+            ("EXECUTE", b"EXECUTE"),
+            ("EXIT", b"EXIT"),
+            (";", b"$DOCOL"),
+            ("BASE", b"$DOCONST"),
         ] {
             assert_eq!(
                 i.read_cell(i.cfa(name) as usize),

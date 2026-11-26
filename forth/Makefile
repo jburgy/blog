@@ -24,6 +24,10 @@ jansforth-rs: Cargo.toml jansforth.rs
 5th-cpp: 5th.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
+5th-cpp.wasm: 5th.cpp
+	$(WASI_SDK_PATH)/bin/clang++ --sysroot=$(WASI_SDK_PATH)/share/wasi-sysroot \
+		-std=c++20 -Os -fwrapv -DNO_LIBC_SYSCALL_NUMS -mtail-call -o $@ $^
+
 zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig : 6th.zig jansforth.zig labeled.zig hybrid.zig build.zig
 	zig build
 
@@ -80,6 +84,6 @@ jansforth-% : jansforth-%.c
 5th-preserve-none : CFLAGS += -DPRESERVE_NONE
 
 clean :
-	$(RM) 4th 5th 5th-cpp jansforth recurse recurse-chicken web/4th.wasm
+	$(RM) 4th 5th 5th-cpp 5th-cpp.wasm jansforth recurse recurse-chicken web/4th.wasm
 	$(RM) $(patsubst 5th-opt/%.diff,5th-%,$(wildcard 5th-opt/*.diff)) 5th-order-*
 	$(RM) $(patsubst jansforth-patches/%.diff,jansforth-%,$(wildcard jansforth-patches/*.diff)) jansforth-*.c

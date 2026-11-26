@@ -17,6 +17,13 @@
 #include <unistd.h>
 #include <utility>
 
+#ifdef NO_LIBC_SYSCALL_NUMS
+enum SYS {
+    SYS_exit, SYS_open, SYS_close, SYS_read, SYS_write, SYS_creat, SYS_brk,
+    SYS_access, SYS_setuid, SYS_getuid
+};
+#endif
+
 #ifdef __APPLE__
 inline constexpr int SYS_creat = 24;
 inline constexpr int SYS_brk = 214;
@@ -28,8 +35,8 @@ union Instr;
 using Code = intptr_t *(*)(Interp &, intptr_t *, Instr **, Instr *, Instr *);
 union Instr { Code code; intptr_t lit; Instr *word; };
 
-static_assert(sizeof(Instr) == 8, "word names such as 8+ assume 64-bit cells");
-static_assert(alignof(Instr) == 8);
+static_assert(sizeof(Instr) == sizeof(void *));
+static_assert(alignof(Instr) == alignof(void *));
 
 enum Flags : uint8_t { F_IMMED = 0x80, F_HIDDEN = 0x20, F_LENMASK = 0x1f };
 constexpr size_t WORD_MAX = 0x20;
@@ -37,8 +44,8 @@ constexpr size_t WORD_MAX = 0x20;
 struct Hdr { Hdr *link; uint8_t flag; char name[15]; };
 template <size_t N> struct W : Hdr { Instr code; Instr data[N]; };
 template <> struct W<0> : Hdr { Instr code; };
-static_assert(sizeof(Hdr) == 24);
 static_assert(sizeof(W<1>) == sizeof(Hdr) + 2 * sizeof(Instr));
+static_assert(sizeof(Hdr) % alignof(Instr) == 0);
 
 template <class T> constexpr intptr_t cell(T value) {
     if constexpr (std::is_pointer_v<T>) return reinterpret_cast<intptr_t>(value);
@@ -80,6 +87,7 @@ struct Item { // body cell: word reference by name, literal, or raw code pointer
     char name[12]{}; intptr_t lit{}; Code fn{}; int kind{};
     constexpr Item() = default;
     template <size_t N> consteval Item(const char (&s)[N]) { std::copy_n(s, N, name); }
+    template <size_t N> consteval Item(const Str<N> &s) { std::copy_n(s.v, N, name); }
     consteval Item(Code f) : fn(f), kind(2) {}
     consteval Item(std::integral auto x) : lit(x), kind(1) {}
     constexpr std::string_view view() const { return name; }
@@ -161,6 +169,8 @@ static void err(const char *s, size_t n) { write_all(STDERR_FILENO, s, n); }
 // ---- the dictionary ----
 constexpr auto lit = [](M &m) { return (m.ip++)->lit; };
 constexpr auto branch = [](M &m) { m.ip += m.ip->lit / sizeof(Instr); };
+constexpr Str CELL_PLUS = sizeof(Instr) == 8 ? Str{"8+"} : Str{"4+"};
+constexpr Str CELL_MINUS = sizeof(Instr) == 8 ? Str{"8-"} : Str{"4-"};
 
 using L = List<
     P<"DROP", [](M &m) { ++m.s; }>,
@@ -175,8 +185,8 @@ using L = List<
     P<"?DUP", [](M &m) { if (m.s[0]) --m.s, m.s[0] = m.s[1]; }>,
     P<"1+", [](M &m) { ++m.s[0]; }>,
     P<"1-", [](M &m) { --m.s[0]; }>,
-    P<"8+", [](M &m) { m.s[0] += sizeof(Instr); }>,
-    P<"8-", [](M &m) { m.s[0] -= sizeof(Instr); }>,
+    P<CELL_PLUS, [](M &m) { m.s[0] += sizeof(Instr); }>,
+    P<CELL_MINUS, [](M &m) { m.s[0] -= sizeof(Instr); }>,
     P<"+", bin<std::plus<>>>,
     P<"-", bin<std::minus<>>>,
     P<"*", bin<std::multiplies<>>>,
@@ -271,7 +281,7 @@ using L = List<
         ++m.s;
     }>,
     P<">CFA", [](M &m) { m.s[0] = cell(cfa(ptr<Hdr>(m.s[0]))); }>,
-    X<">DFA", 0, ">CFA", "8+", "EXIT", "EXIT">,
+    X<">DFA", 0, ">CFA", CELL_PLUS, "EXIT", "EXIT">,
     P<"CREATE", [](M &m) {
         auto c = *m.s++;
         auto s = ptr<char>(*m.s++);
@@ -344,7 +354,9 @@ using L = List<
         auto s = m.s;
         switch (s[0]) {
             case SYS_open: s[2] = openat(AT_FDCWD, ptr<const char>(s[1]), static_cast<int>(s[2])); break;
+#ifndef NO_LIBC_SYSCALL_NUMS
             case SYS_access: s[2] = access(ptr<const char>(s[1]), static_cast<int>(s[2])); break;
+#endif
             default: s[2] = -1;
         }
         m.s += 2;
@@ -358,12 +370,20 @@ using L = List<
                 if (s[1]) sbrk(static_cast<intptr_t>(s[1] - cell(sbrk(0))));
                 s[1] = cell(sbrk(0));
                 break;
+#ifndef NO_LIBC_SYSCALL_NUMS
             case SYS_setuid: s[1] = setuid(static_cast<uid_t>(s[1])); break;
+#endif
             default: s[1] = -1;
         }
         ++m.s;
     }>,
-    P<"SYSCALL0", [](M &m) { m.s[0] = m.s[0] == SYS_getuid ? static_cast<intptr_t>(getuid()) : -1; }>
+    P<"SYSCALL0", [](M &m) {
+#ifndef NO_LIBC_SYSCALL_NUMS
+        m.s[0] = m.s[0] == SYS_getuid ? static_cast<intptr_t>(getuid()) : -1;
+#else
+        m.s[0] = -1;
+#endif
+    }>
 >;
 
 // One nested aggregate keeps entries contiguous and in ascending order, which SEE relies on
