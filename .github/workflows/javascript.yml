@@ -75,6 +75,7 @@ jobs:
       - run: make test-native
         env:
           CC: /usr/bin/clang
+          CXX: /usr/bin/clang++
 
       - run: npm run test
 
