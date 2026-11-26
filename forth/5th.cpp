@@ -161,12 +161,11 @@ static void err(const char *s, size_t n) { write_all(STDERR_FILENO, s, n); }
 // ---- the dictionary ----
 constexpr auto lit = [](M &m) { return (m.ip++)->lit; };
 constexpr auto branch = [](M &m) { m.ip += m.ip->lit / sizeof(Instr); };
-constexpr auto tos = [](M &m) { return m.s[0]; };
 
 using L = List<
     P<"DROP", [](M &m) { ++m.s; }>,
     P<"SWAP", [](M &m) { std::swap(m.s[0], m.s[1]); }>,
-    K<"DUP", tos>,
+    K<"DUP", [](M &m) { return m.s[0]; }>,
     K<"OVER", [](M &m) { return m.s[1]; }>,
     P<"ROT", [](M &m) { auto a = m.s[0], b = m.s[1], c = m.s[2]; m.s[2] = b; m.s[1] = a; m.s[0] = c; }>,
     P<"-ROT", [](M &m) { auto a = m.s[0], b = m.s[1], c = m.s[2]; m.s[2] = a; m.s[1] = c; m.s[0] = b; }>,

@@ -5,12 +5,15 @@ CXX := $(if $(filter default,$(origin CXX)),clang++,$(CXX))
 CXXFLAGS ?= -std=c++20 -Wall -Wextra -Wpedantic -Werror \
 	-Os -fwrapv
 
-all: 4th 5th 5th-cpp zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig jansforth recurse 4th-rs jansforth-rs
+all: 4th 5th 5th-cpp zig-out/bin/6th zig-out/bin/jansforth-zig zig-out/bin/labeled-zig zig-out/bin/hybrid-zig jansforth recurse 4th-rs 5th-rs jansforth-rs
 
-.PHONY: all 4th-rs jansforth-rs test-native
+.PHONY: all 4th-rs 5th-rs jansforth-rs test-native
 
 4th-rs: Cargo.toml 4th.rs
 	rustup run nightly cargo build --bin 4th
+
+5th-rs: Cargo.toml 5th.rs
+	rustup run nightly cargo build --features fifth --bin 5th
 
 jansforth-rs: Cargo.toml jansforth.rs
 	cargo build --features jansforth --bin jansforth
@@ -52,7 +55,7 @@ test-wasm : 4th.rs
 	rustup run nightly cargo test --release --target wasm32-wasip1 -Zbuild-std=std,panic_unwind
 
 # Feeds a preamble to the native binaries built above and diffs their stdout (tests/native.rs).
-test-native : 4th 5th 5th-cpp
+test-native : 4th 5th 5th-cpp 5th-rs
 	rustup run nightly cargo test --test native
 
 jansforth recurse recurse-chicken : % : %.c
