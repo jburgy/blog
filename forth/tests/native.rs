@@ -140,7 +140,7 @@ FOO EMIT
         #[case] preamble: &str,
         #[case] input: &str,
         #[case] expected: &str,
-        #[values("./4th", "./5th")] program: &str,
+        #[values("./4th", "./5th", "./5th-cpp", "./target/debug/5th")] program: &str,
     ) {
         let mut child = Command::new(program)
             .stdin(Stdio::piped())
@@ -158,5 +158,31 @@ FOO EMIT
 
         assert!(output.status.success(), "Command failed with status: {:?}", output.status);
         assert_eq!(output.stdout, expected.as_bytes(), "Mismatch for: {}", input);
+    }
+
+    #[rstest]
+    #[case("9223372036854775808")]
+    #[case("-9223372036854775809")]
+    fn cpp_rejects_integer_overflow(#[case] token: &str) {
+        let mut child = Command::new("./5th-cpp")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn C++ interpreter");
+
+        child.stdin.take()
+            .unwrap()
+            .write_all(format!("{token}\n").as_bytes())
+            .expect("Failed to write to stdin");
+
+        let output = child.wait_with_output().expect("Failed to read stderr");
+
+        assert!(output.status.success(), "Command failed with status: {:?}", output.status);
+        assert_eq!(
+            output.stderr,
+            format!("PARSE ERROR: {token}\n").as_bytes(),
+            "Overflow was not rejected for: {token}"
+        );
     }
 }

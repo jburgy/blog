@@ -19,9 +19,9 @@ that sits at that intersection.
 
 |  | **switch** | **labels as values** | **tail calls** |
 | --- | --- | --- | --- |
-| **C** | [jansforth.c](jansforth.c)<br>[recurse.c](recurse.c) | [4th.c](4th.c) | [5th.c](5th.c) |
+| **C / C++** | [jansforth.c](jansforth.c)<br>[recurse.c](recurse.c) | [4th.c](4th.c) | [5th.c](5th.c)<br>[5th.cpp](5th.cpp) |
 | **Zig** | [jansforth.zig](jansforth.zig)<br>[labeled.zig](labeled.zig)<br>[hybrid.zig](hybrid.zig) | — | [6th.zig](6th.zig) |
-| **Rust** | [jansforth.rs](jansforth.rs) | — | [4th.rs](4th.rs) |
+| **Rust** | [jansforth.rs](jansforth.rs) | — | [4th.rs](4th.rs)<br>[5th.rs](5th.rs) |
 | **wasm** | [wasm/tabulate.wast](wasm/tabulate.wast)<br>[wasm/recurse.wast](wasm/recurse.wast) | — | [wasm/jonesforth.wast](wasm/jonesforth.wast)<br>[wasm/localize.wast](wasm/localize.wast)<br>[wasm/defun.wast](wasm/defun.wast)<br>[wasm/cps.wast](wasm/cps.wast) |
 
 Two holes are structural rather than accidental: neither Zig nor WebAssembly
@@ -288,12 +288,12 @@ initializers in `DEFWORD`, `sbrk` deprecation and its `int` increment on macOS),
 
 | command | covers |
 | --- | --- |
-| `make` | 4th, 5th, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and both Rust binaries |
+| `make` | 4th, 5th, 5th-cpp, 6th, jansforth-zig, labeled-zig, hybrid-zig, jansforth, recurse, and all three Rust binaries |
 | `pytest forth/` | [test_4th.py](test_4th.py) (native) and [test_jansforth.py](test_jansforth.py) |
 | `npm test` | builds `4th.wasm`/`5th.wasm` with wasi-sdk and `6th.wasm` with Zig's `wasm32-wasi` target, runs every vitest suite, then drives [html/4th.html](html/4th.html)/[html/5th.html](html/5th.html)/[html/6th.html](html/6th.html) headless (`mocha-headless-chrome`, same tool `regexp/web` already uses) |
 | `npm run test:browser` | [browser/wasi-repl.browser.mjs](browser/wasi-repl.browser.mjs) (shared harness: [browser/wasi-demo.mjs](browser/wasi-demo.mjs)): serves each real `<n>th.html` demo and checks that its own in-page mocha spec ([wasm/wasi-repl-mocha.mjs](wasm/wasi-repl-mocha.mjs), loaded from the page itself, same as a human visiting it would see) passed |
 | `npm run test:web` | [web/4th.test.ts](web/4th.test.ts) — the browser demo, driven in node; also covers `5th.wasm` if it's already been built, skipped otherwise |
-| `make test-native` | [tests/native.rs](tests/native.rs): feeds a preamble to the native `4th` and `5th` binaries and diffs stdout |
+| `make test-native` | [tests/native.rs](tests/native.rs): feeds a preamble to the native C, C++, and Rust interpreters and diffs stdout |
 | `make test-wasm` | [4th.rs](4th.rs) under wasmtime with `-W exceptions=y` |
 
 ## Keeping the grid obvious

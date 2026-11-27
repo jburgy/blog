@@ -9,9 +9,10 @@
   },
   "scripts": {
     "build": "${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot @../strict.flags -fwrapv -fno-strict-aliasing -DNO_LIBC_SYSCALL_NUMS -mtail-call -o 5th.wasm 5th.c",
+    "build:5th-cpp": "${WASI_SDK_PATH}/bin/clang++ --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -std=c++20 -Os -fwrapv -DNO_LIBC_SYSCALL_NUMS -mtail-call -o 5th-cpp.wasm 5th.cpp",
     "build:4th": "${WASI_SDK_PATH}/bin/clang --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot @../strict.flags -fwrapv -fno-strict-aliasing -o 4th.wasm 4th.c",
     "build:6th:wasi": "zig build -Dtarget=wasm32-wasi -Dcpu=baseline+tail_call",
-    "test": "npm run build && npm run build:4th && npm run test:node && npm run test:browser && rm -f 4th.wasm 5th.wasm",
+    "test": "npm run build && npm run build:5th-cpp && npm run build:4th && npm run test:node && npm run test:browser && rm -f 4th.wasm 5th.wasm 5th-cpp.wasm",
     "test:browser": "npm run build:6th:wasi && node --test browser/wasi-repl.browser.mjs",
     "test:node": "vitest run --coverage",
     "test:web": "vitest run web/"
