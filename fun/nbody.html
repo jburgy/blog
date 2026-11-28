@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Outer solar system n-body demo</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2026.7.3/core.css">
+    <script type="module" src="https://pyscript.net/releases/2026.7.3/core.js"></script>
+</head>
+<body>
+    <p><button id="nbody-run" type="button" disabled>Run the simulation</button>
+    <span id="nbody-status"> loading Python&hellip;</span></p>
+    <div id="nbody-anim"></div>
+
+    <script type="py"
+        config='{"packages": ["numpy", "matplotlib"], "files": {"./nbody_demo.py": "./nbody_demo.py"}}'>
+from pyscript import document, when
+
+from nbody_demo import animate, integrate
+
+status = document.querySelector("#nbody-status")
+
+
+@when("click", "#nbody-run")
+def run(event):
+    event.target.disabled = True
+    status.textContent = " integrating…"
+    xs = integrate()
+    status.textContent = " drawing…"
+    # jshtml drives the player from a <script>, and innerHTML never executes
+    # those, so insert a fragment instead -- it does.
+    anim = document.querySelector("#nbody-anim")
+    anim.replaceChildren()
+    anim.appendChild(document.createRange().createContextualFragment(animate(xs)))
+    status.textContent = f" {len(xs):,} steps"
+    event.target.disabled = False
+
+
+# Only now is the click handler actually attached.
+button = document.querySelector("#nbody-run")
+button.disabled = False
+status.textContent = ""
+    </script>
+</body>
+</html>
