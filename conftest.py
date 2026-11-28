@@ -21,6 +21,7 @@ collect_ignore = [
     "fun/html_elements.py",
     "fun/oecd.py",
     "fun/nbody.py",
+    "fun/nbody_demo.py",
     "fun/store_sa.py",
     "jonesforth",
     "lisp",

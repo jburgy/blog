@@ -1,6 +1,7 @@
 # matcher.mjs fetches ../regexp.f and ../../jonesforth/jonesforth.f, so keep the repo layout
 REGEXP = $(addprefix regexp/,web/index.html web/demo.mjs web/matcher.mjs web/forth.mjs regexp.f)
 FOURT2PY = $(addprefix fourt2py/,web/index.html web/demo.mjs web/spectrum.mjs web/chart.mjs web/oscilloscope.mjs web/fourt.pow2.mjs)
+NBODY = $(addprefix nbody/,index.html nbody_demo.py)
 ISING = $(addprefix ising/,index.html demo.mjs lattice.mjs)
 RESISTOR_NETWORK = $(addprefix resistor-network/,index.html demo.mjs lattice.mjs)
 SLIP = $(addprefix slip/,index.html demo.css demo.mjs worker.mjs)
@@ -127,6 +128,18 @@ all : fourt2py
 CLEAN += fourt2py
 
 $(FOURT2PY) : fourt2py/% : ../fourt2py/%
+	@mkdir -p $(@D)
+	cp $< $@
+
+nbody : $(NBODY)
+all : nbody
+CLEAN += nbody
+
+nbody/index.html : ../fun/nbody.html
+	@mkdir -p $(@D)
+	cp $< $@
+
+nbody/nbody_demo.py : ../fun/nbody_demo.py
 	@mkdir -p $(@D)
 	cp $< $@
 
