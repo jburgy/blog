@@ -203,8 +203,10 @@ dayOfWeekGroup = dayOfWeek.group()
                 [
                     str(p.key),
                     f"Index Gain: {p.value['absGain']:{numberFormat}}",
-                    f"Index Gain in Percentage: {p.value['percentageGain']:{numberFormat}}%",
-                    f"Fluctuation / Index Ratio: {p.value['fluctuationPercentage']:{numberFormat}}%",
+                    "Index Gain in Percentage: "
+                    f"{p.value['percentageGain']:{numberFormat}}%",
+                    "Fluctuation / Index Ratio: "
+                    f"{p.value['fluctuationPercentage']:{numberFormat}}%",
                 ]
             )
         )
@@ -256,7 +258,9 @@ dayOfWeekGroup = dayOfWeek.group()
     .renderHorizontalGridLines(True)
     .filterPrinter(
         to_js(
-            lambda filters: f"{filters[0][0]:{numberFormat}}% -> {filters[0][1]:{numberFormat}}%"
+            lambda filters: (
+                f"{filters[0][0]:{numberFormat}}% -> {filters[0][1]:{numberFormat}}%"
+            )
         )
     )
 )
